@@ -165,12 +165,6 @@ def main():
                 print("⚠️  audio route: empty answer")
             except Exception as e:
                 print(f"⚠️  audio route failed: {err(e) if isinstance(e, urllib.error.HTTPError) else e}")
-            # Tell apart "this video is blocked" from "YouTube links are blocked for this key".
-            try:
-                interact(ok, "Summarize this video in one sentence.", "https://www.youtube.com/watch?v=9hE5-98ZeCg", key)
-                print("ℹ️  Google's sample video works → this sermon video itself is refused")
-            except urllib.error.HTTPError as e:
-                print(f"ℹ️  Google's sample video fails too ({err(e)}) → YouTube links are not enabled for this key")
             sys.exit(f"❌ could not transcribe {meta_path}")
 
 

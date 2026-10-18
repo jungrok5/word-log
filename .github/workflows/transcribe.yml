@@ -3,6 +3,8 @@ on:
   push:
     paths: ["sermons/*/sermon.json", "tools/transcribe.py", ".github/workflows/transcribe.yml"]
   workflow_dispatch:
+  schedule:
+    - cron: "17 */3 * * *"   # retry sermons that still have no transcript (a fresh live recording can be refused for a while)
 permissions:
   contents: write
 concurrency: transcribe-${{ github.ref }}
@@ -20,6 +22,7 @@ jobs:
         env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
         run: python3 -u tools/transcribe.py --check
       - name: Transcribe new sermons
+        continue-on-error: ${{ github.event_name == 'schedule' }}
         env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
         run: python3 -u tools/transcribe.py
       - name: Commit transcripts
