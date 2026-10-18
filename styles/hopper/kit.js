@@ -494,38 +494,41 @@
       ...arc(-Math.PI * .6, Math.PI * .6, 12, .085, .115, 1.585), ...R2.map(([u, v]) => [u + (v > .8 && v < 1.38 ? .04 : 0), v]), ...(sk ? [[.1, .47]] : []), [.11, 0]].map(S);
     return { parts, sil, h };
   };
-  let FIG = null, FIG2 = null;
+  const FIGC = new Map();
   // figure(ctx, cam, F, o) — paint F = figureParts() standing at floor point (o.x, o.z), facing the camera, as 3–4 soft
   //   value shapes: the shade mass; the side toward the light (o.side −1 = light from the left, +1 right) lit at o.lit
   //   (0–1), fading across the body (not a seam); its hottest edge; a darker band toward the feet; then softened
   //   (o.soft px blur, 1.6). o.colors { body, legs, skin, hair } are the SHADE colours; o.litColors (same keys, optional)
   //   the sunlit ones — give the accent garment its saturated colour only here so it blooms in the light; missing ones
-  //   default to the shade colour pushed toward o.sun and brightened.
+  //   default to the shade colour pushed toward o.sun and brightened. The three layers are cached per look and depth,
+  //   (blur included), so a frame only composites them (< 1 ms); keep o.z fixed or quantised if the figure walks.
   H$.figure = function (ctx, cam, F, o) {
     const z = o.z, k = cam.ppm(z), foot = cam.P(o.x, 0, z), pad = 20, hw = .45 * k, hh = (F.h * 1.12) * k;
-    const w = Math.ceil(hw * 2 + pad * 2), h = Math.ceil(hh + pad * 2);
-    if (!FIG || FIG.width < w || FIG.height < h) { FIG = canvas(Math.max(w, FIG ? FIG.width : 0), Math.max(h, FIG ? FIG.height : 0)); FIG2 = canvas(FIG.width, FIG.height); }
-    const x = FIG.getContext('2d'), y = FIG2.getContext('2d');
-    for (const c of [x, y]) { c.setTransform(1, 0, 0, 1, 0, 0); c.globalAlpha = 1; c.globalCompositeOperation = 'source-over'; c.clearRect(0, 0, FIG.width, FIG.height); }
-    const ox = pad + hw, oy = pad + hh, C = { body: '#3c4a40', legs: '#2a2e2a', skin: '#9c8470', hair: '#2b241f', ...(o.colors || {}) };
-    const sun = hex(o.sun || H$.PAL.day.sun), lit = clamp(o.lit ?? 0), side = o.side ?? -1, LC = o.litColors || {};
-    const litC = key => LC[key] ? hex(LC[key]) : mix(hex(C[key]), sun, .35).map(v => Math.min(255, v * 1.45));
-    const draw = (c, f) => { for (const p of F.parts) { c.beginPath(); p.poly.forEach(([u, v], i) => { const X = ox + u * k, Y = oy - v * k; i ? c.lineTo(X, Y) : c.moveTo(X, Y); });
-      c.closePath(); c.fillStyle = f(p.c); c.fill(); } };
-    // mask the lit copy with a gradient across the body: full on the light side, gone a little past the middle
-    const mask = (a0, a1, alpha) => { const g = y.createLinearGradient(ox + side * a0 * k, 0, ox + side * a1 * k, 0);
-      g.addColorStop(0, `rgba(0,0,0,${alpha})`); g.addColorStop(1, 'rgba(0,0,0,0)'); y.globalCompositeOperation = 'destination-in'; y.fillStyle = g;
-      y.fillRect(0, 0, FIG.width, FIG.height); y.globalCompositeOperation = 'source-over'; };
-    draw(x, key => C[key]);                                                                 // 1. the shade mass
-    if (lit > 0) {
-      draw(y, key => rgb(litC(key))); mask(.06, -.04, lit); x.drawImage(FIG2, 0, 0);       // 2. the lit side
-      y.clearRect(0, 0, FIG.width, FIG.height);
-      draw(y, key => rgb(mix(litC(key), sun, .3).map(v => Math.min(255, v * 1.12)))); mask(.14, .07, lit * .6); x.drawImage(FIG2, 0, 0);   // 3. hottest edge
+    const w = Math.ceil(hw * 2 + pad * 2), h = Math.ceil(hh + pad * 2), ox = pad + hw, oy = pad + hh;
+    const side = o.side ?? -1, lit = clamp(o.lit ?? 0), soft = o.soft ?? 1.6;
+    const key = [k.toFixed(2), side, soft, o.sun, JSON.stringify(o.colors), JSON.stringify(o.litColors)].join('|');
+    let L = FIGC.get(key) && FIGC.get(key).F === F ? FIGC.get(key) : null;
+    if (!L) {
+      if (FIGC.size > 12) FIGC.clear();
+      const C = { body: '#3c4a40', legs: '#2a2e2a', skin: '#9c8470', hair: '#2b241f', ...(o.colors || {}) }, LC = o.litColors || {};
+      const sun = hex(o.sun || H$.PAL.day.sun), litC = c => LC[c] ? hex(LC[c]) : mix(hex(C[c]), sun, .35).map(v => Math.min(255, v * 1.45));
+      const layer = (f, mask) => { const cv = canvas(w, h), x = cv.getContext('2d');
+        for (const p of F.parts) { x.beginPath(); p.poly.forEach(([u, v], i) => { const X = ox + u * k, Y = oy - v * k; i ? x.lineTo(X, Y) : x.moveTo(X, Y); });
+          x.closePath(); x.fillStyle = f(p.c); x.fill(); }
+        x.globalCompositeOperation = mask ? 'destination-in' : 'source-atop';
+        const g = mask ? x.createLinearGradient(ox + side * mask[0] * k, 0, ox + side * mask[1] * k, 0) : x.createLinearGradient(0, oy - .6 * k, 0, oy);
+        if (mask) { g.addColorStop(0, `rgba(0,0,0,${mask[2]})`); g.addColorStop(1, 'rgba(0,0,0,0)'); }   // the lit side fades across the body
+        else { g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.3)'); }               // darker toward the feet
+        x.fillStyle = g; x.fillRect(0, 0, w, h); x.globalCompositeOperation = 'source-over';
+        if (!(soft > 0)) return cv;                                                         // soften once, here
+        const cb = canvas(w, h), xb = cb.getContext('2d'); xb.filter = `blur(${soft}px)`; xb.drawImage(cv, 0, 0); return cb; };
+      L = { F, shade: layer(c => C[c]), lit: layer(c => rgb(litC(c)), [.06, -.04, 1]),
+        hot: layer(c => rgb(mix(litC(c), sun, .3).map(v => Math.min(255, v * 1.12))), [.14, .07, .6]) };
+      FIGC.set(key, L);
     }
-    x.globalCompositeOperation = 'source-atop';                                             // 4. darker toward the feet
-    const g = x.createLinearGradient(0, oy - .6 * k, 0, oy); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.3)'); x.fillStyle = g; x.fillRect(0, 0, FIG.width, FIG.height);
-    x.globalCompositeOperation = 'source-over';
-    ctx.save(); ctx.filter = `blur(${o.soft ?? 1.6}px)`; ctx.drawImage(FIG, 0, 0, w, h, foot[0] - ox, foot[1] - oy, w, h); ctx.restore();
+    const X = foot[0] - ox, Y = foot[1] - oy, ga = ctx.globalAlpha;
+    ctx.drawImage(L.shade, X, Y);                                                           // 1. the shade mass (4. feet band baked in)
+    if (lit > 0) { ctx.globalAlpha = ga * lit; ctx.drawImage(L.lit, X, Y); ctx.drawImage(L.hot, X, Y); ctx.globalAlpha = ga; }   // 2. lit side, 3. hottest edge
   };
   // mute(hex, k=.7, grey='#5c625a') → '#rrggbb': a colour pulled toward the palette's neutral grey-green (the accent in shade)
   H$.mute = (c, k = .7, g = '#5c625a') => '#' + mix(hex(c), hex(g), k).map(v => Math.round(v).toString(16).padStart(2, '0')).join('');

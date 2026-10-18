@@ -99,8 +99,8 @@ the light, shadows, floods) → `ctx.restore(); lightEnd(ctx)` → cut-outs in f
 - **Pull back** for the end card (`pullBack` about y 1400) so the set shrinks under the title.
 
 ## Performance (1080 × 1920, Chromium headless, 4 shared CPUs)
-- `init`: paper sheet 540 × 960 (≈ 60–90 ms). Per frame: door scene 13–14 ms before and after the refactor;
-  template ≈ 10 ms. Stills render in ~1 s each.
+- `init`: paper sheet 540 × 960 (≈ 80 ms). Per frame (120 frames × 3, mean / median): door scene 13.8 / 13.3 ms
+  before the refactor, 14.4 / 13.7 ms after (+3 %, noise level); template 12.8–14.8 / 13–14 ms. Stills ~1 s each.
 - The paper sheet is half-res and scaled up — fibres stay soft enough, and it is 4× cheaper to build.
 
 ## Pitfalls
