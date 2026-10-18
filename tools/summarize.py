@@ -12,15 +12,17 @@ import glob, json, os, subprocess, sys, tempfile, time, urllib.error, urllib.req
 API = "https://generativelanguage.googleapis.com/v1beta"
 MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]  # first that works wins; cheapest first
 
-PROMPT = """이 영상은 한국 교회의 주일예배 실황입니다. 설교 제목: "{title}" (본문: {passage}, 설교: {preacher}).
-예배 중 '설교' 부분만 보고 다음을 마크다운으로 정리하세요. 설교에서 실제로 한 말만 쓰고, 일반론으로 채우지 마세요.
-# 설교 정리
+PROMPT = """이 영상은 한국 교회의 예배 실황입니다. 설교 제목: "{title}" (본문: {passage}, 설교: {preacher}).
+이 설교로 30초짜리 임팩트 있는 짧은 영상을 만들려고 합니다. 요약보다 '영상으로 보여 줄 재료'가 필요합니다.
+설교 부분만 보고 마크다운으로 정리하세요. 설교에서 실제로 나온 것만 쓰고, 일반론으로 채우지 마세요.
+# 영상 재료
 설교 구간: [시작 mm:ss]–[끝 mm:ss]
-## 한 줄 요약
-## 흐름 (도입 → 대지 → 결론, 대지마다 [mm:ss]와 3–5줄 정리, 설교자가 든 예화·비유 포함)
-## 핵심 메시지 (3줄)
+## 핵심 메시지 (한 문장)
+## 예화·비유·이미지 (설교자가 든 이야기, 비유, 장면 묘사 — 각 [mm:ss], 무엇을 어떻게 묘사했는지 구체적으로)
+## 인용 (책·인물·영화 등에서 인용한 것: 출처 이름, 설교자가 말한 그대로의 문장, [mm:ss])
 ## 설교자의 말 그대로 (짧고 힘 있는 문장 6–10개, 들리는 그대로, 각 [mm:ss])
-## 인용된 성경 구절 (장절과 들리는 그대로의 문구)"""
+## 인용된 성경 구절 (장절과 들리는 그대로의 문구)
+## 흐름 (도입 → 대지 → 결론, 각 2–3줄)"""
 
 
 def call(model, body, key, timeout=900):
