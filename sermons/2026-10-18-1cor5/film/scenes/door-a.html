@@ -369,7 +369,7 @@ function drawRoom(x, s) {     // what we see through the opening: the lit room (
 }
 const FIG = [[.17, 0], [.2, .4], [.25, .78], [.3, .92], [.35, .86], [.39, .76], [.375, .85], [.43, .79], [.405, .875], [.455, .84], [.42, .92],
   [.445, 1.12], [.46, 1.34], [.44, 1.48], [.36, 1.57], [.22, 1.63], [.1, 1.67], [.105, 1.75], [.12, 1.84], [.1, 1.92], [.09, 1.95],
-  [.16, 1.97], [.25, 2.01], [.31, 2.08], [.335, 2.17], [.32, 2.27], [.292, 2.18], [.265, 2.1], [.205, 2.05], [.13, 2.02], [.06, 2.01], [0, 2.02]];
+  [.15, 1.99], [.205, 2.07], [.235, 2.17], [.232, 2.27], [.205, 2.36], [.168, 2.43], [.182, 2.33], [.185, 2.24], [.165, 2.15], [.125, 2.07], [.07, 2.03], [0, 2.03]].map(([x, y]) => [x, y * .93]);
 function drawFigure(x, s, zf, x0, dark, soft) {   // the silhouette standing in the room (only ever partly seen)
   const half = FIG;
   const pts = half.concat(half.slice(0, -1).reverse().map(p => [-p[0], p[1]]));
@@ -439,8 +439,8 @@ function drawGhosts(x, s, t) {   // Kentridge's palimpsest: the earlier position
     const ap = aperture(ang), w = wedgePt(ap[0], 3.2); vine(x, seg2(P(ap[0], 0, D), P(w[0], 0, w[1]), 30), 4, a * .8, 520 + ang, '#000', .15);
   }
 }
-const SH = (() => {   // the floor shadow = the same figure projected from a high light (height stretches along the floor)
-  const YL = 4.5, LF = 2.55, back = .45, m = FIG.map(([x, y]) => { const sY = YL / (YL - y); return [Math.max(-.05, LF * (sY - 1) - back), x * sY]; });
+const SH = (() => {   // the floor shadow = the same figure laid down along the light, head toward us (legs hidden past the threshold)
+  const m = FIG.map(([x, y]) => [y * 1.08 - .3, x * (y > 1.9 ? 1.25 : .9)]);
   return m.concat(m.slice(0, -1).reverse().map(p => [p[0], -p[1]]));
 })();
 function drawShadow(x, s, t) {
