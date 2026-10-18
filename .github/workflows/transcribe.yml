@@ -1,0 +1,26 @@
+name: transcribe
+on:
+  push:
+    paths: ["sermons/*/sermon.json", "tools/transcribe.py", ".github/workflows/transcribe.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: transcribe-${{ github.ref }}
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the Gemini key
+        env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
+        run: python3 tools/transcribe.py --check
+      - name: Transcribe new sermons
+        env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
+        run: python3 tools/transcribe.py
+      - name: Commit transcripts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sermons/*/transcript.md
+          git diff --cached --quiet || { git commit -m "Add sermon transcript"; git push; }
