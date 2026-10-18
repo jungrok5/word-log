@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Fetch a sermon transcript with the Gemini API (it reads the public YouTube URL itself).
+"""Summarise a sermon with the Gemini API (it watches the public YouTube URL itself).
 
-For every sermons/*/sermon.json that has no transcript.md yet, ask Gemini for the sermon part of the
-service, verbatim, with timestamps, plus the key messages. Needs GEMINI_API_KEY.
-  python3 tools/transcribe.py            # all sermons missing a transcript
-  python3 tools/transcribe.py --check    # only check that the key works (tiny request)
+For every sermons/*/sermon.json with a "url" and no summary.md yet, ask Gemini for a detailed summary of the
+sermon part of the service plus the preacher's own key sentences, verbatim, with timestamps. Needs GEMINI_API_KEY.
+Sermons given as text instead of a link: put the text in summary.md yourself (no "url" needed).
+  python3 tools/summarize.py            # all sermons missing a summary
+  python3 tools/summarize.py --check    # only check that the key works (tiny request)
 """
 import glob, json, os, subprocess, sys, tempfile, time, urllib.error, urllib.request
 
@@ -12,11 +13,14 @@ API = "https://generativelanguage.googleapis.com/v1beta"
 MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]  # first that works wins; cheapest first
 
 PROMPT = """이 영상은 한국 교회의 주일예배 실황입니다. 설교 제목: "{title}" (본문: {passage}, 설교: {preacher}).
-1) 예배 중 '설교' 부분만 찾아 시작/끝 시각을 적으세요.
-2) 설교를 처음부터 끝까지 들리는 그대로 한국어로 받아 적으세요. 요약하거나 다듬지 말고, 문단마다 [mm:ss] 시각을 붙이세요.
-   성경 봉독 구절도 들리는 그대로 적으세요.
-3) 마지막에 '## 핵심 메시지' (3줄), '## 인용하기 좋은 문장' (설교자의 말 그대로 5–8개, 각 [mm:ss])를 덧붙이세요.
-출력은 마크다운: '# 설교 받아쓰기', '설교 구간: [시작]–[끝]', '## 본문' 순서."""
+예배 중 '설교' 부분만 보고 다음을 마크다운으로 정리하세요. 설교에서 실제로 한 말만 쓰고, 일반론으로 채우지 마세요.
+# 설교 정리
+설교 구간: [시작 mm:ss]–[끝 mm:ss]
+## 한 줄 요약
+## 흐름 (도입 → 대지 → 결론, 대지마다 [mm:ss]와 3–5줄 정리, 설교자가 든 예화·비유 포함)
+## 핵심 메시지 (3줄)
+## 설교자의 말 그대로 (짧고 힘 있는 문장 6–10개, 들리는 그대로, 각 [mm:ss])
+## 인용된 성경 구절 (장절과 들리는 그대로의 문구)"""
 
 
 def call(model, body, key, timeout=900):
@@ -71,7 +75,7 @@ def via_audio(model, prompt, url, key):
     uri = upload(mp3, "audio/mpeg", key)
     body = {"contents": [{"parts": [{"file_data": {"file_uri": uri, "mime_type": "audio/mpeg"}},
                                     {"text": prompt.replace("이 영상은", "이 녹음은")}]}],
-            "generationConfig": {"maxOutputTokens": 65536, "temperature": 0.2}}
+            "generationConfig": {"maxOutputTokens": 16384, "temperature": 0.2}}
     txt, why = text_of(call(model, body, key))
     return txt
 
@@ -127,14 +131,16 @@ def main():
         return
 
     for meta_path in sorted(glob.glob("sermons/*/sermon.json")):
-        out = os.path.join(os.path.dirname(meta_path), "transcript.md")
+        out = os.path.join(os.path.dirname(meta_path), "summary.md")
         if os.path.exists(out):
             continue
         meta = json.load(open(meta_path, encoding="utf-8"))
+        if not meta.get("url"):
+            continue
         prompt = PROMPT.format(**meta)
-        config = {"temperature": 0.2, "max_output_tokens": 65536, "thinking_level": "low"}
+        config = {"temperature": 0.2, "max_output_tokens": 16384, "thinking_level": "low"}
         for m in [ok] + [x for x in MODELS if x != ok]:
-            print(f"… {meta_path}: transcribing with {m}")
+            print(f"… {meta_path}: summarising with {m}")
             t0 = time.time()
             try:
                 try:
@@ -165,7 +171,7 @@ def main():
                 print("⚠️  audio route: empty answer")
             except Exception as e:
                 print(f"⚠️  audio route failed: {err(e) if isinstance(e, urllib.error.HTTPError) else e}")
-            sys.exit(f"❌ could not transcribe {meta_path}")
+            sys.exit(f"❌ could not summarise {meta_path}")
 
 
 if __name__ == "__main__":
