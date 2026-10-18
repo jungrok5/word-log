@@ -1,20 +1,121 @@
-{ "duration": 30,
-  "music": [
-    { "id": "m1", "src": "tension", "at": 0.0, "len": 15.4, "db": -4, "fin": 1.2, "fout": 0.25 },
-    { "id": "m2", "src": "resolve", "at": 20.6, "len": 9.4, "db": -3, "fin": 0.8, "fout": 2.2 }
-  ],
-  "sfx": [
-    { "id": "c1", "src": "creak", "at": 3.95, "len": 1.8, "db": -5, "fout": 0.3 },
-    { "id": "c2", "src": "creak", "at": 6.25, "len": 1.8, "db": -3, "fout": 0.3 },
-    { "id": "c3", "src": "creak", "at": 8.55, "len": 1.8, "db": -1, "fout": 0.3 },
-    { "id": "br", "src": "breath", "at": 7.4, "len": 8.0, "db": -8, "fin": 2.0, "fout": 0.2 },
-    { "id": "cl", "src": "claw", "at": 12.6, "len": 2.5, "db": -4, "fout": 0.4 },
-    { "id": "sl", "src": "slam", "at": 15.35, "len": 1.25, "db": 0, "fout": 0.35 },
-    { "id": "b1", "src": "brush", "at": 20.8, "len": 0.9, "db": -4 },
-    { "id": "b2", "src": "brush", "at": 21.6, "len": 0.9, "db": -4 },
-    { "id": "b3", "src": "brush", "at": 22.3, "len": 0.9, "db": -4 },
-    { "id": "hs", "src": "hiss", "at": 23.0, "len": 1.6, "db": -6, "fout": 0.6 },
-    { "id": "cd", "src": "close", "at": 24.4, "len": 1.6, "db": -5, "fout": 0.4 }
-  ],
-  "ducks": []
+{
+ "duration": 30,
+ "music": [
+  {
+   "id": "m1",
+   "src": "tension",
+   "at": 0.0,
+   "len": 15.4,
+   "db": -4,
+   "fin": 1.2,
+   "fout": 0.25
+  },
+  {
+   "id": "m2",
+   "src": "resolve",
+   "at": 20.6,
+   "len": 9.4,
+   "db": 1,
+   "fin": 0.8,
+   "fout": 2.2
+  }
+ ],
+ "sfx": [
+  {
+   "id": "c1",
+   "src": "creak",
+   "at": 3.95,
+   "len": 1.8,
+   "db": -5,
+   "fout": 0.3
+  },
+  {
+   "id": "c2",
+   "src": "creak",
+   "at": 6.25,
+   "len": 1.8,
+   "db": -3,
+   "fout": 0.3
+  },
+  {
+   "id": "c3",
+   "src": "creak",
+   "at": 8.55,
+   "len": 1.8,
+   "db": -1,
+   "fout": 0.3
+  },
+  {
+   "id": "br",
+   "src": "breath",
+   "at": 7.4,
+   "len": 8.0,
+   "db": -6,
+   "fin": 2.0,
+   "fout": 0.2
+  },
+  {
+   "id": "cl",
+   "src": "claw",
+   "at": 12.6,
+   "len": 2.5,
+   "db": -4,
+   "fout": 0.4
+  },
+  {
+   "id": "sl",
+   "src": "slam",
+   "at": 15.35,
+   "len": 1.25,
+   "db": 0,
+   "fout": 0.35
+  },
+  {
+   "id": "b1",
+   "src": "brush",
+   "at": 20.8,
+   "len": 0.9,
+   "db": 4
+  },
+  {
+   "id": "b2",
+   "src": "brush",
+   "at": 21.6,
+   "len": 0.9,
+   "db": 4
+  },
+  {
+   "id": "b3",
+   "src": "brush",
+   "at": 22.3,
+   "len": 0.9,
+   "db": 4
+  },
+  {
+   "id": "hs",
+   "src": "hiss",
+   "at": 23.0,
+   "len": 1.6,
+   "db": -6,
+   "fout": 0.6
+  },
+  {
+   "id": "cd",
+   "src": "close",
+   "at": 24.6,
+   "len": 1.6,
+   "db": -5,
+   "fout": 0.4
+  },
+  {
+   "id": "br2",
+   "src": "breath2",
+   "at": 18.0,
+   "len": 2.8,
+   "db": -4,
+   "fin": 0.8,
+   "fout": 0.8
+  }
+ ],
+ "ducks": []
 }
