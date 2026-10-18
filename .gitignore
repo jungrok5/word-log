@@ -5,3 +5,4 @@ node_modules/
 sermons/*/film/scenes/audio/raw/
 *.mp3
 *.m4a
+!docs/previews/*/soundtrack.m4a
