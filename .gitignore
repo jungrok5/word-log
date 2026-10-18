@@ -2,3 +2,6 @@ out/
 *.mp4
 *.wav
 node_modules/
+sermons/*/film/scenes/audio/raw/
+*.mp3
+*.m4a

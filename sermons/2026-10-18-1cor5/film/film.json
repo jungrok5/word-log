@@ -1,0 +1,11 @@
+{
+ "title": "문틈 — 절대로 괜찮다고 넘기면 안 되는 것",
+ "source": "ko",
+ "scenes": [
+  { "id": "door-a", "label": "A · 고딕 목탄", "dur": 30 },
+  { "id": "door-b", "label": "B · 호퍼풍 사실주의", "dur": 30 },
+  { "id": "door-c", "label": "C · 솔 바스 그래픽", "dur": 30 },
+  { "id": "door-d", "label": "D · 그림자극", "dur": 30 }
+ ],
+ "fonts": { "local": { "Noto Serif KR": "NotoSerifKR[wght].ttf", "Noto Sans KR": "NotoSansKR[wght].ttf" } }
+}
