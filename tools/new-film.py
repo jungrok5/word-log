@@ -39,7 +39,7 @@ for s in a.style:
 meta = {}
 mp = os.path.join(a.folder, 'sermon.json')
 if os.path.exists(mp): meta = json.load(open(mp, encoding='utf-8'))
-json.dump({'title': a.title or meta.get('title', ''), 'source': 'ko', 'scenes': scenes, 'audio': 'scenes/soundtrack.wav',
+json.dump({'title': a.title or meta.get('title', ''), 'source': 'ko', 'scenes': scenes, 'audio': 'scenes/soundtrack.wav', 'poster': 12,
            'fonts': {'local': {'Noto Serif KR': 'NotoSerifKR[wght].ttf', 'Noto Sans KR': 'NotoSansKR[wght].ttf'}}},
           open(os.path.join(film, 'film.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 print('→', film, '·', ', '.join(x['id'] for x in scenes))
