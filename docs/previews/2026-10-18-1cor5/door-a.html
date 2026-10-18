@@ -9,150 +9,36 @@
 <body>
 <script>window.FILM_SRC = 'ko'; window.FILM_FONTS = { serif: "'Gowun Batang'", sans: "'Noto Sans KR'" };</script>
 <script src="lib.js"></script>
-<script src="door-common.js"></script>
+<script src="story.js"></script><script src="door-common.js"></script><script src="kit-charcoal.js"></script>
 <script>
 /* 문틈 — version A: Gothic charcoal drawing (after OPUSCAR look no. 13, "Rebecca": vine charcoal, eraser lifts, finger
    smudges, William Kentridge's animated drawings).
-   How it is drawn:
-   - Everything is painted into a grey VALUE canvas (white = clean paper, black = full charcoal): a static hallway plate
-     (built once, at 1.36× so the slow push stays crisp), then per-frame layers — door leaf (perspective strips), the room
-     light, the eraser-lifted wedge on the floor, the horned shadow (smudged, clipped to the light), fingers, fog bands
-     lifted out of the tone, the foreground arch (parallax: it parts as we push in), the flood of darkness.
-   - A TOOTH pass turns value into charcoal on paper: each pixel's darkness is compared with the paper tooth height
-     (fine grain ≈ 1/600 frame width), so light pressure catches only the peaks, heavy pressure fills the valleys,
-     velvet blacks stay solid and lifts are clean paper — grain only in the midtones. Charcoal #121111, paper #EEECE7.
-   - After the pass: the only colour — red pastel strokes on lintel and posts (solid, tooth peeking through, outlined in
-     charcoal) — the warm thread of light at the end, the captions and the end card.
+   The STYLE lives in kit-charcoal.js (house style `charcoal`, styles/charcoal/): value canvas → paper-tooth pass, the
+   stick / vine / smudge / eraser marks, eraser-lifted light, fog bands, the red pastel, the end-card eraser wipe, captions.
+   This file is the STORY only — the worked example of the kit:
+   - a static hallway plate (built once at 1.36× so the slow push stays crisp) in a pinhole camera measured in metres,
+     then per frame: the door leaf (perspective strips), the room light, the eraser-lifted wedge on the floor, the horned
+     shadow (smudged, clipped to the light), fingers, fog bands, the foreground arch (parallax: it parts as we push in),
+     the flood of darkness, the red doorposts, the warm thread of light, the beat timing (door-common.js).
    Pure function of t; seeded randomness only; heavy textures in init. */
+const C = Charcoal;
 const { clamp, lerp, ss, eo, eio, win, rng, noise, fbm, canvas } = Pilot;
+const { sweep, vine, blob, fillA, arch } = C, polyS = C.poly, seg2 = C.seg;
 const W = Pilot.W, H = Pilot.H, B = DOOR.beat, V = Pilot.ori === 'v';
 const SC = H / 1920;
 const F = 1150 * SC, CX = W / 2, CY = 902 * SC, EYE = 1.55, D = 5.0;   // camera: focal px, centre, eye height, door distance
 const ZC = [CX, 1180 * SC];                                               // the push zooms about the middle of the door
 const KP = 1.36;                                                          // plate resolution (crisp up to zoom 1.36)
 const XL = 0.8, ZL = D + 3.0;                                             // the light in the room behind the door
-const P = (x, y, z) => [CX + F * x / z, CY - F * (y - EYE) / z];         // world (m) → base screen (zoom 1)
-const PAPER = [238, 236, 231], CHAR = [18, 17, 17];
+const cam = C.persp({ F, cx: CX, cy: CY, eye: EYE });
+const P = cam.P, segW = cam.seg, polyWorld = cam.poly;                    // world (m) → base screen (zoom 1)
 const DOORW = 1.0, DOORH = 2.25;
 
-let vcv, vctx, low1, l1, low2, l2, redL, rctx, plate, fgA, leafTex, fogTex, stick, stickW, smudge, smudgeW, eraserPat, holes;
-let tooth, LUT, COL, GM, outImg, out32, RED = [];
+let plate, fgA, leafTex, RED = [];
 
-/* ------------------------------------------------------------------ sprites */
-function makeStick(col, seed) {   // side-of-the-stick mark: parallel streaks along x, ragged edges, breaks
-  const w = 256, h = 36, c = canvas(w, h), x = c.getContext('2d'), im = x.createImageData(w, h), r = rng(seed);
-  const rowD = []; for (let j = 0; j < h; j++) { const e = Math.sin(Math.PI * (j + .5) / h); rowD[j] = Math.pow(e, .45) * (.25 + .75 * noise(j * .9, seed)); }
-  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-    const edge = noise(i * .05, j < h / 2 ? 1.3 + seed : 7.7 + seed), e2 = Math.min(j, h - 1 - j) / (h / 2);
-    if (e2 < edge * .5) continue;
-    let a = rowD[j] * (.4 + .8 * noise(i * .025 + j * 5.1, j * .9)) * (.85 + .3 * r()); a = Math.min(1, a);
-    const k = (j * w + i) * 4; im.data[k] = im.data[k + 1] = im.data[k + 2] = col; im.data[k + 3] = a * 255;
-  }
-  x.putImageData(im, 0, 0); return c;
-}
-function makeSmudge(col, seed) {  // a finger smudge: soft, uneven, with a noisy rim
-  const s = 128, c = canvas(s, s), x = c.getContext('2d'), im = x.createImageData(s, s);
-  for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) {
-    const dx = (i - 63.5) / 64, dy = (j - 63.5) / 64, rr = Math.sqrt(dx * dx + dy * dy);
-    const R = .7 + .3 * fbm(i * .045 + seed, j * .045, 3); let a = clamp(1 - rr / R); a = a * a * (3 - 2 * a);
-    a *= .7 + .3 * fbm(i * .11 + 9 + seed, j * .11, 2);
-    const k = (j * s + i) * 4; im.data[k] = im.data[k + 1] = col; im.data[k + 2] = col ? col : 255; im.data[k + 3] = a * 255;
-  }
-  x.putImageData(im, 0, 0); return c;
-}
-function makeEraser() {           // eraser lift: white streaks with grey residue rows
-  const s = 256, c = canvas(s, s), x = c.getContext('2d'), im = x.createImageData(s, s);
-  for (let j = 0; j < s; j++) { let ra = .78 + .22 * noise(j * .37, 2); if (noise(j * .13, 8) < .28) ra *= .55;
-    for (let i = 0; i < s; i++) { const a = ra * (.86 + .14 * noise(i * .03 + j * 3.3, j * .5)); const k = (j * s + i) * 4;
-      im.data[k] = im.data[k + 1] = im.data[k + 2] = 255; im.data[k + 3] = a * 255; } }
-  x.putImageData(im, 0, 0); return c;
-}
-function makeFog(seed) {          // a horizontally tileable band of fog streaks (white)
-  const w = 2 * W, h = Math.round(220 * SC), c = canvas(w, h), x = c.getContext('2d'), r = rng(seed);
-  for (let k = 0; k < 170; k++) {
-    const yy = h / 2 + (r() + r() + r() - 1.5) * h * .42, len = (180 + r() * 900) * SC, th = (4 + r() * 22) * SC, xx = r() * w;
-    x.globalAlpha = .05 + r() * .12;
-    for (const o of [-w, 0, w]) x.drawImage(smudgeW, xx + o, yy - th / 2, len, th);
-  }
-  x.globalAlpha = 1; x.globalCompositeOperation = 'destination-in';
-  const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(.35, '#000'); g.addColorStop(.65, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)');
-  x.fillStyle = g; x.fillRect(0, 0, w, h); return c;
-}
-function makeTooth() {            // paper tooth: fine grain (~2 px) + light mottling + faint fibre, equalised to 0..255
-  const N = W * H, a = new Float32Array(N), r = rng(77), b = new Float32Array(N);
-  for (let i = 0; i < N; i++) a[i] = r();
-  for (let y = 0; y < H; y++) { const o = y * W; for (let x = 0; x < W; x++) { const xl = x ? x - 1 : x, xr = x < W - 1 ? x + 1 : x; b[o + x] = (a[o + xl] + 2 * a[o + x] + a[o + xr]) * .25; } }
-  for (let y = 0; y < H; y++) { const yu = y ? y - 1 : y, yd = y < H - 1 ? y + 1 : y; for (let x = 0; x < W; x++) a[y * W + x] = (b[yu * W + x] + 2 * b[y * W + x] + b[yd * W + x]) * .25; }
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x; a[i] = a[i] * .5 + noise(x * .42, y * .42) * .3 + noise(x * .012, y * .012) * .12 + noise(x * .004, y * .3) * .08;
-  }
-  const hist = new Uint32Array(1024); let mn = 1e9, mx = -1e9; for (let i = 0; i < N; i++) { if (a[i] < mn) mn = a[i]; if (a[i] > mx) mx = a[i]; }
-  for (let i = 0; i < N; i++) hist[Math.min(1023, ((a[i] - mn) / (mx - mn) * 1024) | 0)]++;
-  const cdf = new Uint8Array(1024); let acc = 0; for (let k = 0; k < 1024; k++) { acc += hist[k]; cdf[k] = Math.min(255, (acc / N * 256) | 0); }
-  const t = new Uint8Array(N); for (let i = 0; i < N; i++) t[i] = cdf[Math.min(1023, ((a[i] - mn) / (mx - mn) * 1024) | 0)];
-  return t;
-}
-/* The value canvas carries two things: R = total darkness, B = the part laid with the stick (grainy). Rubbed tone and
-   smudges are painted in rgb(0,0,255) — they darken R/G but not B — so the tooth only shows in stick marks, as on paper. */
-function makeLUT() {
-  const L = new Int16Array(65536), G = new Uint8Array(65536);
-  for (let d = 0; d < 256; d++) for (let T = 0; T < 256; T++) {
-    const dd = d / 255, TT = (T + .5) / 256, p = dd * 1.22 - .11;
-    let c = clamp((p - (TT - .17)) / .34); c = c * c * (3 - 2 * c);
-    const mid = Math.pow(4 * dd * (1 - dd), .8);         // grain strength peaks in the midtones
-    L[d * 256 + T] = Math.round((c - dd) * 255 * .85 * mid);
-    G[d * 256 + T] = d ? Math.min(255, Math.round(40 + 215 * Math.min(1, T / d))) : 0;   // here T plays dB (grainy darkness)
-  }
-  const C = new Uint32Array(256);
-  for (let o0 = 0; o0 < 256; o0++) { let k = o0 / 255; if (k > .88) k = lerp(k, 1, (k - .88) / .12); if (k < .05) k *= k / .05; const o = Math.round(k * 255);
-    const kk = o / 255, rr = PAPER[0] + (CHAR[0] - PAPER[0]) * kk, gg = PAPER[1] + (CHAR[1] - PAPER[1]) * kk, bb = PAPER[2] + (CHAR[2] - PAPER[2]) * kk;
-    C[o0] = (255 << 24) | (Math.round(bb) << 16) | (Math.round(gg) << 8) | Math.round(rr); }
-  return [L, C, G];
-}
-
-/* ------------------------------------------------------------------ mark-making */
-function sweep(x, pts, w, a, seed, spr = stick) {     // side of the stick along a path (follows form)
-  const r = rng(seed); const n = pts.length - 1;
-  for (let i = 0; i < n; i++) {
-    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1], dx = x1 - x0, dy = y1 - y0, L = Math.hypot(dx, dy); if (L < .3) continue;
-    const taper = Math.min(1, (i + .6) / 1.6, (n - i) / 1.6);
-    x.save(); x.translate(x0, y0); x.rotate(Math.atan2(dy, dx)); x.globalAlpha = clamp(a * (.75 + .5 * r()) * taper);
-    x.drawImage(spr, (r() * 190) | 0, 0, 60, 36, -1, -w / 2, L + 2, w); x.restore();
-  }
-  x.globalAlpha = 1;
-}
-function vine(x, pts, w, a, seed, col = '#000', brk = .07) {   // broken vine-charcoal line
-  const r = rng(seed); x.strokeStyle = col; x.lineCap = 'round';
-  for (let i = 0; i < pts.length - 1; i++) {
-    if (r() < brk) continue;
-    const j = () => (r() - .5) * w * .5;
-    x.globalAlpha = clamp(a * (.5 + .5 * r())); x.lineWidth = w * (.55 + .75 * r());
-    x.beginPath(); x.moveTo(pts[i][0] + j(), pts[i][1] + j()); x.lineTo(pts[i + 1][0] + j(), pts[i + 1][1] + j()); x.stroke();
-  }
-  x.globalAlpha = 1;
-}
-function blob(x, cx, cy, rx, ry, a, rot = 0, spr = smudge) {   // finger smudge
-  x.save(); x.translate(cx, cy); x.rotate(rot); x.globalAlpha = clamp(a); x.drawImage(spr, -rx, -ry, 2 * rx, 2 * ry); x.restore(); x.globalAlpha = 1;
-}
-function segW(a, b, n) {   // world segment → screen points (perspective-correct by stepping in world)
-  const out = []; for (let i = 0; i <= n; i++) { const k = i / n; out.push(P(lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k))); } return out;
-}
-function seg2(a, b, n, jit = 0, r) { const out = []; for (let i = 0; i <= n; i++) { const k = i / n; out.push([lerp(a[0], b[0], k) + (r ? (r() - .5) * jit : 0), lerp(a[1], b[1], k) + (r ? (r() - .5) * jit : 0)]); } return out; }
-function polyS(x, pts) { x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.closePath(); }
-function polyWorld(x, pts3) { polyS(x, pts3.map(p => P(p[0], p[1], p[2]))); }
-function fillA(x, a, col = '0,0,255') { x.fillStyle = `rgba(${col},${a})`; x.fill(); }
-// a pointed (two-centred) arch: [x,y] pairs from the left springing over the apex to the right springing
-function arch(a, ys, rise, n = 24) {
-  const R = (a * a + rise * rise) / (2 * a), c = R - a, phiA = Math.acos(clamp(c / R, -1, 1)), L = [], Rr = [];
-  for (let i = 0; i <= n; i++) { const ph = phiA * i / n; L.push([c - R * Math.cos(ph), ys + R * Math.sin(ph)]); }
-  for (let i = n; i >= 0; i--) { const ph = phiA * i / n; Rr.push([-(c - R * Math.cos(ph)), ys + R * Math.sin(ph)]); }
-  return L.concat(Rr.slice(1));
-}
-
-/* ------------------------------------------------------------------ the static hallway plate */
+/* ------------------------------------------------------------------ the static hallway plate (kit marks, door geometry) */
 function buildPlate() {
-  const c = canvas(Math.ceil(W * KP), Math.ceil(H * KP)), x = c.getContext('2d'); let sd = 100;
-  x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.setTransform(KP, 0, 0, KP, 0, 0);
+  const c = C.sheet(KP), x = c.getContext('2d'); let sd = 100;   // white paper, pre-scaled by KP
   const A = 1.15, WT = 3.4, VR = 1.3, ZN = 1.0, R0 = rng(4242);
   // --- vault (everything above the walls), very dark, sweeps following the curve of the bays
   x.fillStyle = 'rgba(0,0,255,.6)'; x.fillRect(-50, -50, W + 100, H + 100);
@@ -234,7 +120,7 @@ function buildPlate() {
   for (let y = .6; y < 1.9; y += .35) vine(x, segW([A, y, 3.15], [A, y + .25, 3.95], 6), 1.2, .22, sd++);
   x.restore();
   { const g = [P(...wl[0]), P(...wl[1]), P(...beam[1]), P(...beam[0])]; polyS(x, [P(...wl[wl.length - 1]), P(...wl[14]), P(...beam[14]), P(...beam[beam.length - 1])]);
-    x.save(); x.clip(); for (let k = 0; k < 12; k++) { const a = R0(); sweep(x, seg2(lerp2(g[0], g[1], a), lerp2(g[3], g[2], a), 10), 30, .05, sd++, stickW); } x.restore(); }
+    x.save(); x.clip(); for (let k = 0; k < 12; k++) { const a = R0(); sweep(x, seg2(lerp2(g[0], g[1], a), lerp2(g[3], g[2], a), 10), 30, .05, sd++, C.stickW); } x.restore(); }
   // --- the doorway: stone surround (pointed arch over a wooden frame), tympanum, jambs
   const LT = 2.42, FW = .63;
   for (const [aa, rr, al] of [[.98, .95, .35], [.88, .87, .3], [.78, .8, .25]]) {
@@ -273,8 +159,7 @@ function lerp2(a, b, k) { return [lerp(a[0], b[0], k), lerp(a[1], b[1], k)]; }
 
 /* foreground arch (nearest bay), drawn on its own so it can part faster than the plate as we push in */
 function buildFG() {
-  const KF = 1.25, c = canvas(Math.ceil(W * KF), Math.ceil(H * KF)), x = c.getContext('2d'); let sd = 900; const r = rng(31);
-  x.setTransform(KF, 0, 0, KF, 0, 0);
+  const c = C.sheet(1.25, null), x = c.getContext('2d'); let sd = 900;   // transparent, pre-scaled by 1.25
   const zf = 2.7, ai = 1.0, ys = 3.3, rise = 1.25, ap = arch(ai, ys, rise, 30), mid = ap.length >> 1;
   for (const sgn of [-1, 1]) {
     const half = sgn < 0 ? ap.slice(0, mid + 1) : ap.slice(mid).reverse();
@@ -285,7 +170,7 @@ function buildFG() {
     // soffit of the arch + the shaft's moonlit edge (lifted), velvet black otherwise
     const scr2 = inner.map(p => P(p[0] - sgn * .05, p[1] - .05, zf + .22)); scr2[0] = [scr2[0][0], H + 50];
     vine(x, scr.slice(1), 3, .5, sd++, '#fff', .12); vine(x, scr2.slice(1), 1.6, .18, sd++, '#fff', .3);
-    for (let k = 0; k < 9; k++) { const o = sgn * (10 + k * 7) * SC; sweep(x, scr.slice(1).map(p => [p[0] - o, p[1]]), 8, .05, sd++, stickW); }
+    for (let k = 0; k < 9; k++) { const o = sgn * (10 + k * 7) * SC; sweep(x, scr.slice(1).map(p => [p[0] - o, p[1]]), 8, .05, sd++, C.stickW); }
     const base = P(sgn * ai, 0, zf); vine(x, [[base[0] - sgn * 40, base[1]], [base[0] + sgn * 18, base[1] - 4]], 2.2, .35, sd++, '#fff');
   }
   return c;
@@ -305,7 +190,7 @@ function buildLeaf() {
     const pts = [[-4, yy - 13], [300, yy - 11], [330, yy - 24], [352, yy], [330, yy + 24], [300, yy + 11], [-4, yy + 13]];
     polyS(x, pts); x.fillStyle = 'rgba(0,0,0,.93)'; x.fill(); vine(x, pts.concat([pts[0]]), 2, .9, sd++);
     vine(x, seg2([0, yy - 11], [295, yy - 9], 20), 1.4, .45, sd++, '#fff', .25);
-    for (let k = 0; k < 5; k++) { const rx = 30 + k * 62; blob(x, rx, yy, 3.5, 3.5, .55, 0, smudgeW); }
+    for (let k = 0; k < 5; k++) { const rx = 30 + k * 62; blob(x, rx, yy, 3.5, 3.5, .55, 0, C.smudgeW); }
   }
   const hx = 330, hy = th - 1.02 * 400;                    // ring pull
   blob(x, hx, hy, 18, 18, .9); x.strokeStyle = '#000'; x.lineWidth = 6; x.globalAlpha = .9; x.beginPath(); x.arc(hx, hy + 22, 22, -.3, Math.PI + .3); x.stroke();
@@ -325,12 +210,8 @@ function doorAng(t) {
   return Math.max(0, a);
 }
 function breathAmp(t) { return t >= B.breath && t < B.burst ? ss(B.breath, B.breath + 2.4, t) : 0; }
-function zoomAt(t) { return 1 + .08 * Math.pow(clamp(t / 10.6), 1.2) + .13 * eio(clamp((t - 10.6) / 4.8)) + .035 * eo(clamp((t - B.burst) / .45)) + .012 * ss(18, B.end, t); }
-function shakeAt(t) {
-  let a = 0; if (t >= B.burst && t < B.burst + .8) a = 15 * Math.pow(1 - (t - B.burst) / .8, 2);
-  const tc = B.close + 1.2; if (t >= tc && t < tc + .35) a += 5 * (1 - (t - tc) / .35);
-  return [a * (noise(t * 41, 1) - .5) * 2 * SC, a * (noise(t * 41, 9) - .5) * 2 * SC];
-}
+function zoomAt(t) { return 1 + C.push(t, 0, 10.6, .08, k => Math.pow(k, 1.2)) + C.push(t, 10.6, 4.8, .13) + C.push(t, B.burst, .45, .035, eo) + .012 * ss(18, B.end, t); }
+function shakeAt(t) { const tc = B.close + 1.2; return C.shake(t, C.kick(t, B.burst, .8, 15) + C.kick(t, tc, .35, 5, 1)); }
 function state(t) {
   const s = { t, zm: zoomAt(t), ang: doorAng(t) };
   [s.ox, s.oy] = shakeAt(t);
@@ -346,8 +227,6 @@ function state(t) {
 }
 
 /* ------------------------------------------------------------------ per-frame layers */
-function setZ(x, zm, s, extra = 1) { x.setTransform(zm * extra, 0, 0, zm * extra, ZC[0] * (1 - zm) + s.ox, ZC[1] * (1 - zm) + s.oy); }
-function toScr(p, s) { return [ZC[0] + (p[0] - ZC[0]) * s.zm + s.ox, ZC[1] + (p[1] - ZC[1]) * s.zm + s.oy]; }
 function leafGeom(ang) { const th = ang * Math.PI / 180; return { ex: -.5 + DOORW * Math.cos(th), ez: D + DOORW * Math.sin(th), th }; }
 function aperture(ang) { const { ex, ez } = leafGeom(ang); return [Math.max(-.5, XL + (ex - XL) * (D - ZL) / (ez - ZL)), .5]; }
 function wedgePt(xa, u) { return [xa + (xa - XL) * u / (ZL - D), D - u]; }
@@ -373,13 +252,7 @@ const FIG = [[.17, 0], [.2, .4], [.25, .78], [.3, .92], [.35, .86], [.39, .76], 
 function drawFigure(x, s, zf, x0, dark, soft) {   // the silhouette standing in the room (only ever partly seen)
   const half = FIG;
   const pts = half.concat(half.slice(0, -1).reverse().map(p => [-p[0], p[1]]));
-  l1.setTransform(1, 0, 0, 1, 0, 0); l1.clearRect(0, 0, low1.width, low1.height);
-  l1.save(); l1.setTransform(.5 * s.zm, 0, 0, .5 * s.zm, .5 * (ZC[0] * (1 - s.zm) + s.ox), .5 * (ZC[1] * (1 - s.zm) + s.oy));
-  polyWorld(l1, OPEN); l1.clip();
-  polyS(l1, pts.map(p => P(x0 + p[0], p[1], zf))); l1.fillStyle = '#000'; l1.fill();
-  l1.restore();
-  l2.setTransform(1, 0, 0, 1, 0, 0); l2.clearRect(0, 0, low2.width, low2.height); l2.filter = `blur(${soft}px)`; l2.drawImage(low1, 0, 0); l2.filter = 'none';
-  x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = dark; x.drawImage(low2, 0, 0, W, H); x.restore();
+  C.silhouette(x, pts.map(p => P(x0 + p[0], p[1], zf)), dark, soft, OPEN.map(p => P(p[0], p[1], p[2])));
 }
 function drawLeaf(x, s) {
   const { ex, ez, th } = leafGeom(s.ang); if (s.ang > 99) return;
@@ -404,17 +277,8 @@ function drawLights(x, s, t) {
   if (ap[1] - ap[0] > .002) {
     const pts = [[ap[0], 0], [ap[1], 0], [...wedgePt(ap[1], UM)], [...wedgePt(ap[0], UM)]];
     const scr = [P(ap[0], 0, D), P(ap[1], 0, D), P(pts[2][0], 0, pts[2][1]), P(pts[3][0], 0, pts[3][1])];
-    l1.setTransform(1, 0, 0, 1, 0, 0); l1.clearRect(0, 0, low1.width, low1.height);
-    l1.setTransform(.5 * s.zm, 0, 0, .5 * s.zm, .5 * (ZC[0] * (1 - s.zm) + s.ox), .5 * (ZC[1] * (1 - s.zm) + s.oy));
-    polyS(l1, scr); const pat = l1.createPattern(eraserPat, 'repeat');
     const mx = (ap[0] + ap[1]) / 2, m0 = P(mx, 0, D), m1 = P(...[wedgePt(mx, UM)[0], 0, wedgePt(mx, UM)[1]]);
-    const ang = Math.atan2(m1[1] - m0[1], m1[0] - m0[0]);
-    pat.setTransform(new DOMMatrix().rotateSelf(ang * 180 / Math.PI + 90)); l1.fillStyle = pat; l1.fill();
-    l1.globalCompositeOperation = 'destination-in';
-    const g = l1.createLinearGradient(m0[0], m0[1], m0[0] + (m1[0] - m0[0]) * .55, m0[1] + (m1[1] - m0[1]) * .55);
-    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(.35, 'rgba(0,0,0,.82)'); g.addColorStop(1, 'rgba(0,0,0,.42)');
-    polyS(l1, scr); l1.fillStyle = g; l1.fill(); l1.globalCompositeOperation = 'source-over';
-    x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = clamp(.95 * I); x.drawImage(low1, 0, 0, W, H); x.restore();
+    C.wedge(x, scr, m0, m1, clamp(.95 * I));
     s.wedge = scr;
     // the jamb catches the spill; streaky lift, not a smooth glow
     const jb = P(.5, 0, D), jt = P(.5, DOORH, D);
@@ -424,8 +288,7 @@ function drawLights(x, s, t) {
   if (s.ang < 1.6) {
     const a = clamp(1 - s.ang / 1.6) * Math.min(1, I + (s.ph === 'N' ? 1 : 0));
     const p0 = P(.497, .01, D), p1 = P(.497, DOORH - .01, D), seed = 400 + (Math.floor(t * 12) % 3);
-    vine(x, seg2(p0, p1, 60), 16, .1 * a, seed, '#fff', .05); vine(x, seg2(p0, p1, 60), 7, .28 * a, seed + 2, '#fff', .05);
-    vine(x, seg2(p0, p1, 60), 3.4, 1 * a, seed + 5, '#fff', .02);
+    C.glowLine(x, seg2(p0, p1, 60), a, seed);
     const b0 = P(-.48, .005, D), b1 = P(.48, .005, D); vine(x, seg2(b0, b1, 30), 2, .45 * a, seed + 9, '#fff', .15);
   }
 }
@@ -464,17 +327,15 @@ function drawShadow(x, s, t) {
   const bo = Math.floor(t * 12), jr = rng(bo * 7 + 3);   // boil on twos: the smudged edge is redrawn 12×/s
   const pts = SH.map(([u, w]) => { const uu = u * us * br, mag = (L0 + uu) / L0, ww = (w * ws + w0) * mag + (jr() - .5) * .006;
     return P(fp[0] + dir[0] * uu + perp[0] * ww, 0, fp[1] + dir[1] * uu + perp[1] * ww); });
-  l1.setTransform(1, 0, 0, 1, 0, 0); l1.clearRect(0, 0, low1.width, low1.height);
-  l1.setTransform(.5 * s.zm, 0, 0, .5 * s.zm, .5 * (ZC[0] * (1 - s.zm) + s.ox), .5 * (ZC[1] * (1 - s.zm) + s.oy));
-  polyS(l1, pts); l1.fillStyle = '#000'; l1.fill();
-  // charcoal density inside the shadow is uneven (rubbed with a finger)
-  l1.globalCompositeOperation = 'destination-out';
-  for (let k = 0; k < 6; k++) { const u = .1 + k * .3, p = P(fp[0] + dir[0] * u * us, 0, fp[1] + dir[1] * u * us); blob(l1, p[0], p[1], 40, 14, .18, .3 * k, smudge); }
-  l1.globalCompositeOperation = 'destination-in';
-  if (s.wedge) { polyS(l1, s.wedge); l1.fillStyle = '#000'; l1.fill(); }
-  l1.globalCompositeOperation = 'source-over'; l1.setTransform(1, 0, 0, 1, 0, 0);
-  l2.setTransform(1, 0, 0, 1, 0, 0); l2.clearRect(0, 0, low2.width, low2.height); l2.filter = 'blur(1.6px)'; l2.drawImage(low1, 0, 0); l2.filter = 'none';
-  x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = clamp(a); x.drawImage(low2, 0, 0, W, H); x.restore();
+  C.layer(x, l => {
+    polyS(l, pts); l.fillStyle = '#000'; l.fill();
+    // charcoal density inside the shadow is uneven (rubbed with a finger)
+    l.globalCompositeOperation = 'destination-out';
+    for (let k = 0; k < 6; k++) { const u = .1 + k * .3, p = P(fp[0] + dir[0] * u * us, 0, fp[1] + dir[1] * u * us); blob(l, p[0], p[1], 40, 14, .18, .3 * k, C.smudge); }
+    l.globalCompositeOperation = 'destination-in';
+    if (s.wedge) { polyS(l, s.wedge); l.fillStyle = '#000'; l.fill(); }
+    l.globalCompositeOperation = 'source-over';
+  }, { blur: 1.6, alpha: clamp(a) });
 }
 function drawFingers(x, s, t) {
   if (s.ph !== 'N' || t < B.claw) return;
@@ -513,19 +374,14 @@ function drawFingers(x, s, t) {
     const rim = pts.map((p, j) => { const a2 = j < 3 ? Math.atan2(pts[j + 1][1] - p[1], pts[j + 1][0] - p[0]) : ang; return [p[0] + Math.cos(a2 + Math.PI / 2) * -wid[Math.min(j, 3)] * .55, p[1] + Math.sin(a2 + Math.PI / 2) * -wid[Math.min(j, 3)] * .55]; });
     vine(x, rim.slice(0, 4), 1.6, .55, 600 + i * 10 + (bo % 2), '#fff', .1);
     vine(x, [nb, tip], 1.1, .45, 640 + i, '#fff', 0);
-    for (let j = 1; j < 3; j++) blob(x, pts[j][0], pts[j][1] - wid[j] * .25, wid[j] * .55, wid[j] * .45, .35, 0, smudgeW);
+    for (let j = 1; j < 3; j++) blob(x, pts[j][0], pts[j][1] - wid[j] * .25, wid[j] * .55, wid[j] * .45, .35, 0, C.smudgeW);
   }
 }
 function drawFog(x, s, t) {
   const bands = [[1.0, .5, 13], [1.0, .38, -24], [2.75, .26, 8]];   // [height m, alpha, px/s]
   const dim = s.ph === 'R' || s.ph === 'E' ? .45 : 1;
-  setZ(x, s.zm, s);
-  bands.forEach(([hy, a, sp], i) => {
-    const y = i === 0 ? P(0, .15, 4.2)[1] : P(0, hy, D)[1], off = ((t * sp * SC) % fogTex.width + fogTex.width) % fogTex.width;
-    const al = a * dim * (i === 1 ? 1 + .4 * s.breath * (.5 + .5 * s.bph) : 1);
-    x.globalAlpha = al; x.drawImage(fogTex, -off, y - fogTex.height / 2); x.drawImage(fogTex, fogTex.width - off, y - fogTex.height / 2);
-  });
-  x.globalAlpha = 1;
+  C.applyCam(x);
+  C.fog(x, t, bands.map(([hy, a, sp], i) => [i === 0 ? P(0, .15, 4.2)[1] : P(0, hy, D)[1], a * dim * (i === 1 ? 1 + .4 * s.breath * (.5 + .5 * s.bph) : 1), sp]));
 }
 function drawFlood(x, s, t) {   // darkness pours out of the doorway across the floor toward us
   if (s.ph !== 'B') return;
@@ -534,37 +390,17 @@ function drawFlood(x, s, t) {   // darkness pours out of the doorway across the 
   for (let i = 0; i <= 60; i++) { const ph = lerp(-1.45, 1.45, i / 60), n = fbm(ph * 3 + 9, t * 1.5, 3), tend = Math.pow(noise(ph * 9, 3), 3) * .8;
     const r = u * (.75 + .35 * n + tend) * (1 - .4 * Math.abs(Math.sin(ph))); front.push([Math.sin(ph) * r * 1.1, Math.max(.6, D - Math.cos(ph) * r)]); }
   const poly = front.map(p => P(p[0], 0, p[1]));
-  setZ(x, s.zm, s); x.save(); polyWorld(x, [[-1.15, 0, D], [1.15, 0, D], [1.15, 0, .6], [-1.15, 0, .6]]); x.clip();
+  C.applyCam(x); x.save(); polyWorld(x, [[-1.15, 0, D], [1.15, 0, D], [1.15, 0, .6], [-1.15, 0, .6]]); x.clip();
   polyS(x, poly); fillA(x, 1); sweep(x, poly, 34, .8, 800); x.restore();
   polyWorld(x, OPEN); fillA(x, ss(B.burst + .35, B.burst + .7, t));
   // and up the walls from the doorway
   const r = 1400 * SC * eo(clamp((t - B.burst - .3) / .9)); const c0 = P(0, 1.1, D);
   blob(x, c0[0], c0[1], r, r * 1.3, .9);
 }
-function drawEndWipe(x, s, t) {   // the drawing is erased in broad strokes; a ghost of it stays on the paper
-  if (t < B.end) return 0;
-  l1.setTransform(1, 0, 0, 1, 0, 0); l1.clearRect(0, 0, low1.width, low1.height);
-  const strokes = 6;
-  for (let i = 0; i < strokes; i++) {
-    const k = eio(clamp((t - B.end + .1 - i * .07) / .38)); if (k <= 0) continue;
-    const y0 = (-.05 + i * .2) * LHt(), x0 = -80, x1 = lerp(x0, low1.width + 100, k), r = rng(1000 + i), dir = i % 2 ? -1 : 1;
-    for (let xx = x0; xx <= x1; xx += 14) {   // the eraser's soft, uneven bite, dragged across the sheet
-      const f = (xx - x0) / (low1.width + 180), cx = dir > 0 ? xx : low1.width - xx, cy = y0 + 70 - f * 130 + Math.sin(f * 5 + i) * 18;
-      blob(l1, cx, cy, 95 + r() * 30, 70 + r() * 25, .85, r() * .6, smudgeW);
-    }
-  }
-  x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.drawImage(low1, 0, 0, W, H);
-  const full = ss(B.end + .3, B.end + .9, t); x.globalAlpha = .95 * full; x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.restore();
-  return full;
-}
-function LHt() { return low1.height; }
 
 /* red pastel strokes: lintel, left post, right post (painted on, solid with tooth peeking through, outlined in charcoal) */
 function buildRed() {
-  const r = rng(808), mk = (a, b, wA, wB, n) => { const pts = []; for (let i = 0; i <= n; i++) { const k = i / n;
-    const wob = (noise(i * .23, n * 3.1) - .5) * .022, horiz = Math.abs(b[1] - a[1]) < .1;
-    pts.push({ p: [lerp(a[0], b[0], k) + (horiz ? 0 : wob), lerp(a[1], b[1], k) + (horiz ? wob : 0), D - .01],
-      w: lerp(wA, wB, k) * (.7 + .55 * noise(i * .31, n + 7)) * (k > .85 ? 1 - (k - .85) * 2.2 : 1), j1: (r() - .5) * .45, j2: (r() - .5) * .45 }); } return pts; };
+  const r = rng(808), mk = (a, b, wA, wB, n) => C.pastelPath(a, b, wA, wB, n, r).map(q => ({ ...q, p: [q.p[0], q.p[1], D - .01] }));
   return [
     { t0: B.blood[0], pts: mk([-.68, 2.35], [.69, 2.325], .13, .1, 48) },
     { t0: B.blood[1], pts: mk([-.565, 2.28], [-.57, .42], .1, .075, 40) },
@@ -572,53 +408,27 @@ function buildRed() {
   ];
 }
 function drawRed(ctx, s, t, fade) {
-  let any = false; rctx.setTransform(1, 0, 0, 1, 0, 0); rctx.clearRect(0, 0, W, H);
-  const edges = [];
-  for (const st of RED) {
-    const pr = eo(clamp((t - st.t0) / .55)); if (pr <= 0) continue; any = true;
-    const n = st.pts.length - 1, m = Math.max(1, Math.floor(pr * n));
-    const pts = st.pts.slice(0, m + 1).map(q => ({ s: toScr(P(...q.p), s), w: q.w * F * s.zm / D, j1: q.j1, j2: q.j2 }));
-    const A = [], Bb = [];
-    for (let i = 0; i < pts.length; i++) { const a = pts[Math.max(0, i - 1)].s, b = pts[Math.min(pts.length - 1, i + 1)].s, an = Math.atan2(b[1] - a[1], b[0] - a[0]) + Math.PI / 2;
-      const tap = Math.min(1, (i + 1) / 3, (pts.length - i) / 2.2 + (pr >= 1 ? .6 : 0)), hw = pts[i].w / 2 * tap;
-      A.push([pts[i].s[0] + Math.cos(an) * hw * (1 + pts[i].j1), pts[i].s[1] + Math.sin(an) * hw * (1 + pts[i].j1)]);
-      Bb.push([pts[i].s[0] - Math.cos(an) * hw * (1 + pts[i].j2), pts[i].s[1] - Math.sin(an) * hw * (1 + pts[i].j2)]); }
-    polyS(rctx, A.concat(Bb.slice().reverse())); rctx.fillStyle = DOOR.RED; rctx.fill();
-    // streaks of the pastel along the stroke: darker valleys, lighter peaks
-    for (let k = 0; k < 7; k++) { const f = (k + .5) / 7, line = A.map((p, i) => [lerp(p[0], Bb[i][0], f), lerp(p[1], Bb[i][1], f)]);
-      vine(rctx, line, 2.6, .4, 860 + k, k % 2 ? '#6a0f0f' : '#c23c2f', .3); }
-    // dry-brush tail: the pastel breaks up where the stroke lifts off
-    rctx.globalCompositeOperation = 'destination-out';
-    for (let i = Math.floor(pts.length * .8); i < pts.length; i++) { const q = pts[i].s; blob(rctx, q[0], q[1], pts[i].w * .5, pts[i].w * .3, .5 * (i / pts.length), 0, smudgeW); }
-    rctx.globalCompositeOperation = 'source-over';
-    edges.push(A, Bb);
-  }
-  if (!any) return;
-  rctx.globalAlpha = 1; rctx.globalCompositeOperation = 'destination-out'; rctx.drawImage(holes, 0, 0); rctx.globalCompositeOperation = 'source-over';
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = fade; ctx.drawImage(redL, 0, 0);
-  edges.forEach((e, i) => vine(ctx, e, 1.8, .75 * fade, 880 + i, '#121111', .12));
-  ctx.restore();
+  C.pastel(ctx, RED.map(st => ({ pr: eo(clamp((t - st.t0) / .55)),
+    pts: st.pts.map(q => ({ s: C.toScr(P(...q.p)), w: q.w * F * s.zm / D, j1: q.j1, j2: q.j2 })) })), fade, { color: DOOR.RED });
 }
 function drawWarm(ctx, s, t, fade) {   // the thread at the edge turns warm once the door is shut (hope, not threat)
   const a = ss(B.close + 1.05, B.close + 1.5, t) * fade; if (a <= 0) return;
-  const p0 = toScr(P(.497, .01, D), s), p1 = toScr(P(.497, DOORH - .01, D), s), b0 = toScr(P(-.48, .005, D), s), b1 = toScr(P(.48, .005, D), s);
+  const p0 = C.toScr(P(.497, .01, D)), p1 = C.toScr(P(.497, DOORH - .01, D)), b0 = C.toScr(P(-.48, .005, D)), b1 = C.toScr(P(.48, .005, D));
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-  vine(ctx, seg2(p0, p1, 60), 14, .1 * a, 950, '#e8c88e', .05);
-  vine(ctx, seg2(p0, p1, 60), 6, .3 * a, 951, '#efd3a0', .05);
-  vine(ctx, seg2(p0, p1, 60), 2.4, .95 * a, 952, '#fbe7c0', .02);
+  C.glowLine(ctx, seg2(p0, p1, 60), a, 950, { w: [14, 6, 2.4], al: [.1, .3, .95], col: C.WARM, off: [0, 1, 2] });
   vine(ctx, seg2(b0, b1, 30), 2.2, .5 * a, 953, '#efd3a0', .1);
   ctx.restore();
 }
 
 /* ------------------------------------------------------------------ frame */
 function draw(ctx, t) {
-  const s = state(t), x = vctx;
-  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = 'source-over'; x.filter = 'none';
+  const s = state(t), x = C.begin();
+  C.setCam({ zm: s.zm, ox: s.ox, oy: s.oy, zc: ZC });
   // when the scene is under full black nothing below matters
   if (s.gb < .999) {
-    setZ(x, s.zm, s); x.drawImage(plate, 0, 0, plate.width / KP, plate.height / KP);
-    x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = `rgba(0,0,255,${s.night})`; x.fillRect(0, 0, W, H);
-    setZ(x, s.zm, s);
+    C.applyCam(x); C.drawSheet(x, plate);
+    C.toneAll(x, s.night);
+    C.applyCam(x);
     if (s.ph === 'R' || s.ph === 'E') {   // erased back out of the black: the frame edges and the doorway
       const k = (s.ph === 'E' ? 1 : ss(18.6, 20.2, t)) * .5;
       for (const sx of [-1, 1]) { vine(x, segW([sx * .5, 0, D], [sx * .5, DOORH, D], 24), 2.2, .5 * k, 70 + sx, '#fff', .15); vine(x, segW([sx * .63, 0, D], [sx * .63, 2.42, D], 24), 1.6, .3 * k, 72 + sx, '#fff', .2); }
@@ -635,57 +445,35 @@ function draw(ctx, t) {
       if (a > .003) drawFigure(x, s, zf, .12, a, 1.5);
     }
     s.leafQ = drawLeaf(x, s);
-    setZ(x, s.zm, s);
+    C.applyCam(x);
     drawLights(x, s, t);
-    setZ(x, s.zm, s); drawGhosts(x, s, t);
+    C.applyCam(x); drawGhosts(x, s, t);
     drawShadow(x, s, t);
-    setZ(x, s.zm, s); drawFingers(x, s, t);
+    C.applyCam(x); drawFingers(x, s, t);
     drawFog(x, s, t);
-    setZ(x, s.zm, s, 1); const fz = 1 + (s.zm - 1) * 2.6;
-    x.setTransform(fz, 0, 0, fz, ZC[0] * (1 - fz) + s.ox * 1.5, ZC[1] * (1 - fz) + s.oy * 1.5); x.drawImage(fgA, 0, 0, fgA.width / 1.25, fgA.height / 1.25);
+    C.applyCam(x, 2.6, 1.5); C.drawSheet(x, fgA);   // the nearest arch parts 2.6× faster than the plate as we push in
     drawFlood(x, s, t);
   }
   x.setTransform(1, 0, 0, 1, 0, 0);
-  if (s.gb > 0) { x.globalAlpha = 1; x.fillStyle = `rgba(0,0,255,${s.gb})`; x.fillRect(0, 0, W, H);
-    if (s.ph === 'K' || s.gb > .9) { // black is not flat: a few rubbed passes
-      for (let k = 0; k < 5; k++) blob(x, W * (.2 + .15 * k), H * (.3 + .1 * Math.sin(k * 2.1)), 420, 260, .04, k, smudgeW); } }
-  const endK = drawEndWipe(x, s, t);
-  // a soft charcoal smudge behind the captions keeps them readable on any part of the drawing
-  let cap = 0; for (const [a, b] of DOOR.lines) cap = Math.max(cap, win(t, a, b, .35, .45));
-  if (cap > 0) blob(x, CX, 450 * SC, 580 * SC, 220 * SC, .4 * cap);
-  // ---- tooth pass: value → charcoal on paper
-  const src = x.getImageData(0, 0, W, H).data, N = W * H;
-  for (let i = 0, j = 0; i < N; i++, j += 4) {
-    const dR = 255 - src[j], o = dR + ((LUT[(dR << 8) | tooth[i]] * GM[(dR << 8) | (255 - src[j + 2])]) >> 8);
-    out32[i] = COL[o < 0 ? 0 : o > 255 ? 255 : o];
-  }
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.putImageData(outImg, 0, 0);
+  if (s.gb > 0) C.toneAll(x, s.gb, s.ph === 'K' || s.gb > .9);   // black is not flat: a few rubbed passes
+  const endK = C.eraseWipe(x, t, B.end);
+  C.captionSmudge(x, t, DOOR.lines);   // keeps the captions readable on any part of the drawing
+  C.develop(ctx);                      // ---- tooth pass: value → charcoal on paper
   // ---- colour and words
   const fadeEnd = 1 - .86 * endK;
   if (t >= B.blood[0]) drawRed(ctx, s, t, fadeEnd);
   if (t >= B.close + 1) drawWarm(ctx, s, t, 1 - .75 * endK);
-  DOOR.captions(ctx, t, { color: '#efece6', srcColor: '#d4cec4', font: "'Gowun Batang',serif", srcFont: "'Noto Sans KR',sans-serif", y: 380 * SC, shadow: 'rgba(8,7,7,.92)' });
-  if (t >= B.end) {   // dark charcoal words on the erased paper (the title glow is paper-coloured, not a dark halo)
-    const T0 = Pilot.text; Pilot.text = (c, str, xx, yy, o) => T0(c, str, xx, yy, { ...o, shadow: 'rgba(238,236,231,.9)', shadowBlur: 10 });
-    try { DOOR.endCardDraw(ctx, t, { color: '#141212', srcColor: '#3b3735', ctaColor: '#141212', font: "'Gowun Batang',serif", srcFont: "'Noto Sans KR',sans-serif" }); }
-    finally { Pilot.text = T0; }
-  }
-  const fb = Math.max(1 - ss(0, 1.1, t), ss(DOOR.DUR - .6, DOOR.DUR, t));
-  if (fb > 0) { ctx.fillStyle = `rgba(0,0,0,${fb})`; ctx.fillRect(0, 0, W, H); }
+  C.captions(ctx, t, DOOR.lines);
+  C.endCard(ctx, t, DOOR.endCard, B.end);   // dark charcoal words on the erased paper
+  C.fade(ctx, t, DOOR.DUR);
 }
 
 async function init() {
-  vcv = canvas(W, H); vctx = vcv.getContext('2d', { willReadFrequently: true });
-  low1 = canvas(W >> 1, H >> 1); l1 = low1.getContext('2d'); low2 = canvas(W >> 1, H >> 1); l2 = low2.getContext('2d');
-  redL = canvas(W, H); rctx = redL.getContext('2d');
-  stick = makeStick(0, 3); stickW = makeStick(255, 5); smudge = makeSmudge(0, 1); smudgeW = makeSmudge(255, 4); eraserPat = makeEraser();
-  tooth = makeTooth(); [LUT, COL, GM] = makeLUT();
-  holes = canvas(W, H); { const hx = holes.getContext('2d'), im = hx.createImageData(W, H); for (let i = 0; i < W * H; i++) { const T = tooth[i]; im.data[i * 4 + 3] = T > 205 ? 255 : T > 185 ? (T - 185) * 12 : 0; } hx.putImageData(im, 0, 0); }
-  fogTex = makeFog(21); plate = buildPlate(); fgA = buildFG(); leafTex = buildLeaf(); RED = buildRed();
-  outImg = new ImageData(W, H); out32 = new Uint32Array(outImg.data.buffer);
+  C.init();
+  plate = buildPlate(); fgA = buildFG(); leafTex = buildLeaf(); RED = buildRed();
 }
 
-Pilot.run({ audio: 'soundtrack.m4a', W, H, dur: DOOR.DUR, fonts: ["700 62px 'Gowun Batang'", "400 62px 'Gowun Batang'", "400 28px 'Noto Sans KR'", "500 34px 'Noto Sans KR'", "600 30px 'Noto Sans KR'"], init, draw });
+Pilot.run({ audio: 'soundtrack.m4a', W, H, dur: DOOR.DUR, fonts: C.FONTS, init, draw });
 </script>
 <script>window.POSTER_T = 9.5;</script>
 <style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);

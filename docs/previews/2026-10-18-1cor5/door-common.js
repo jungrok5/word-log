@@ -31,24 +31,7 @@ const DOOR = {
   endCard: { title: '절대로 괜찮다고\n넘기면 안 되는 것', passage: '고린도전서 5:1-8', by: '김인환 담임목사 · 더라이프지구촌교회', cta: '전체 설교는 채널에서' },
   RED: '#9c1a1a',
 };
-/* Default caption renderer (a style may pass its own colours/fonts, but keep the text, timing and position band).
-   o: { color, srcColor, font, srcFont, size, y, shadow } */
-DOOR.captions = function (ctx, t, o = {}) {
-  const { text, win } = Pilot, W = Pilot.W;
-  for (const [a, b, s, src] of DOOR.lines) {
-    const al = win(t, a, b, .35, .45); if (al <= 0) continue;
-    const two = s.includes('\n'), size = o.size || (two ? 54 : 62), y = o.y || 430;
-    text(ctx, s, W / 2, y, { size, weight: 600, font: o.font, color: o.color || '#f3ece0', alpha: al, shadow: o.shadow || 'rgba(0,0,0,.75)', shadowBlur: 24, maxW: 900 });
-    if (src) text(ctx, src, W / 2, y + (two ? size * 1.55 : 0) + 76, { size: 28, font: o.srcFont || "'Noto Sans KR',sans-serif", color: o.srcColor || '#d9cfbf', alpha: al * .9, ls: 1, shadow: o.shadow || 'rgba(0,0,0,.75)' });
-  }
-};
-DOOR.endCardDraw = function (ctx, t, o = {}) {
-  const { text, ss } = Pilot, W = Pilot.W, H = Pilot.H, e = DOOR.endCard, a = ss(DOOR.beat.end, DOOR.beat.end + .9, t);
-  if (a <= 0) return;
-  const y = o.y || H * .40;
-  text(ctx, e.title, W / 2, y, { size: 72, weight: 700, font: o.font, color: o.color || '#f3ece0', alpha: a, shadow: 'rgba(0,0,0,.6)' });
-  text(ctx, e.passage, W / 2, y + 250, { size: 34, font: o.srcFont || "'Noto Sans KR',sans-serif", weight: 500, color: o.srcColor || '#d9cfbf', alpha: a * ss(DOOR.beat.end + .4, DOOR.beat.end + 1.3, t) });
-  text(ctx, e.by, W / 2, y + 310, { size: 30, font: o.srcFont || "'Noto Sans KR',sans-serif", color: o.srcColor || '#d9cfbf', alpha: a * ss(DOOR.beat.end + .6, DOOR.beat.end + 1.5, t) * .9 });
-  text(ctx, e.cta, W / 2, y + 420, { size: 30, font: o.srcFont || "'Noto Sans KR',sans-serif", weight: 600, color: o.ctaColor || (o.color || '#f3ece0'), alpha: a * ss(DOOR.beat.end + 1.2, DOOR.beat.end + 2.1, t), ls: 2 });
-};
+/* Captions and end card come from the shared story.js (load it before this file); kept here under the old names. */
+DOOR.captions = (ctx, t, o = {}) => Story.captions(ctx, t, DOOR.lines, o);
+DOOR.endCardDraw = (ctx, t, o = {}) => Story.endCard(ctx, t, DOOR.endCard, DOOR.beat.end, o);
 window.DOOR = DOOR;

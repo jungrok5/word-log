@@ -27,13 +27,18 @@ for s in a.style:
 os.makedirs(os.path.join(sc, 'audio'), exist_ok=True); os.makedirs(os.path.join(film, 'out'), exist_ok=True)
 for f in ('lib.js', 'story.js'):
     shutil.copy(os.path.join(st, '_shared', f), sc)
-if not os.path.exists(os.path.join(sc, 'script.js')):
-    shutil.copy(os.path.join(st, a.style[0], 'script.example.js'), os.path.join(sc, 'script.js'))
+# One style: scenes/script.js. Several styles: each template keeps its own placeholder (script-<slug>.js) because the
+# templates use different beat names; once the storyboard is final, write ONE script.js and point every scene at it.
 scenes = []
 for s in a.style:
     shutil.copy(os.path.join(st, s, 'kit.js'), os.path.join(sc, f'kit-{s}.js'))
     sid = f'{a.id}-{s}'
-    shutil.copy(os.path.join(st, s, 'template.html'), os.path.join(sc, sid + '.html'))
+    sname = 'script.js' if len(a.style) == 1 else f'script-{s}.js'
+    if not os.path.exists(os.path.join(sc, sname)):
+        shutil.copy(os.path.join(st, s, 'script.example.js'), os.path.join(sc, sname))
+    page = open(os.path.join(st, s, 'template.html'), encoding='utf-8').read()
+    assert 'src="script.js"' in page, f'{s}/template.html must load script.js'
+    open(os.path.join(sc, sid + '.html'), 'w', encoding='utf-8').write(page.replace('src="script.js"', f'src="{sname}"'))
     label = open(os.path.join(st, s, 'STYLE.md'), encoding='utf-8').readline().lstrip('# ').strip() or s
     scenes.append({'id': sid, 'label': label, 'dur': 30})
 meta = {}

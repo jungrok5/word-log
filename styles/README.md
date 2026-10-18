@@ -24,3 +24,8 @@ python3 tools/new-film.py sermons/<YYYY-MM-DD>-<본문> --style charcoal --id se
 `_shared/` holds what every film vendors: `lib.js` (canvas-film harness, phone-safe sizing) and `story.js`
 (captions + end card). A film copies its kit and shared files, so improving a kit later never changes an old film.
 Add a new house style when a film's style works: same four files, a row above.
+
+## Upstream copy
+The same kits live in the canvas-film skill: github.com/jungrok5/motion-skills → `canvas-film/kits/` (with
+`scripts/from-kit.py` for any project). These copies here stay as they are; when a kit is improved or a new one is
+added, update both (copy, never delete).
