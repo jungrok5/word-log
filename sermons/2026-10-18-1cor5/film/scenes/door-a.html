@@ -367,9 +367,11 @@ function drawRoom(x, s) {     // what we see through the opening: the lit room (
   polyS(x, [P(-.5, DOORH, D), P(.5, DOORH, D), P(.5, 1.9, D), P(-.5, 1.9, D)]); fillA(x, .25 * Math.min(1, I));
   x.restore();
 }
+const FIG = [[.17, 0], [.2, .4], [.25, .78], [.3, .92], [.35, .86], [.39, .76], [.375, .85], [.43, .79], [.405, .875], [.455, .84], [.42, .92],
+  [.445, 1.12], [.46, 1.34], [.44, 1.48], [.36, 1.57], [.22, 1.63], [.1, 1.67], [.105, 1.75], [.12, 1.84], [.1, 1.92], [.09, 1.95],
+  [.16, 1.97], [.25, 2.01], [.31, 2.08], [.335, 2.17], [.32, 2.27], [.292, 2.18], [.265, 2.1], [.205, 2.05], [.13, 2.02], [.06, 2.01], [0, 2.02]];
 function drawFigure(x, s, zf, x0, dark, soft) {   // the silhouette standing in the room (only ever partly seen)
-  const half = [[.26, 0], [.27, .5], [.3, 1.0], [.36, 1.3], [.42, 1.45], [.38, 1.55], [.2, 1.6], [.1, 1.62], [.11, 1.72], [.115, 1.82], [.1, 1.9], [.09, 1.93],
-    [.16, 1.95], [.25, 1.99], [.31, 2.06], [.335, 2.15], [.32, 2.25], [.295, 2.16], [.27, 2.08], [.21, 2.03], [.13, 2.0], [.06, 1.99], [0, 2.0]];
+  const half = FIG;
   const pts = half.concat(half.slice(0, -1).reverse().map(p => [-p[0], p[1]]));
   l1.setTransform(1, 0, 0, 1, 0, 0); l1.clearRect(0, 0, low1.width, low1.height);
   l1.save(); l1.setTransform(.5 * s.zm, 0, 0, .5 * s.zm, .5 * (ZC[0] * (1 - s.zm) + s.ox), .5 * (ZC[1] * (1 - s.zm) + s.oy));
@@ -437,23 +439,20 @@ function drawGhosts(x, s, t) {   // Kentridge's palimpsest: the earlier position
     const ap = aperture(ang), w = wedgePt(ap[0], 3.2); vine(x, seg2(P(ap[0], 0, D), P(w[0], 0, w[1]), 30), 4, a * .8, 520 + ang, '#000', .15);
   }
 }
-const SH = (() => {   // the horned shadow, in light-aligned floor units: u = along the light (m), w = across
-  const half = [[0, .085], [.5, .095], [.95, .11], [1.3, .125], [1.45, .15],
-    [1.25, .18], [1.05, .195], [.86, .21], [.97, .222], [.8, .238], [.94, .243], [.83, .262], [1.0, .257], [1.25, .248], [1.5, .235], [1.66, .21],
-    [1.76, .165], [1.83, .08], [1.88, .065], [1.95, .08], [2.03, .088], [2.1, .082], [2.14, .07],
-    [2.15, .12], [2.2, .19], [2.28, .25], [2.4, .28], [2.53, .285], [2.42, .25], [2.32, .22], [2.24, .17], [2.19, .1], [2.16, .045], [2.165, 0]];
-  return half.concat(half.slice(0, -1).reverse().map(p => [p[0], -p[1]]));
+const SH = (() => {   // the floor shadow = the same figure projected from a high light (height stretches along the floor)
+  const YL = 4.5, LF = 2.55, back = .45, m = FIG.map(([x, y]) => { const sY = YL / (YL - y); return [Math.max(-.05, LF * (sY - 1) - back), x * sY]; });
+  return m.concat(m.slice(0, -1).reverse().map(p => [p[0], -p[1]]));
 })();
 function drawShadow(x, s, t) {
-  let a = 0, w0 = 0, us = .8, ws = 1.05, fx;
+  let a = 0, w0 = 0, us = 1, ws = .9, fx;
   const ap = aperture(s.ang);
   if (s.ph === 'N' && t >= B.shadowIn) {
-    const k = eo(clamp((t - B.shadowIn) / 1.6)); a = .9 * ss(B.shadowIn, B.shadowIn + .5, t); w0 = (1 - k) * .4; ws = .56;
+    const k = eo(clamp((t - B.shadowIn) / 1.6)); a = .9 * ss(B.shadowIn, B.shadowIn + .5, t); w0 = (1 - k) * .4; ws = .46;
     us *= lerp(.92, 1, k) + .08 * ss(B.claw, B.burst, t); fx = (ap[0] + ap[1]) / 2;
   } else if (s.ph === 'B') {
     const k = ss(B.burst, B.burst + .6, t); a = .9 + .1 * k; us *= 1.08 + 1.2 * k; ws *= 1 + .9 * k; fx = lerp((aperture(44)[0] + .5) / 2, .3, k);
   } else if (s.ph === 'R') {
-    a = .92 * ss(18.4, 20, t); us *= 1.05; fx = .3; ws *= .95;
+    a = .92 * ss(18.4, 20, t); us *= 1.0; fx = .3; ws *= .8;
     if (t >= B.recoil) {   // flinch, then withdraw back over the threshold
       const f = t - B.recoil; w0 = f < .25 ? Math.sin(f * 80) * .03 * (1 - f / .25) : 0; us *= f < .2 ? 1 - .1 * eo(f / .2) : .9 * (1 - eio(clamp((f - .2) / .65)));
       a *= 1 - ss(B.recoil + .5, B.recoil + .9, t);
@@ -470,7 +469,7 @@ function drawShadow(x, s, t) {
   polyS(l1, pts); l1.fillStyle = '#000'; l1.fill();
   // charcoal density inside the shadow is uneven (rubbed with a finger)
   l1.globalCompositeOperation = 'destination-out';
-  for (let k = 0; k < 6; k++) { const u = .2 + k * .28, p = P(fp[0] + dir[0] * u * us, 0, fp[1] + dir[1] * u * us); blob(l1, p[0], p[1], 40, 14, .18, .3 * k, smudge); }
+  for (let k = 0; k < 6; k++) { const u = .1 + k * .3, p = P(fp[0] + dir[0] * u * us, 0, fp[1] + dir[1] * u * us); blob(l1, p[0], p[1], 40, 14, .18, .3 * k, smudge); }
   l1.globalCompositeOperation = 'destination-in';
   if (s.wedge) { polyS(l1, s.wedge); l1.fillStyle = '#000'; l1.fill(); }
   l1.globalCompositeOperation = 'source-over'; l1.setTransform(1, 0, 0, 1, 0, 0);
@@ -561,9 +560,11 @@ function LHt() { return low1.height; }
 /* red pastel strokes: lintel, left post, right post (painted on, solid with tooth peeking through, outlined in charcoal) */
 function buildRed() {
   const r = rng(808), mk = (a, b, wA, wB, n) => { const pts = []; for (let i = 0; i <= n; i++) { const k = i / n;
-    pts.push({ p: [lerp(a[0], b[0], k), lerp(a[1], b[1], k), D - .01], w: lerp(wA, wB, k) * (.85 + .3 * noise(i * .4, n)), j1: (r() - .5) * .3, j2: (r() - .5) * .3 }); } return pts; };
+    const wob = (noise(i * .23, n * 3.1) - .5) * .022, horiz = Math.abs(b[1] - a[1]) < .1;
+    pts.push({ p: [lerp(a[0], b[0], k) + (horiz ? 0 : wob), lerp(a[1], b[1], k) + (horiz ? wob : 0), D - .01],
+      w: lerp(wA, wB, k) * (.7 + .55 * noise(i * .31, n + 7)) * (k > .85 ? 1 - (k - .85) * 2.2 : 1), j1: (r() - .5) * .45, j2: (r() - .5) * .45 }); } return pts; };
   return [
-    { t0: B.blood[0], pts: mk([-.66, 2.345], [.67, 2.33], .12, .1, 40) },
+    { t0: B.blood[0], pts: mk([-.68, 2.35], [.69, 2.325], .13, .1, 48) },
     { t0: B.blood[1], pts: mk([-.565, 2.28], [-.57, .42], .1, .075, 40) },
     { t0: B.blood[2], pts: mk([.565, 2.28], [.57, .5], .1, .07, 40) },
   ];
@@ -582,8 +583,12 @@ function drawRed(ctx, s, t, fade) {
       Bb.push([pts[i].s[0] - Math.cos(an) * hw * (1 + pts[i].j2), pts[i].s[1] - Math.sin(an) * hw * (1 + pts[i].j2)]); }
     polyS(rctx, A.concat(Bb.slice().reverse())); rctx.fillStyle = DOOR.RED; rctx.fill();
     // streaks of the pastel along the stroke: darker valleys, lighter peaks
-    for (let k = 0; k < 5; k++) { const f = (k + .5) / 5, line = A.map((p, i) => [lerp(p[0], Bb[i][0], f), lerp(p[1], Bb[i][1], f)]);
-      vine(rctx, line, 2.2, .35, 860 + k, k % 2 ? '#6a0f0f' : '#c03a2e', .25); }
+    for (let k = 0; k < 7; k++) { const f = (k + .5) / 7, line = A.map((p, i) => [lerp(p[0], Bb[i][0], f), lerp(p[1], Bb[i][1], f)]);
+      vine(rctx, line, 2.6, .4, 860 + k, k % 2 ? '#6a0f0f' : '#c23c2f', .3); }
+    // dry-brush tail: the pastel breaks up where the stroke lifts off
+    rctx.globalCompositeOperation = 'destination-out';
+    for (let i = Math.floor(pts.length * .8); i < pts.length; i++) { const q = pts[i].s; blob(rctx, q[0], q[1], pts[i].w * .5, pts[i].w * .3, .5 * (i / pts.length), 0, smudgeW); }
+    rctx.globalCompositeOperation = 'source-over';
     edges.push(A, Bb);
   }
   if (!any) return;

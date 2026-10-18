@@ -37,7 +37,8 @@ const LAMP = [585, 1010];
 const INK = '#160c06';
 
 let HIDE, CLOTH, WALL, FRAME, LEAF, HAND, ARM, SEG = [], NAIL, DEMON, DEMONB, STROKES = [], VIGN, GRAIN, AUD;
-let Tc, T, SOFT, SG, BL, BG, LB, LBG, FB, FBG;
+let CB, CBG; const CBO = [260, 260];
+let Tc, T, SOFT, SG, SOFT2, SG2, SOFT4, SG4, BL, BG, LB, LBG, FB, FBG;
 const LBK = 1.4, LBX = X0 - 20, LBY = Y0 - 20, LBW = DW + 40, LBH = DH + 40;      // leaf buffer (world box)
 const FBK = .6, FBX = -300, FBY = Y1 - 10, FBW = 1700, FBH = 720;                  // floor-shadow buffer
 
@@ -369,8 +370,10 @@ function drawClaw(g, t, th) {
   if (t > B.burst + .14) { const k = clamp((t - B.burst - .14) / .3); alpha = 1 - k; blur = 16 * k; sc = 1 + .4 * k; }
   if (alpha <= 0) return;
   g.save(); g.beginPath(); g.rect(X0, Y0, DW, DH); g.clip();
-  g.translate(kx, ky); g.rotate(rot); g.scale(sc, sc);
-  g.globalAlpha = alpha; if (blur > .4) g.filter = `blur(${blur.toFixed(1)}px)`;
+  const useB = blur > .4, out = g;
+  if (useB) { g = CBG; g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, CB.width, CB.height); g.save(); g.translate(CBO[0], CBO[1]); }
+  else { g.translate(kx, ky); g.globalAlpha = alpha; }
+  g.rotate(rot); g.scale(sc, sc);
   g.save(); g.translate(70, 8); g.rotate(.62); drawP(g, ARM); g.restore();
   drawP(g, HAND);
   const joints = [];
@@ -390,8 +393,8 @@ function drawClaw(g, t, th) {
   }
   // the thumb, hooked under in the gap
   finger([30, 50], Math.PI * .72, [-.1, -.5], [1, 2], eo(clamp((t - 13.0) / .5)), -.2);
-  g.filter = 'none';
   for (const [[x, y], r] of joints) rivet(g, x, y, Math.max(2.6, r));
+  if (useB) { g.restore(); g = out; g.globalCompositeOperation = 'multiply'; g.globalAlpha = alpha; g.filter = `blur(${blur.toFixed(1)}px)`; g.drawImage(CB, kx - CBO[0], ky - CBO[1]); g.filter = 'none'; }
   g.globalAlpha = 1; g.restore();
   const wr = new DOMMatrix().translate(kx, ky).rotate(rot * 180 / Math.PI).scale(sc).transformPoint(new DOMPoint(84, 20));
   rod(g, wr.x, wr.y, wr.x + 300, 2100, alpha);
@@ -451,6 +454,7 @@ function buildT(t, M) {
   g.restore();
   // ---- the demon puppet held off the cloth: a soft shadow (quarter-res, blurred)
   if (D && D.den > .003) {
+    if (D.blur * M.a > 15) { SOFT = SOFT4; SG = SG4; } else { SOFT = SOFT2; SG = SG2; }   // big blur → quarter res is enough
     SG.setTransform(1, 0, 0, 1, 0, 0); SG.globalAlpha = 1; SG.filter = 'none'; SG.fillStyle = '#fff'; SG.fillRect(0, 0, SOFT.width, SOFT.height);
     const k = SOFT.width / W;
     SG.setTransform(new DOMMatrix().scale(k).multiply(M)); SG.translate(D.hx, D.hy); SG.scale(D.sc, D.sc);
@@ -559,9 +563,10 @@ async function init() {
   CLOTH = clothTex();
   WALL = buildWall(); FRAME = buildFrame(); LEAF = buildLeaf(); buildClaw(); buildDemon();
   LB = canvas(Math.ceil(LBW * LBK), Math.ceil(LBH * LBK)); LBG = LB.getContext('2d'); FB = canvas(Math.ceil(FBW * FBK), Math.ceil(FBH * FBK)); FBG = FB.getContext('2d');
+  CB = canvas(720, 620); CBG = CB.getContext('2d');
   STROKES = [buildStroke(482, 40, 3), buildStroke(640, 42, 7), buildStroke(640, 42, 11)];
   Tc = canvas(W, H); T = Tc.getContext('2d');
-  SOFT = canvas(Math.round(W / 2), Math.round(H / 2)); SG = SOFT.getContext('2d');
+  SOFT2 = canvas(Math.round(W / 2), Math.round(H / 2)); SG2 = SOFT2.getContext('2d'); SOFT4 = canvas(Math.round(W / 4), Math.round(H / 4)); SG4 = SOFT4.getContext('2d');
   BL = canvas(Math.round(W / 8), Math.round(H / 8)); BG = BL.getContext('2d');
   VIGN = canvas(W, H); { const g = VIGN.getContext('2d'), vg = g.createRadialGradient(W / 2, H * .52, Math.min(W, H) * .3, W / 2, H * .52, Math.hypot(W, H) * .55);
     vg.addColorStop(0, '#fff'); vg.addColorStop(.6, '#e9d2b6'); vg.addColorStop(1, '#8a5a30'); g.fillStyle = vg; g.fillRect(0, 0, W, H); }
