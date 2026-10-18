@@ -440,7 +440,7 @@ function drawGhosts(x, s, t) {   // Kentridge's palimpsest: the earlier position
   }
 }
 const SH = (() => {   // the floor shadow = the same figure laid down along the light, head toward us (legs hidden past the threshold)
-  const m = FIG.map(([x, y]) => [y * 1.08 - .3, x * (y > 1.9 ? 1.25 : .9)]);
+  const m = FIG.map(([x, y], i) => [y * 1.08 - .3, x * (i >= 27 && i <= 31 ? .95 : y > 1.82 ? 1.2 : .9)]);
   return m.concat(m.slice(0, -1).reverse().map(p => [p[0], -p[1]]));
 })();
 function drawShadow(x, s, t) {
@@ -452,7 +452,7 @@ function drawShadow(x, s, t) {
   } else if (s.ph === 'B') {
     const k = ss(B.burst, B.burst + .6, t); a = .9 + .1 * k; us *= 1.08 + 1.2 * k; ws *= 1 + .9 * k; fx = lerp((aperture(44)[0] + .5) / 2, .3, k);
   } else if (s.ph === 'R') {
-    a = .92 * ss(18.4, 20, t); us *= 1.0; fx = .3; ws *= .8;
+    a = .92 * ss(18.4, 20, t); us *= 1.0; fx = .3; ws *= .66;
     if (t >= B.recoil) {   // flinch, then withdraw back over the threshold
       const f = t - B.recoil; w0 = f < .25 ? Math.sin(f * 80) * .03 * (1 - f / .25) : 0; us *= f < .2 ? 1 - .1 * eo(f / .2) : .9 * (1 - eio(clamp((f - .2) / .65)));
       a *= 1 - ss(B.recoil + .5, B.recoil + .9, t);
