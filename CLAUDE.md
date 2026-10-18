@@ -17,7 +17,11 @@
    설명하지 말고 보여 준다. 자막은 짧게, 화면이 말하게.
 3. **스타일 검색**: canvas-film `references/STYLE-INDEX.md`의 170개 전체에서 장면별 의미에 맞는 후보를 고른다(문서의 5단계).
 4. **제안**: 추천 스타일 1개 + 대안 2–3개, 장면별 콘티(시간·화면·자막·소리)를 `sermons/.../storyboard.md`에 쓰고 사용자에게 보여준다.
-5. **컨펌 후 제작**: `sermons/.../film/`(film.json, scenes/*.html, sound) → 스틸 확인 → MP4(`out/`, git에 넣지 않음).
+5. **컨펌 후 제작 → HTML 미리보기 먼저**: `sermons/.../film/`(film.json, scenes/*.html, 사운드) → 스틸로 직접 확인 →
+   `python3 tools/preview.py sermons/<폴더>` → 커밋·푸시 → 사용자에게 **미리보기 링크**
+   `https://jungrok5.github.io/word-log/previews/<폴더>/`를 보낸다(브라우저가 직접 그림, 소리 포함, 인코딩 없음).
+   **MP4는 사용자가 요청한 버전만** 굽는다: film 폴더에서 `node ../../../motion-skills/canvas-film/scripts/render.mjs v --scene <id>`
+   (`scenes/<id>.wav`가 있으면 소리가 합쳐짐; `out/`은 git에 넣지 않음).
 6. **업로드**(예정, OAuth 준비 중): 유튜브 쇼츠·인스타 릴스.
 
 ## 규칙

@@ -450,7 +450,7 @@ function drawShadow(x, s, t) {
     const k = eo(clamp((t - B.shadowIn) / 1.6)); a = .9 * ss(B.shadowIn, B.shadowIn + .5, t); w0 = (1 - k) * .4; ws = .46;
     us *= lerp(.92, 1, k) + .08 * ss(B.claw, B.burst, t); fx = (ap[0] + ap[1]) / 2;
   } else if (s.ph === 'B') {
-    const k = ss(B.burst, B.burst + .6, t); a = .9 + .1 * k; us *= 1.08 + 1.2 * k; ws *= 1 + .9 * k; fx = lerp((aperture(44)[0] + .5) / 2, .3, k);
+    const k = ss(B.burst, B.burst + .6, t); a = (.9 + .1 * k) * (1 - ss(B.burst + .45, B.burst + .7, t)); us *= 1.08 + 1.2 * k; ws *= 1 + .9 * k; fx = lerp((aperture(44)[0] + .5) / 2, .3, k);
   } else if (s.ph === 'R') {
     a = .92 * ss(18.4, 20, t); us *= 1.0; fx = .3; ws *= .66;
     if (t >= B.recoil) {   // flinch, then withdraw back over the threshold
@@ -529,7 +529,7 @@ function drawFog(x, s, t) {
 }
 function drawFlood(x, s, t) {   // darkness pours out of the doorway across the floor toward us
   if (s.ph !== 'B') return;
-  const u = 4.2 * eio(clamp((t - (B.burst + .1)) / 1.05)); if (u <= 0) return;
+  const u = 4.4 * eo(clamp((t - (B.burst + .12)) / .8)); if (u <= 0) return;
   const front = [];
   for (let i = 0; i <= 60; i++) { const ph = lerp(-1.45, 1.45, i / 60), n = fbm(ph * 3 + 9, t * 1.5, 3), tend = Math.pow(noise(ph * 9, 3), 3) * .8;
     const r = u * (.75 + .35 * n + tend) * (1 - .4 * Math.abs(Math.sin(ph))); front.push([Math.sin(ph) * r * 1.1, Math.max(.6, D - Math.cos(ph) * r)]); }
@@ -546,13 +546,15 @@ function drawEndWipe(x, s, t) {   // the drawing is erased in broad strokes; a g
   l1.setTransform(1, 0, 0, 1, 0, 0); l1.clearRect(0, 0, low1.width, low1.height);
   const strokes = 6;
   for (let i = 0; i < strokes; i++) {
-    const k = eio(clamp((t - B.end - i * .12) / .5)); if (k <= 0) continue;
-    const y0 = (-.1 + i * .22) * LHt(), x0 = -60, x1 = lerp(x0, low1.width + 80, k);
-    sweep(l1, seg2([x0, y0 + 40], [x1, y0 - 60], 12), 150, 1, 1000 + i, stickW);
-    sweep(l1, seg2([x0, y0 + 70], [x1, y0 - 20], 12), 120, .9, 1010 + i, stickW);
+    const k = eio(clamp((t - B.end + .1 - i * .07) / .38)); if (k <= 0) continue;
+    const y0 = (-.05 + i * .2) * LHt(), x0 = -80, x1 = lerp(x0, low1.width + 100, k), r = rng(1000 + i), dir = i % 2 ? -1 : 1;
+    for (let xx = x0; xx <= x1; xx += 14) {   // the eraser's soft, uneven bite, dragged across the sheet
+      const f = (xx - x0) / (low1.width + 180), cx = dir > 0 ? xx : low1.width - xx, cy = y0 + 70 - f * 130 + Math.sin(f * 5 + i) * 18;
+      blob(l1, cx, cy, 95 + r() * 30, 70 + r() * 25, .85, r() * .6, smudgeW);
+    }
   }
   x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.drawImage(low1, 0, 0, W, H);
-  const full = ss(B.end + .5, B.end + 1.4, t); x.globalAlpha = .95 * full; x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.restore();
+  const full = ss(B.end + .3, B.end + .9, t); x.globalAlpha = .95 * full; x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.restore();
   return full;
 }
 function LHt() { return low1.height; }
@@ -659,7 +661,7 @@ function draw(ctx, t) {
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.putImageData(outImg, 0, 0);
   // ---- colour and words
-  const fadeEnd = 1 - .8 * endK;
+  const fadeEnd = 1 - .86 * endK;
   if (t >= B.blood[0]) drawRed(ctx, s, t, fadeEnd);
   if (t >= B.close + 1) drawWarm(ctx, s, t, 1 - .75 * endK);
   DOOR.captions(ctx, t, { color: '#efece6', srcColor: '#d4cec4', font: "'Gowun Batang',serif", srcFont: "'Noto Sans KR',sans-serif", y: 380 * SC, shadow: 'rgba(8,7,7,.92)' });
