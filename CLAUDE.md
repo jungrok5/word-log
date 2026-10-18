@@ -15,7 +15,11 @@
 2. **한 장면 찾기**: 자료에서 메시지 하나와 그것을 보여 줄 그림 하나를 고른다. 설교자가 직접 쓴 예화·비유·인용이 1순위
    (그 그림이 사람들 기억에 남는다), 없으면 직접 제안. 30초 구조: 훅(3초) → 점점 커짐 → 결정적 한 순간 → 메시지 → 출처.
    설명하지 말고 보여 준다. 자막은 짧게, 화면이 말하게.
-3. **스타일 검색**: canvas-film `references/STYLE-INDEX.md`의 170개 전체에서 장면별 의미에 맞는 후보를 고른다(문서의 5단계).
+3. **스타일 검색**: 먼저 **하우스 스타일**(`styles/README.md` — 검증된 키트, 10–15분이면 새 장면)에서 의미가 맞는 것을 찾고,
+   새 그림이 필요할 때만 canvas-film `references/STYLE-INDEX.md`의 170개 전체에서 고른다(문서의 5단계).
+   하우스 스타일로 만들 때: `python3 tools/new-film.py sermons/<폴더> --style <slug> --id <이름>` → `scenes/script.js` 작성 →
+   템플릿 장면의 자리 표시 대상을 이번 영상의 그림으로 바꾼다(키트 API는 `styles/<slug>/STYLE.md`).
+   새 스타일로 만든 영상이 잘 되면 같은 형식(kit.js · STYLE.md · template.html · script.example.js)으로 `styles/`에 추가한다.
 4. **제안**: 추천 스타일 1개 + 대안 2–3개, 장면별 콘티(시간·화면·자막·소리)를 `sermons/.../storyboard.md`에 쓰고 사용자에게 보여준다.
 5. **컨펌 후 제작 → HTML 미리보기 먼저**: `sermons/.../film/`(film.json, scenes/*.html, 사운드) → 스틸로 직접 확인 →
    `python3 tools/preview.py sermons/<폴더>` → 커밋·푸시 → 사용자에게 **미리보기 링크**

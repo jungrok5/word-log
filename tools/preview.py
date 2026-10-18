@@ -43,6 +43,8 @@ if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=functi
 """
 
 audio = cfg.get('audio')           # e.g. "scenes/door-norm.wav" (relative to film/)
+if audio and not os.path.exists(os.path.join(film, audio)):
+    print('(no soundtrack yet — preview without sound)'); audio = None
 if audio:
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(film, audio), '-c:a', 'aac', '-b:a', '128k',
                     os.path.join(out, 'soundtrack.m4a')], check=True)
