@@ -9,7 +9,7 @@ service, verbatim, with timestamps, plus the key messages. Needs GEMINI_API_KEY.
 import glob, json, os, sys, time, urllib.error, urllib.request
 
 API = "https://generativelanguage.googleapis.com/v1beta"
-MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"]  # free-tier models; first that works wins
+MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]  # first that works wins; cheapest first
 
 PROMPT = """이 영상은 한국 교회의 주일예배 실황입니다. 설교 제목: "{title}" (본문: {passage}, 설교: {preacher}).
 1) 예배 중 '설교' 부분만 찾아 시작/끝 시각을 적으세요.
@@ -71,7 +71,13 @@ def main():
             print(f"… {meta_path}: transcribing with {m}")
             t0 = time.time()
             try:
-                txt, why = text_of(call(m, body, key))
+                try:
+                    txt, why = text_of(call(m, body, key))
+                except urllib.error.HTTPError as e:
+                    if e.code != 400:
+                        raise
+                    print(f"⚠️  {m}: {err(e)} — retrying with default settings")
+                    txt, why = text_of(call(m, {"contents": body["contents"]}, key))
             except urllib.error.HTTPError as e:
                 print(f"⚠️  {m}: {err(e)}")
                 continue
