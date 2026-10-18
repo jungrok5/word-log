@@ -23,6 +23,25 @@ for f in os.listdir(sc):
     if f.endswith('.js'):
         shutil.copy(os.path.join(sc, f), out)
 
+# Preview harness: open on a poster frame (not the black first frame) and start from 0 on the first play.
+lib = open(os.path.join(sc, 'lib.js'), encoding='utf-8').read()
+for a, b in [("let cur = 0, playing = false", "let cur = (window.POSTER_T || 0), first = true, playing = false"),
+             ("const setPlay = p => { playing = p;", "const setPlay = p => { if (p && first) { first = false; cur = 0; } playing = p;")]:
+    assert a in lib, a
+    lib = lib.replace(a, b)
+open(os.path.join(out, 'lib.js'), 'w', encoding='utf-8').write(lib)
+
+# A big centred play button over the poster (the harness's own controls sit small at the bottom).
+OVERLAY = """<script>window.POSTER_T = %s;</script>
+<style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+#pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%%;background:rgba(0,0,0,.6);
+border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}</style>
+<button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+<script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+"""
+
 audio = cfg.get('audio')           # e.g. "scenes/door-norm.wav" (relative to film/)
 if audio:
     subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(film, audio), '-c:a', 'aac', '-b:a', '128k',
@@ -33,6 +52,7 @@ for s in cfg['scenes']:
     page = open(os.path.join(sc, s['id'] + '.html'), encoding='utf-8').read()
     if audio:   # the harness plays cfg.audio in sync with the picture
         page = page.replace('Pilot.run({', "Pilot.run({ audio: 'soundtrack.m4a',", 1)
+    page = page.replace('</body>', OVERLAY % s.get('poster', cfg.get('poster', 9.5)) + '</body>', 1)
     open(os.path.join(out, s['id'] + '.html'), 'w', encoding='utf-8').write(page)
     cards.append(f'<a class="card" href="{s["id"]}.html?o=v"><span class="k">{html.escape(s["label"])}</span>'
                  f'<span class="d">{s.get("dur", "")}초 · 탭해서 재생</span></a>')

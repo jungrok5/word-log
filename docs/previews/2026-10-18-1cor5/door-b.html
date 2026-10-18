@@ -585,5 +585,13 @@ Pilot.run({ audio: 'soundtrack.m4a', W, H, dur: DUR,
     grain = buildGrain(); vign = buildVignette(); bristles = buildBristles(); },
   draw });
 </script>
+<script>window.POSTER_T = 9.5;</script>
+<style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+#pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}</style>
+<button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+<script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
 </body>
 </html>
