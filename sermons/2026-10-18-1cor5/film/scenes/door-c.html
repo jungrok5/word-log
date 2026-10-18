@@ -8,25 +8,24 @@
 </head>
 <body>
 <script src="lib.js"></script>
-<script src="story.js"></script><script src="door-common.js"></script>
+<script src="story.js"></script><script src="door-common.js"></script><script src="kit-bass.js"></script>
 <script>
 /* 문틈 — C · Saul Bass graphic title sequence (after OPUSCAR no. 33, The Apartment line titles).
    Flat ink black / paper white cut paper, hand-cut edges, one red (the blood on lintel and posts).
    The film opens on one thin white vertical line (the door's edge); thin grey lines slide in and build the door;
    every move lands on a beat. One-point perspective: camera 1.5 m high, 4 m from the wall; the light sits beyond
    the door, high and to the right, so the light that gets through the gap falls on our floor as a diagonal wedge.
-   The demon is only a shadow (projected from a point light) and a hand of claws on the door's edge. */
-const { clamp, lerp, ss, eio, rng, noise, fbm, canvas } = Pilot;
-const V = Pilot.ori === 'v', PW = 1080, PH = 1920, B = DOOR.beat;
-const INK = '#0c0b0a', PAPER = '#f1ede4', LINE = '#8d867c', FLOORLN = '#2b2724', DOORC = '#47423d', RECESS = '#38342f';
-const SANS = "'Noto Sans KR',sans-serif", SERIF = "'Noto Serif KR',serif";
-const eo4 = x => { x = clamp(x); return 1 - Math.pow(1 - x, 4); };
-const twos = t => Math.floor(t * 12 + 1e-6) / 12;            // cut-out puppets move on twos
+   The demon is only a shadow (projected from a point light) and a hand of claws on the door's edge.
+   The style itself (cut edges, paper, light layer, camera, captions, end card) is the house kit kit-bass.js
+   (styles/bass/); this file keeps only the door's story: geometry, timing, the shadow, the claws, the blood. */
+const { clamp, lerp, ss, eio, rng, noise } = Pilot;
+const { eo4, twos, jag, poly, seg } = Bass, PW = Bass.W, PH = Bass.H, B = DOOR.beat;
+const { ink: INK, paper: PAPER, line: LINE, floor: FLOORLN, grey2: DOORC, grey1: RECESS } = Bass.C;
 
 // ---------------- world: one-point perspective ----------------
-const F = 1200, CH = 1.5, YH = 800, WZ = 4, DW = 0.45, DHT = 2.0, CAS = 0.11, ZN = 1.1;
+const V3 = Bass.view({ F: 1200, eye: 1.5, horizon: 800 }), P3 = V3.P, F = V3.F;   // camera 1.5 m high, horizon at y 800
+const WZ = 4, DW = 0.45, DHT = 2.0, CAS = 0.11, ZN = 1.1;
 const L = { x: 0.8, z: 9.0, y: 7.0 };                      // light beyond the door (y = virtual height for the shadow)
-const P3 = (x, y, z) => [540 + F * x / z, YH - F * (y - CH) / z];
 let SH2 = 0.04;
 const OX0 = P3(-DW, 0, WZ)[0], OX1 = P3(DW, 0, WZ)[0], OY0 = P3(0, DHT, WZ)[1], OY1 = P3(0, 0, WZ)[1];   // opening 405..675 × 650..1250
 
@@ -46,28 +45,9 @@ const freeEdge = th => [-DW + 2 * DW * Math.cos(th), WZ + 2 * DW * Math.sin(th)]
 // where the light's left boundary crosses the wall plane (door edge or left jamb)
 function leftLit(th) {
   if (th > Math.PI / 2) return -DW;
-  const [xd, zd] = freeEdge(th), k = (WZ - zd) / (zd - L.z);
-  return Math.max(-DW, xd + (xd - L.x) * k);
+  const [xd, zd] = freeEdge(th);
+  return Math.max(-DW, Bass.ray(L, xd, zd, WZ));
 }
-const rayX = (x4, z) => x4 + (x4 - L.x) * (WZ - z) / (L.z - WZ);    // floor ray from the light through (x4, WZ)
-
-// hand-cut edge: resample every ~step px, push along the normal by smooth noise (cut once per edge, from its start)
-function jag(pts, amp, seed, step = 9) {
-  const out = [], n = pts.length;
-  for (let i = 0; i < n; i++) {
-    const a = pts[i], b = pts[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
-    if (len < 1e-6) continue;
-    const nx = -dy / len, ny = dx / len, m = Math.max(1, Math.ceil(len / step));
-    for (let j = 0; j < m; j++) {
-      const s = j / m, d = s * len, taper = Math.min(1, d / 14, (len - d) / 14);
-      const e = amp * taper * (noise(seed * 3.1 + i * 13.7 + d * 0.055, seed * .71) - .5) * 2;
-      out.push([a[0] + dx * s + nx * e, a[1] + dy * s + ny * e]);
-    }
-  }
-  return out;
-}
-function poly(c, pts) { c.beginPath(); pts.forEach((p, i) => i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1])); c.closePath(); }
-function seg(c, a, b, k, col, w) { if (k <= 0) return; c.strokeStyle = col; c.lineWidth = w; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(lerp(a[0], b[0], k), lerp(a[1], b[1], k)); c.stroke(); }
 
 // ---------------- the figure (only ever seen as a shadow) ----------------
 // The shadow is designed as a Bass cut-out lying along the light: v = metres across (measured in the wall plane, then
@@ -77,14 +57,8 @@ const HALF = [
   [0.02, 0], [0.07, 0], [0.058, 0.14], [0.068, 0.28], [0.08, 0.335], [0.108, 0.45], [0.155, 0.55], [0.14, 0.59], [0.10, 0.61],
   [0.042, 0.625], [0.04, 0.65], [0.06, 0.67], [0.068, 0.71], [0.064, 0.76],
   [0.078, 0.775], [0.10, 0.83], [0.116, 0.91], [0.124, 1.0], [0.096, 0.915], [0.08, 0.85], [0.052, 0.805], [0.025, 0.81], [0.0, 0.812]];
-const SHAPE = HALF.concat(HALF.slice(0, -1).reverse().map(([v, u]) => [-v, u])).concat([[-0.016, 0.0], [0, 0.27], [0.016, 0.0]]);
-function shadowPts(xm, wv, y1) {
-  const fz = WZ + .06, y0 = P3(0, 0, fz)[1], dx = xm - L.x, dz = fz - L.z, D0 = Math.hypot(dx, dz), ux = dx / D0, uz = dz / D0;
-  return SHAPE.map(([v, u]) => {
-    const y = lerp(y0, y1, u), Z = F * CH / (y - YH), al = (Z - fz) / uz, sp = 1 + al / D0;
-    return P3(xm + ux * al - uz * v * wv * sp, 0, Z + ux * v * wv * sp);
-  });
-}
+const SHAPE = Bass.mirror(HALF, [[-0.016, 0.0], [0, 0.27], [0.016, 0.0]]);   // + the gap between the legs
+const shadowPts = (xm, wv, y1) => Bass.castShadow(V3, L, SHAPE, { x: xm, z: WZ + .06, width: wv, yTip: y1 });
 
 // ---------------- the hand: claws hooking round the door's edge ----------------
 // (a, b) on the door's face: a = metres from the free edge toward the hinge, b = metres down from the finger's line
@@ -118,18 +92,14 @@ function lightCol(t) {
   return Pilot.mix(Pilot.hex('#5d574f'), Pilot.hex('#f4d79a'), eio((t - B.close) / 1.25));
 }
 function cam(t) {
-  if (t >= B.claw && t < B.burst) return [lerp(1, 1.72, eo4((t - B.claw) / .32)), 650, 650];      // crash push onto the claws
-  if (t >= B.end) return [lerp(1, .6, eio((t - B.end) / .75)), 540, 1400];                          // pull back for the card
-  return [1, 540, 960];
+  const [jx, jy] = Bass.jolt(t, B.burst);                                                            // slam jolt
+  if (t >= B.claw && t < B.burst) return Bass.cam(Bass.crashPush(t, B.claw), 650, 650, jx, jy);     // crash push onto the claws
+  if (t >= B.end) return Bass.cam(Bass.pullBack(t, B.end), 540, 1400, jx, jy);                       // pull back for the card
+  return Bass.cam(1, 540, 960, jx, jy);
 }
 
-let lit, lc, paper;
-
 function drawWorld(ctx, t) {
-  const th = doorDeg(t) * Math.PI / 180, [cs, cpx, cpy] = cam(t);
-  let jx = 0, jy = 0;
-  if (t > B.burst && t < B.burst + .25) { const r = rng(Math.floor(t * 30)); jx = (r() - .5) * 26; jy = (r() - .5) * 18; }  // slam jolt
-  const camT = c => { c.translate(cpx + jx, cpy + jy); c.scale(cs, cs); c.translate(-cpx, -cpy); };
+  const th = doorDeg(t) * Math.PI / 180, cm = cam(t), camT = c => Bass.applyCam(c, cm);
   ctx.save(); camT(ctx);
 
   // phases
@@ -142,10 +112,7 @@ function drawWorld(ctx, t) {
   const floorX = []; for (let x = -3.6; x <= 3.61; x += 0.24) floorX.push(+x.toFixed(2));
   if (show && linesOut > 0) {
     ctx.lineCap = 'butt'; ctx.globalAlpha = linesOut;
-    floorX.forEach((x, i) => {
-      const k = eo4((build - (act1 ? 1.75 : 1.0) - Math.abs(x) * .12) / .45);
-      if (k > 0) { seg(ctx, P3(x, 0, WZ), P3(x, 0, lerp(WZ, ZN, k)), 1, FLOORLN, 2); }
-    });
+    Bass.gridBuild(ctx, V3, { xs: floorX, zFar: WZ, zNear: ZN, t: build, at: act1 ? 1.75 : 1.0, color: FLOORLN });
     // baseboard: sweeps out from the door to both edges
     const kb = eo4((build - (act1 ? 1.2 : .45)) / .5);
     seg(ctx, [OX0, OY1], [-600, OY1], kb, LINE, 2.5); seg(ctx, [OX1, OY1], [PW + 600, OY1], kb, LINE, 2.5);
@@ -162,11 +129,10 @@ function drawWorld(ctx, t) {
   const col = lightCol(t);
   let on = 0;
   if (act1) on = 1;
-  if (act2) { const f = twos(t); on = f < 19.5 ? 0 : f < 19.58 ? .55 : f < 19.67 ? .1 : f < 19.75 ? .8 : f < 19.83 ? .35 : 1; }
+  if (act2) on = Bass.flicker(t, 19.5, [.55, .1, .1, .35]);   // the light stutters back on, on twos
   if (!act1 && !act2) on = 0;
-  lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, PW, PH);
+  const lc = Bass.lightBegin(cm);
   if (on > 0) {
-    camT(lc);
     const c = Pilot.rgb(Pilot.mix([12, 11, 10], col, on));
     lc.fillStyle = c;
     const x4 = leftLit(th);
@@ -174,39 +140,34 @@ function drawWorld(ctx, t) {
     if (farOpen) { poly(lc, jag([[OX0, OY0], [OX1, OY0], [OX1, OY1], [OX0, OY1]], 1.6, 11)); lc.fill(); }
     // floor wedge (only once the door has visibly opened; the closed door shows just the thread)
     if (OX1 - P3(x4, 0, WZ)[0] > 1.5) {
-      const w = [P3(x4, 0, WZ), P3(DW, 0, WZ), P3(rayX(DW, ZN), 0, ZN), P3(rayX(x4, ZN), 0, ZN)];
+      const w = Bass.wedge(V3, L, x4, DW, WZ, ZN);
       poly(lc, jag(w, clamp((OX1 - P3(x4, 0, WZ)[0]) / 14, .25, 2.2), 23, 10)); lc.fill();
     }
-    lc.globalCompositeOperation = 'source-atop';
-    // floorboards inside the light
-    lc.strokeStyle = Pilot.rgb(Pilot.mix(col, [70, 64, 58], .26)); lc.lineWidth = 2.5;
-    floorX.forEach(x => { const a = P3(x, 0, WZ), b = P3(x, 0, ZN); lc.beginPath(); lc.moveTo(a[0], a[1]); lc.lineTo(b[0], b[1]); lc.stroke(); });
-    // the horned shadow
-    let sh = null;
-    if (act1 && t >= B.shadowIn) {
-      const k = eo4((twos(t) - B.shadowIn) / .9), sway = .012 * Math.sin((t - B.breath) * Math.PI * 2 / 1.7);
-      const gl = leftLit(Math.min(th, doorDeg(B.burst - .01) * Math.PI / 180)), gw = DW - gl; sh = [lerp(1.0, (gl + DW) / 2 + .01, k) + sway, gw / .36, 1680];
-    }
-    if (act2) {
-      const f = twos(t), jerk = f >= B.recoil && f < B.recoil + .3 ? (Math.floor(f * 12) % 2 ? .07 : -.05) : 0;
-      const wd = eio((f - B.recoil - .2) / .75);
-      sh = [lerp(SH2, 1.3, wd) + jerk + .06 * eo4((f - B.recoil) / .1), 1.35, lerp(1740, 1400, wd) - 120 * eo4((f - B.recoil) / .12) * (1 - wd)];
-    }
-    if (sh) { lc.fillStyle = INK; poly(lc, jag(shadowPts(...sh), 1.8, 37, 8)); lc.fill(); }
-    // darkness floods out of the doorway toward the camera
-    if (act1 && t >= B.burst + .05) {
-      const zf = lerp(WZ + .05, 0.9, eio((t - B.burst - .05) / 1.05)), pts = [];
-      for (let x = -7; x <= 7.001; x += .07) {
-        const tooth = (noise(x * 2.3, 5) - .5) * .5 + (noise(x * 9, 7) - .5) * .22;
-        pts.push(P3(x, 0, Math.max(.6, zf + tooth * (WZ - zf + .2) * .5)));
+    Bass.lightAtop(lc => {   // details cut into the light only: floorboards, the shadow, the flood
+      // floorboards inside the light
+      lc.strokeStyle = Pilot.rgb(Pilot.mix(col, [70, 64, 58], .26)); lc.lineWidth = 2.5;
+      floorX.forEach(x => { const a = P3(x, 0, WZ), b = P3(x, 0, ZN); lc.beginPath(); lc.moveTo(a[0], a[1]); lc.lineTo(b[0], b[1]); lc.stroke(); });
+      // the horned shadow
+      let sh = null;
+      if (act1 && t >= B.shadowIn) {
+        const k = eo4((twos(t) - B.shadowIn) / .9), sway = .012 * Math.sin((t - B.breath) * Math.PI * 2 / 1.7);
+        const gl = leftLit(Math.min(th, doorDeg(B.burst - .01) * Math.PI / 180)), gw = DW - gl; sh = [lerp(1.0, (gl + DW) / 2 + .01, k) + sway, gw / .36, 1680];
       }
-      pts.push(P3(7, 0, 9), P3(-7, 0, 9));
-      lc.fillStyle = INK; poly(lc, pts); lc.fill();
-    }
-    lc.globalCompositeOperation = 'source-over';
+      if (act2) {
+        const f = twos(t), jerk = f >= B.recoil && f < B.recoil + .3 ? (Math.floor(f * 12) % 2 ? .07 : -.05) : 0;
+        const wd = eio((f - B.recoil - .2) / .75);
+        sh = [lerp(SH2, 1.3, wd) + jerk + .06 * eo4((f - B.recoil) / .1), 1.35, lerp(1740, 1400, wd) - 120 * eo4((f - B.recoil) / .12) * (1 - wd)];
+      }
+      if (sh) { lc.fillStyle = INK; poly(lc, jag(shadowPts(...sh), 1.8, 37, 8)); lc.fill(); }
+      // darkness floods out of the doorway toward the camera
+      if (act1 && t >= B.burst + .05) {
+        const zf = lerp(WZ + .05, 0.9, eio((t - B.burst - .05) / 1.05));
+        lc.fillStyle = INK; poly(lc, Bass.floodFront(V3, zf, WZ)); lc.fill();
+      }
+    });
   }
   ctx.restore();
-  ctx.drawImage(lit, 0, 0);
+  Bass.lightEnd(ctx);
   ctx.save(); camT(ctx);
 
   // --- the door panel (cut paper), its recessed panels and knob
@@ -244,7 +205,7 @@ function drawWorld(ctx, t) {
       const curl = lerp(.15, 1.0, eo4((f - B.claw - dl - .15) / .5)) + grip * .35;
       if (k <= 0) return;
       const pts = jag(fingerPoly(th, Y, ls, k, curl), .9, 80 + i, 5);
-      ctx.save(); ctx.translate(5, 4); ctx.fillStyle = 'rgba(0,0,0,.35)'; poly(ctx, pts); ctx.fill(); ctx.restore();   // paper shadow
+      Bass.paperShadow(ctx, pts);   // paper shadow
       poly(ctx, pts);
       ctx.fillStyle = INK; ctx.fill();
     });
@@ -257,100 +218,29 @@ function drawWorld(ctx, t) {
       [B.blood[0], 'h', P3(-DW - CAS - .02, DHT + CAS + .015, WZ), P3(DW + CAS + .02, DHT - .005, WZ)],
       [B.blood[1], 'v', P3(-DW - CAS - .01, DHT + CAS, WZ), P3(-DW - .006, 0, WZ)],
       [B.blood[2], 'v', P3(DW + .006, DHT + CAS, WZ), P3(DW + CAS + .01, 0, WZ)]];
-    strokes.forEach(([b0, dir, a, z], i) => {
-      const k = eo4((t - b0) / .22); if (k <= 0) return;
-      const [x0, y0] = a, [x1, y1] = z, r = rng(300 + i);
-      let pts;
-      if (dir === 'h') {
-        const xe = lerp(x0, x1, k), teeth = [];
-        for (let j = 0; j <= 6; j++) teeth.push([xe - (j % 2 ? 10 + r() * 14 : r() * 4) * (k < 1 ? 1 : .6), lerp(y1, y0, j / 6)]);
-        pts = [[x0, y0]].concat(teeth.reverse(), [[x0, y1]]);
-      } else {
-        const ye = lerp(y0, y1, k), teeth = [];
-        for (let j = 0; j <= 5; j++) teeth.push([lerp(x1, x0, j / 5), ye - (j % 2 ? 9 + r() * 16 : r() * 4) * (k < 1 ? 1 : .6)]);
-        pts = [[x0, y0 + 3], [x1, y0]].concat(teeth);
-      }
-      ctx.fillStyle = red; poly(ctx, jag(pts, 1.6, 90 + i * 7, 7)); ctx.fill();
-    });
+    strokes.forEach(([b0, dir, a, z], i) => Bass.swipe(ctx, a, z, dir, eo4((t - b0) / .22), red, i));
   }
   ctx.restore();
 }
 
 // ---------------- words ----------------
-function wordsLine(ctx, s, cx, y, o, nShow) {
-  ctx.font = `${o.weight} ${o.size}px ${o.font}`;
-  let ws = s.split(' '), sp = ctx.measureText(' ').width, wd = ws.map(w => ctx.measureText(w).width);
-  let tot = wd.reduce((a, b) => a + b, 0) + sp * (ws.length - 1), size = o.size;
-  if (tot > (o.maxW || 880)) { size = o.size * (o.maxW || 880) / tot; ctx.font = `${o.weight} ${size}px ${o.font}`; sp = ctx.measureText(' ').width; wd = ws.map(w => ctx.measureText(w).width); tot = wd.reduce((a, b) => a + b, 0) + sp * (ws.length - 1); }
-  let x = cx - tot / 2; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = o.color;
-  ws.forEach((w, i) => { if (i < nShow) ctx.fillText(w, x, y); x += wd[i] + sp; });
-  return tot;
-}
-const STRIPS = [[380, 455, -4, -1], [630, 500, 3, 1], [520, 440, -2, -1]];   // cx, cy, angle, slide from
-function srcLine(ctx, src, y, a, rule) {
-  if (a <= 0) return;
-  ctx.fillStyle = `rgba(241,237,228,${a})`; ctx.fillRect(540 - rule / 2, y - 52, rule, 4);
-  Pilot.text(ctx, src, 540, y, { size: 27, weight: 600, font: SANS, color: '#d3ccc0', alpha: a, ls: 3 });
-}
-function captions(ctx, t) {
-  DOOR.lines.forEach(([a, b, s0, src], idx) => {
-    if (t < a || t >= b) return;                               // Bass: words cut on and off, no fades
-    const s = Pilot.tr(s0), lines = s.split('\n'), dt = t - a;
-    ctx.save();
-    if (idx === 0) {
-      const nw = s.split(' ').length, n = dt < .7 ? Math.ceil(nw / 2) : nw;
-      wordsLine(ctx, lines[0], 540, 470, { weight: 900, size: 64, font: SANS, color: PAPER }, n);
-    } else if (idx <= 3) {
-      const [cx, cy, ang, from] = STRIPS[idx - 1], k = eo4(dt / .2), dx = from * 900 * (1 - k);
-      ctx.font = `900 62px ${SANS}`; const tw = Math.min(800, ctx.measureText(lines[0]).width);
-      ctx.translate(cx + dx, cy); ctx.rotate(ang * Math.PI / 180);
-      const hw = tw / 2 + 46, hh = 56;
-      ctx.fillStyle = PAPER; poly(ctx, jag([[-hw, -hh], [hw, -hh + 3], [hw - 6, hh], [-hw + 4, hh - 2]], 2.4, 400 + idx, 9)); ctx.fill();
-      wordsLine(ctx, lines[0], 0, 22, { weight: 900, size: 62, font: SANS, color: INK, maxW: 800 }, 99);
-    } else {
-      const big = idx === 4, size = big ? 66 : 56, y0 = idx === 4 ? 470 : idx === 5 ? 420 : 395, lh = size * 1.5;
-      lines.forEach((ln, i) => {
-        const at = idx === 4 ? 0 : i * (idx === 5 ? .5 : B.blood[1] - a);
-        if (dt < at) return;
-        const n = idx === 4 ? 1 + Math.floor(dt / .14) : 99;
-        wordsLine(ctx, ln, 540, y0 + i * lh, { weight: 900, size, font: SERIF, color: PAPER }, n);
-      });
-      const ys = y0 + (lines.length - 1) * lh + 78;
-      const sa = idx === 4 ? (dt >= .45 ? 1 : 0) : idx === 5 ? (dt >= .9 ? 1 : 0) : (t >= B.blood[2] ? 1 : 0);
-      const rule = idx === 5 ? lerp(64, 520, eio((dt - .9) / 2.6)) : 64;
-      srcLine(ctx, src, ys, sa, rule);
-    }
-    ctx.restore();
-  });
-}
+// Bass captions from the kit; lines 0–5 use its automatic choice (snap hook, three strips, word-by-word verse,
+// two-line verse with a growing rule). The last verse waits for the blood: line 2 on the left post, source on the right.
+const SPECS = { 6: { y: 395, lineDelay: B.blood[1] - DOOR.lines[6][0], srcAt: B.blood[2] - DOOR.lines[6][0], rule: 64 } };
 
 function draw(ctx, t) {
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, Pilot.W, Pilot.H);
-  if (!V) { ctx.translate((Pilot.W - PW * Pilot.H / PH) / 2, 0); ctx.scale(Pilot.H / PH, Pilot.H / PH); ctx.beginPath(); ctx.rect(0, 0, PW, PH); ctx.clip(); }   // landscape: the portrait film, pillarboxed
-  ctx.fillStyle = INK; ctx.fillRect(0, 0, PW, PH);
+  Bass.begin(ctx);                       // black, landscape pillarbox, ink ground
   drawWorld(ctx, t);
-  // paper: one sheet multiplied over everything (ink stays ink, white reads as paper)
-  ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(paper, 0, 0, PW, PH); ctx.globalCompositeOperation = 'source-over';
-  if (t >= B.burst && t < B.burst + .07) {   // the slam is a stab: two frames in negative
-    ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#f1ede4'; ctx.fillRect(0, 0, PW, PH); ctx.globalCompositeOperation = 'source-over'; }
-  captions(ctx, t);
-  DOOR.endCardDraw(ctx, t, { y: 430, font: SERIF, srcFont: SANS, color: PAPER, srcColor: '#d3ccc0', ctaColor: PAPER });
-  const out = ss(DOOR.DUR - .6, DOOR.DUR, t);
-  if (out > 0) { ctx.fillStyle = `rgba(0,0,0,${out})`; ctx.fillRect(0, 0, PW, PH); }
+  Bass.paperPass(ctx);                   // one paper sheet multiplied over everything
+  Bass.negFlash(ctx, t, B.burst);        // the slam is a stab: two frames in negative
+  Bass.captions(ctx, t, DOOR.lines, { specs: SPECS });
+  Bass.endCard(ctx, t, DOOR.endCard, B.end);
+  Bass.fadeOut(ctx, t, DOOR.DUR);
 }
 
 Pilot.run({
-  W: Pilot.W, H: Pilot.H, dur: DOOR.DUR,
-  fonts: [`900 60px ${SANS}`, `900 60px ${SERIF}`, `700 72px ${SERIF}`, `600 28px ${SANS}`, `500 34px ${SANS}`, `400 30px ${SANS}`],
-  init: async () => {
-    lit = canvas(PW, PH); lc = lit.getContext('2d');
-    const w = 540, h = 960; paper = canvas(w, h); const x = paper.getContext('2d'), d = x.createImageData(w, h), r = rng(5);
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      const m = fbm(i * .013, j * .013, 4), fib = noise(i * .5, j * .045), v = 255 - 15 * m - 6 * Math.max(0, fib - .6) * 2.5 - (r() < .002 ? 18 : 0);
-      const o = (j * w + i) * 4; d.data[o] = v; d.data[o + 1] = v - 1; d.data[o + 2] = v - 4; d.data[o + 3] = 255;
-    }
-    x.putImageData(d, 0, 0);
-  },
+  W: Pilot.W, H: Pilot.H, dur: DOOR.DUR, fonts: Bass.FONTS,
+  init: async () => Bass.init(),
   draw });
 </script>
 </body>
