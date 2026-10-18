@@ -12,6 +12,10 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Install yt-dlp and ffmpeg (audio fallback)
+        run: |
+          pip install -q -U "yt-dlp[default]"
+          sudo apt-get install -y -qq ffmpeg >/dev/null
       - name: Check the Gemini key
         env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
         run: python3 -u tools/transcribe.py --check

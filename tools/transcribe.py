@@ -6,7 +6,7 @@ service, verbatim, with timestamps, plus the key messages. Needs GEMINI_API_KEY.
   python3 tools/transcribe.py            # all sermons missing a transcript
   python3 tools/transcribe.py --check    # only check that the key works (tiny request)
 """
-import glob, json, os, sys, time, urllib.error, urllib.request
+import glob, json, os, subprocess, sys, tempfile, time, urllib.error, urllib.request
 
 API = "https://generativelanguage.googleapis.com/v1beta"
 MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]  # first that works wins; cheapest first
@@ -34,6 +34,46 @@ def interact(model, prompt, url, key, config=None, timeout=900):
                                  headers={"Content-Type": "application/json", "x-goog-api-key": key})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.load(r)
+
+
+def upload(path, mime, key):
+    """Gemini Files API resumable upload → file uri."""
+    size = os.path.getsize(path)
+    start = urllib.request.Request(
+        f"{API.replace('/v1beta', '/upload/v1beta')}/files", method="POST",
+        data=json.dumps({"file": {"display_name": os.path.basename(path)}}).encode(),
+        headers={"x-goog-api-key": key, "Content-Type": "application/json", "X-Goog-Upload-Protocol": "resumable",
+                 "X-Goog-Upload-Command": "start", "X-Goog-Upload-Header-Content-Length": str(size),
+                 "X-Goog-Upload-Header-Content-Type": mime})
+    with urllib.request.urlopen(start, timeout=60) as r:
+        up = r.headers["X-Goog-Upload-URL"]
+    put = urllib.request.Request(up, method="POST", data=open(path, "rb").read(),
+                                 headers={"Content-Length": str(size), "X-Goog-Upload-Offset": "0",
+                                          "X-Goog-Upload-Command": "upload, finalize"})
+    with urllib.request.urlopen(put, timeout=600) as r:
+        f = json.load(r)["file"]
+    while f.get("state") == "PROCESSING":
+        time.sleep(5)
+        with urllib.request.urlopen(urllib.request.Request(f"{API}/{f['name']}", headers={"x-goog-api-key": key})) as r:
+            f = json.load(r)
+    return f["uri"]
+
+
+def via_audio(model, prompt, url, key):
+    """Fallback when Gemini refuses the YouTube link: download the audio here and send that."""
+    d = tempfile.mkdtemp()
+    src = os.path.join(d, "a.%(ext)s")
+    subprocess.run(["yt-dlp", "-q", "--no-playlist", "-f", "bestaudio", "-o", src, url], check=True)
+    raw = next(os.path.join(d, x) for x in os.listdir(d))
+    mp3 = os.path.join(d, "sermon.mp3")
+    subprocess.run(["ffmpeg", "-v", "error", "-i", raw, "-ac", "1", "-ar", "16000", "-b:a", "32k", mp3], check=True)
+    print(f"   audio {os.path.getsize(mp3) / 1e6:.1f} MB")
+    uri = upload(mp3, "audio/mpeg", key)
+    body = {"contents": [{"parts": [{"file_data": {"file_uri": uri, "mime_type": "audio/mpeg"}},
+                                    {"text": prompt.replace("이 영상은", "이 녹음은")}]}],
+            "generationConfig": {"maxOutputTokens": 65536, "temperature": 0.2}}
+    txt, why = text_of(call(model, body, key))
+    return txt
 
 
 def output_text(resp):
@@ -115,6 +155,16 @@ def main():
             print(f"✅ wrote {out} ({len(txt)} chars)")
             break
         else:
+            print(f"… YouTube link refused; trying the audio route with {ok}")
+            try:
+                txt = via_audio(ok, prompt, meta["url"], key)
+                if txt.strip():
+                    open(out, "w", encoding="utf-8").write(txt.strip() + f"\n\n<!-- {ok}, audio route -->\n")
+                    print(f"✅ wrote {out} ({len(txt)} chars, audio route)")
+                    continue
+                print("⚠️  audio route: empty answer")
+            except Exception as e:
+                print(f"⚠️  audio route failed: {err(e) if isinstance(e, urllib.error.HTTPError) else e}")
             # Tell apart "this video is blocked" from "YouTube links are blocked for this key".
             try:
                 interact(ok, "Summarize this video in one sentence.", "https://www.youtube.com/watch?v=9hE5-98ZeCg", key)
