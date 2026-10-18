@@ -14,10 +14,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check the Gemini key
         env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
-        run: python3 tools/transcribe.py --check
+        run: python3 -u tools/transcribe.py --check
       - name: Transcribe new sermons
         env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
-        run: python3 tools/transcribe.py
+        run: python3 -u tools/transcribe.py
       - name: Commit transcripts
         run: |
           git config user.name "github-actions[bot]"

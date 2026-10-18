@@ -26,6 +26,36 @@ def call(model, body, key, timeout=900):
         return json.load(r)
 
 
+def interact(model, prompt, url, key, config=None, timeout=900):
+    body = {"model": model, "input": [{"type": "text", "text": prompt}, {"type": "video", "uri": url}]}
+    if config:
+        body["generation_config"] = config
+    req = urllib.request.Request(f"{API}/interactions", data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json", "x-goog-api-key": key})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+
+def output_text(resp):
+    """The text of the model_output step(s) of an Interactions API response."""
+    if isinstance(resp.get("output_text"), str):
+        return resp["output_text"]
+    found = []
+
+    def walk(x, in_output):
+        if isinstance(x, dict):
+            here = in_output or x.get("type") in ("model_output", "output_text") or x.get("role") == "model"
+            if here and x.get("type") in (None, "text", "output_text") and isinstance(x.get("text"), str):
+                found.append(x["text"])
+            for k, v in x.items():
+                walk(v, here or k in ("outputs", "output"))
+        elif isinstance(x, list):
+            for v in x:
+                walk(v, in_output)
+    walk(resp, False)
+    return "".join(found)
+
+
 def text_of(resp):
     c = resp.get("candidates") or [{}]
     return "".join(p.get("text", "") for p in c[0].get("content", {}).get("parts", [])), c[0].get("finishReason")
@@ -61,31 +91,28 @@ def main():
         if os.path.exists(out):
             continue
         meta = json.load(open(meta_path, encoding="utf-8"))
-        body = {
-            "contents": [{"parts": [{"file_data": {"file_uri": meta["url"], "mime_type": "video/*"}},
-                                    {"text": PROMPT.format(**meta)}]}],
-            "generationConfig": {"mediaResolution": "MEDIA_RESOLUTION_LOW", "maxOutputTokens": 65536,
-                                 "temperature": 0.2},
-        }
+        prompt = PROMPT.format(**meta)
+        config = {"temperature": 0.2, "max_output_tokens": 65536, "thinking_level": "low"}
         for m in [ok] + [x for x in MODELS if x != ok]:
             print(f"… {meta_path}: transcribing with {m}")
             t0 = time.time()
             try:
                 try:
-                    txt, why = text_of(call(m, body, key))
+                    resp = interact(m, prompt, meta["url"], key, config)
                 except urllib.error.HTTPError as e:
                     if e.code != 400:
                         raise
                     print(f"⚠️  {m}: {err(e)} — retrying with default settings")
-                    txt, why = text_of(call(m, {"contents": body["contents"]}, key))
+                    resp = interact(m, prompt, meta["url"], key)
             except urllib.error.HTTPError as e:
                 print(f"⚠️  {m}: {err(e)}")
                 continue
+            txt = output_text(resp)
             if not txt.strip():
-                print(f"⚠️  {m}: empty answer ({why})")
+                print(f"⚠️  {m}: no text found; response keys: {list(resp)} · {json.dumps(resp, ensure_ascii=False)[:1500]}")
                 continue
-            open(out, "w", encoding="utf-8").write(txt.strip() + f"\n\n<!-- {m}, finish={why}, {time.time()-t0:.0f}s -->\n")
-            print(f"✅ wrote {out} ({len(txt)} chars, finish={why})")
+            open(out, "w", encoding="utf-8").write(txt.strip() + f"\n\n<!-- {m}, {time.time()-t0:.0f}s -->\n")
+            print(f"✅ wrote {out} ({len(txt)} chars)")
             break
         else:
             sys.exit(f"❌ could not transcribe {meta_path}")
