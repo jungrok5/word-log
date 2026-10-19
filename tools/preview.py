@@ -13,7 +13,8 @@ if len(sys.argv) != 2:
     sys.exit(__doc__)
 src = sys.argv[1].rstrip('/')
 film = os.path.join(src, 'film')
-meta = json.load(open(os.path.join(src, 'sermon.json'), encoding='utf-8'))
+meta = next((json.load(open(os.path.join(src, f), encoding='utf-8')) for f in ('source.json', 'sermon.json')
+             if os.path.exists(os.path.join(src, f))), {})
 cfg = json.load(open(os.path.join(film, 'film.json'), encoding='utf-8'))
 out = os.path.join('docs', 'previews', os.path.basename(src))
 shutil.rmtree(out, ignore_errors=True)
@@ -52,12 +53,22 @@ if audio:
 cards = []
 for s in cfg['scenes']:
     page = open(os.path.join(sc, s['id'] + '.html'), encoding='utf-8').read()
-    if audio:   # the harness plays cfg.audio in sync with the picture
-        page = page.replace('Pilot.run({', "Pilot.run({ audio: 'soundtrack.m4a',", 1)
+    cuts = []
+    for f in sorted(os.listdir(sc)):   # cut versions (SCRIPT.cuts) whose soundtrack tools/cut-audio.py has made
+        pre = s['id'] + '-'
+        if f.startswith(pre) and f.endswith('.wav') and not os.path.islink(os.path.join(sc, f)):
+            cn = f[len(pre):-4]; cuts.append(cn)
+            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(sc, f), '-c:a', 'aac', '-b:a', '128k',
+                            os.path.join(out, f'{s["id"]}-{cn}.m4a')], check=True)
+    if audio:   # the harness plays cfg.audio in sync with the picture (a cut plays its own cut soundtrack)
+        page = page.replace('Pilot.run({', f"Pilot.run({{ audio: (Pilot.cut ? '{s['id']}-' + Pilot.cut + '.m4a' : 'soundtrack.m4a'),", 1)
     page = page.replace('</body>', OVERLAY % s.get('poster', cfg.get('poster', 9.5)) + '</body>', 1)
     open(os.path.join(out, s['id'] + '.html'), 'w', encoding='utf-8').write(page)
     cards.append(f'<a class="card" href="{s["id"]}.html?o=v"><span class="k">{html.escape(s["label"])}</span>'
                  f'<span class="d">{s.get("dur", "")}초 · 탭해서 재생</span></a>')
+    for cn in cuts:
+        cards.append(f'<a class="card" href="{s["id"]}.html?o=v&cut={cn}"><span class="k">{html.escape(s["label"])} · {cn} 버전</span>'
+                     f'<span class="d">탭해서 재생</span></a>')
 
 title = cfg.get('title', meta.get('title', ''))
 open(os.path.join(out, 'index.html'), 'w', encoding='utf-8').write(f'''<!doctype html>
@@ -75,7 +86,7 @@ border-radius:12px;background:var(--card);color:inherit;text-decoration:none}}
 small{{color:var(--muted)}}
 </style></head><body><main>
 <h1>{html.escape(title)}</h1>
-<p>{html.escape(meta.get("passage", ""))} · {html.escape(meta.get("preacher", ""))}</p>
+<p>{html.escape(" · ".join(filter(None, [meta.get("passage"), meta.get("preacher"), meta.get("church"), meta.get("book") and "『" + meta["book"] + "』", meta.get("author"), meta.get("by")])))}</p>
 {"".join(cards)}
 <small>브라우저가 직접 그리는 미리보기예요. 영상 아래 ▶ 버튼을 누르면 소리와 함께 재생돼요. 마음에 드는 버전을 알려주시면 MP4로 만들어 드려요.</small>
 </main></body></html>

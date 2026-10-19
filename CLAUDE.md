@@ -1,35 +1,64 @@
 # word-log
 
-말씀(설교·묵상·주제) 하나를 **30초 안팎의 임팩트 있는 세로 영상**(1080×1920)으로 만든다. 요약 영상이 아니다:
+말씀(설교·책·묵상·주제) 하나를 **25–35초의 임팩트 있는 세로 영상**(1080×1920)으로 만든다. 요약 영상이 아니다:
 메시지 하나를 **하나의 강한 그림(비유·장면)**으로 보여 줘서, 처음 보는 사람도 30초 안에 느끼게 하는 것이 목표.
 예) "작은 죄가 번진다" → 문틈이 조금씩 벌어지다 그 틈으로 악마가 문을 열고 들어온다.
-영상은 HTML Canvas 장면으로 그리고 프레임 단위로 구워 MP4로 만든다.
-도구는 motion-skills 레포의 **canvas-film** 스킬(`../motion-skills/canvas-film/`, 없으면 github.com/jungrok5/motion-skills).
+영상은 HTML Canvas 장면으로 그리고(미리보기는 브라우저가 직접 재생), 고른 버전만 프레임 단위로 구워 MP4로 만든다.
+도구: motion-skills 레포의 **canvas-film** 스킬(`../motion-skills/canvas-film/`, 없으면 github.com/jungrok5/motion-skills).
+
+## 영상 전략 (모든 영상에 적용 — `tools/check-film.py`가 검사)
+플랫폼(유튜브 쇼츠·인스타 릴스·틱톡)은 길이보다 **몇 %를 봤는지**(끝까지 보기·넘기지 않기·다시 보기)로 추천한다.
+1. **길이**: 본편 25–35초. 그림 하나·메시지 하나에 맞는 길이. 45–60초는 설명이 꼭 필요한 주제만(따로 구성).
+2. **훅**: 0초부터 그림이 보인다(검은 화면 페이드인 금지 — 미리보기·피드 첫 장면이 검게 보인다). 첫 자막 ≤ 0.5초.
+   첫 3초 안에 질문이나 낯선 장면으로 "뭐지?"를 만든다.
+3. **흐름**: 훅(0–3초) → 점점 커짐(박자마다 한 번씩 변화) → 결정적 한 순간 → 메시지·성경 구절 → 엔딩.
+   설명하지 말고 보여 준다. 자막 ≤ 2줄, 한 줄 ≥ 1.6초, 아래 380px·오른쪽 140px 비움(플랫폼 UI).
+4. **죽은 구간 금지**: 검은 화면 + 무음 ≤ 0.8초(극적인 정적도 넘김을 부른다 — 꼭 필요하면 낮은 소리를 깐다).
+5. **엔딩 카드 ≤ 2.5초**: 자료에서 자동으로(`Story.card(SOURCE)`): 제목 + 작은 두 줄. **화면에 CTA·링크 없음** —
+   "전체 설교 보기", 링크, 전체 출처는 설명란과 고정 댓글로(upload.md).
+   - 설교: 설교 제목 / 본문 / 날짜 · 교회 · 설교자
+   - 책: 제목(없으면 『책』) / 『책』 장·쪽 / 저자 · 출판사
+   - 묵상·주제: 제목 / 본문 / (교회·채널 등)
+6. **반복 재생 연결**: 쇼츠는 끝나면 처음부터 다시 돈다. 마지막 장면을 첫 장면과 같은 그림으로 돌아오게 하고,
+   `SCRIPT.loop`(기본 0.6초)로 마지막이 첫 프레임에 겹쳐 이어진다.
+7. **short 버전(≈15초, 발견용)**: 본편에서 구간을 골라 `SCRIPT.cuts.short = [[0,3.5],[…],[…,DUR]]`
+   (훅 + 결정적 순간 + 구절 + 엔딩). 같은 장면을 자르는 것이라 추가 그림이 없다. 첫 영상들은 본편과 함께 만든다.
+8. **올리고 재기**: 처음 몇 편은 본편과 short를 다른 날 올려 유지 그래프로 비교한다. 결과는 `metrics.md`,
+   확인된 교훈은 루트 `LEARNINGS.md`에 한 줄 — **콘티를 짜기 전에 LEARNINGS.md부터 읽는다.**
 
 ## 순서 (컨펌 전에는 만들지 않는다)
-1. **입력**: 유튜브 링크, 또는 텍스트/설명/주제 한 줄(주일 설교만이 아님).
-   - 링크 → `sermons/<YYYY-MM-DD>-<본문>/sermon.json`(url, date, series, title, passage, preacher, church) 푸시 →
-     Actions `summarize`가 Gemini API로 `summary.md` 생성(실패하면 3시간마다 재시도). Secret `GEMINI_API_KEY`.
-   - 텍스트/설명 → 그 내용을 그대로 `summary.md`에 저장(url 없이 sermon.json만).
-   - API가 영상을 거부하면 사용자에게 Gemini 앱 요약이나 스크립트를 받아 `summary.md`에 넣는다(출처를 맨 위에 적기).
-2. **한 장면 찾기**: 자료에서 메시지 하나와 그것을 보여 줄 그림 하나를 고른다. 설교자가 직접 쓴 예화·비유·인용이 1순위
-   (그 그림이 사람들 기억에 남는다), 없으면 직접 제안. 30초 구조: 훅(3초) → 점점 커짐 → 결정적 한 순간 → 메시지 → 출처.
-   설명하지 말고 보여 준다. 자막은 짧게, 화면이 말하게.
-3. **스타일 검색**: 먼저 **하우스 스타일**(`styles/README.md` — 검증된 키트, 10–15분이면 새 장면)에서 의미가 맞는 것을 찾고,
-   새 그림이 필요할 때만 canvas-film `references/STYLE-INDEX.md`의 170개 전체에서 고른다(문서의 5단계).
-   하우스 스타일로 만들 때: `python3 tools/new-film.py sermons/<폴더> --style <slug> --id <이름>` → `scenes/script.js` 작성 →
-   템플릿 장면의 자리 표시 대상을 이번 영상의 그림으로 바꾼다(키트 API는 `styles/<slug>/STYLE.md`).
-   새 스타일로 만든 영상이 잘 되면 같은 형식(kit.js · STYLE.md · template.html · script.example.js)으로 `styles/`에 추가한다.
-4. **제안**: 추천 스타일 1개 + 대안 2–3개, 장면별 콘티(시간·화면·자막·소리)를 `sermons/.../storyboard.md`에 쓰고 사용자에게 보여준다.
-5. **컨펌 후 제작 → HTML 미리보기 먼저**: `sermons/.../film/`(film.json, scenes/*.html, 사운드) → 스틸로 직접 확인 →
-   `python3 tools/preview.py sermons/<폴더>` → 커밋·푸시 → 사용자에게 **미리보기 링크**
-   `https://jungrok5.github.io/word-log/previews/<폴더>/`를 보낸다(브라우저가 직접 그림, 소리 포함, 인코딩 없음).
-   **MP4는 사용자가 요청한 버전만** 굽는다: film 폴더에서 `node ../../../motion-skills/canvas-film/scripts/render.mjs v --scene <id>`
-   (`scenes/<id>.wav`가 있으면 소리가 합쳐짐; `out/`은 git에 넣지 않음).
-6. **업로드**(예정, OAuth 준비 중): 유튜브 쇼츠·인스타 릴스.
+1. **입력 → `sermons/<YYYY-MM-DD>-<짧은이름>/source.json`** (주일 설교만이 아님; `type`으로 구분):
+   - 설교: `{"type":"sermon","url","date","series","title","passage","preacher","church","tags"}` → 푸시하면 Actions
+     `summarize`가 Gemini API로 `summary.md`(영상 재료: 예화·비유·인용·설교자의 말)를 만든다(실패하면 3시간마다 재시도,
+     Secret `GEMINI_API_KEY`). API가 거부하면 Gemini 앱 요약이나 스크립트를 받아 `summary.md`에 넣는다(출처를 맨 위에).
+   - 책: `{"type":"book","book","author","where","publisher","title","tags"}` + 받은 내용은 `summary.md`에.
+   - 묵상·주제: `{"type":"meditation"|"topic","title","passage","by","tags"}` + 내용은 `summary.md`에.
+   - 자료에 빠진 것(책 제목, 인용 출처 등)은 지어내지 않는다. 확인 안 되는 인용은 화면에 쓰지 않고 그림으로만 살린다.
+2. **한 장면 찾기**: 메시지 하나와 그것을 보여 줄 그림 하나. 자료 속 예화·비유·인용이 1순위, 없으면 직접 제안.
+   LEARNINGS.md의 교훈을 반영한다.
+3. **스타일 검색**: 먼저 **하우스 스타일**(`styles/README.md`, 검증된 키트 — 같은 motion-skills `canvas-film/kits/`)에서
+   의미가 맞는 것, 새 그림이 필요할 때만 canvas-film `references/STYLE-INDEX.md` 170개 전체에서(문서의 5단계).
+   키트는 그리는 재료일 뿐 — 장면 구성·색·카메라는 매번 새로. 예전 영상과 헷갈려 보이면 다시 설계한다.
+4. **제안**: `tools/storyboard.template.md`를 채워 `sermons/.../storyboard.md` — 추천 스타일 1 + 대안 2–3, 본편 콘티
+   (시간·화면·자막·소리), short 구간, 체크리스트. 사용자에게 보여 주고 컨펌받는다.
+5. **제작** (컨펌 후):
+   1. `python3 tools/new-film.py sermons/<폴더> --style <slug> --id <이름>` → `scenes/source.js`(엔딩 카드 자료),
+      `scenes/script.js`(beats·lines·cuts; 엔딩 카드·loop 기본값이 붙어 있음), 키트 템플릿 장면.
+   2. script.js를 콘티대로 쓰고(DUR 25–35, `beat.end = DUR − 2.5` 안팎), 템플릿의 자리 표시 대상을 이번 그림으로 바꾼다.
+      템플릿의 검은 페이드인·4초 엔딩은 예전 타이밍이니 위 전략대로 고친다.
+   3. 사운드(canvas-film `references/SOUND.md`) → `scenes/soundtrack.wav` → `python3 tools/cut-audio.py sermons/<폴더>`
+      (장면별 소리 연결 + cut 버전 소리).
+   4. 스틸로 직접 확인 → `python3 tools/check-film.py sermons/<폴더> --frames` 통과.
+   5. `python3 tools/preview.py sermons/<폴더>` → 커밋·푸시 → **미리보기 링크**
+      `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(본편 + cut 버전, 소리 포함, 인코딩 없음).
+   6. `python3 tools/upload-meta.py sermons/<폴더>` → `upload.md`의 ✍️(제목·고정 댓글 질문)를 다듬어 함께 보여 준다.
+   7. **MP4는 사용자가 고른 버전만**: film 폴더에서
+      `node ../../../motion-skills/canvas-film/scripts/render.mjs v --scene <id> [--cut short]` (`out/`은 git에 넣지 않음).
+6. **업로드**(OAuth 준비 중 — 지금은 사용자가 직접): upload.md 문구로. 48시간·7일 뒤 `tools/metrics.template.md`를
+   `sermons/<폴더>/metrics.md`로 채우고, 확인된 교훈을 LEARNINGS.md에.
 
 ## 규칙
 - 성경 구절은 공식 본문(개역개정, 대한성서공회 bskorea.or.kr)에서 가져와 글자 그대로, 출처 줄을 붙인다.
-- 설교자의 말로 자막에 넣는 문장은 영상/스크립트에서 확인된 것만. 요약문 표현은 '정리'로만 쓴다.
-- 엔딩 카드: 설교 제목 · 본문 · 설교자 · 교회 · "전체 설교 보기".
-- MP4·오디오 원본 같은 큰 파일은 커밋하지 않는다.
+- 설교자·저자의 말로 화면에 넣는 문장은 영상/스크립트/책에서 확인된 것만. 요약문 표현은 '정리'로만 쓴다.
+- MP4·오디오 원본 같은 큰 파일은 커밋하지 않는다(미리보기용 m4a만 docs/previews에).
+- `sermons/2026-10-18-1cor5`(문틈)는 이 전략 이전의 첫 영상(30초, 4초 엔딩, door-common.js) — 고른 버전을 새 구조로 다듬을 때 옮긴다.

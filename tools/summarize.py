@@ -132,12 +132,14 @@ def main():
     if "--check" in sys.argv:
         return
 
-    for meta_path in sorted(glob.glob("sermons/*/sermon.json")):
+    paths = {os.path.dirname(p): p for p in sorted(glob.glob("sermons/*/sermon.json"))}
+    paths.update({os.path.dirname(p): p for p in sorted(glob.glob("sermons/*/source.json"))})   # source.json wins
+    for meta_path in sorted(paths.values()):
         out = os.path.join(os.path.dirname(meta_path), "summary.md")
         if os.path.exists(out):
             continue
         meta = json.load(open(meta_path, encoding="utf-8"))
-        if not meta.get("url"):
+        if not meta.get("url") or meta.get("type", "sermon") != "sermon":
             continue
         prompt = PROMPT.format(**meta)
         config = {"temperature": 0.2, "max_output_tokens": 16384, "thinking_level": "low"}

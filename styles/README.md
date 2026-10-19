@@ -17,9 +17,10 @@ Preview of all four: https://jungrok5.github.io/word-log/previews/2026-10-18-1co
 ```
 python3 tools/new-film.py sermons/<YYYY-MM-DD>-<본문> --style charcoal --id seed
 ```
-1. Write `scenes/script.js` (beats, lines, end card) from the storyboard.
+1. Write `scenes/script.js` (beats, lines, cuts) from the storyboard; the end card comes from `source.json` and the loop seam
+   is on by default (see CLAUDE.md 영상 전략). Templates still fade in from black and hold a 4-s end card — retime them.
 2. In `scenes/<id>-<slug>.html` replace the template's placeholder subject with the film's one image, using the kit.
-3. Stills → `python3 tools/preview.py sermons/<folder>` → push → send the preview link. MP4 only when asked.
+3. Sound → `tools/cut-audio.py` → `tools/check-film.py --frames` → `tools/preview.py` → push → preview link; `tools/upload-meta.py`. MP4 only when asked.
 
 `_shared/` holds what every film vendors: `lib.js` (canvas-film harness, phone-safe sizing) and `story.js`
 (captions + end card). A film copies its kit and shared files, so improving a kit later never changes an old film.

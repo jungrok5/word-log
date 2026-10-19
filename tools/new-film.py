@@ -27,6 +27,20 @@ for s in a.style:
 os.makedirs(os.path.join(sc, 'audio'), exist_ok=True); os.makedirs(os.path.join(film, 'out'), exist_ok=True)
 for f in ('lib.js', 'story.js'):
     shutil.copy(os.path.join(st, '_shared', f), sc)
+meta = {}
+for mp in (os.path.join(a.folder, 'source.json'), os.path.join(a.folder, 'sermon.json')):
+    if os.path.exists(mp): meta = json.load(open(mp, encoding='utf-8')); break
+if not meta.get('type'): meta['type'] = 'sermon' if meta.get('preacher') else 'topic'
+open(os.path.join(sc, 'source.js'), 'w', encoding='utf-8').write(
+    '/* The film\'s source (from source.json): the end card and the upload text are built from it. */\n'
+    f'window.SOURCE = {json.dumps(meta, ensure_ascii=False, indent=1)};\n')
+# every script: end card from the source, loop seam on, a default short cut slot (edit to the film's beats)
+TAIL = """
+/* — added by new-film.py: strategy defaults (see CLAUDE.md 영상 전략) — */
+if (window.SOURCE && window.Story) window.SCRIPT.endCard = Story.card(window.SOURCE);   // ≤ 2.5 s on screen; details go in the description
+if (window.SCRIPT.loop == null) window.SCRIPT.loop = 0.6;                             // cross-fade the last 0.6 s into frame 0 (replays seamlessly)
+if (!window.SCRIPT.cuts) window.SCRIPT.cuts = {};                                     // e.g. short: [[0, 3.5], [10, 15], [22, 27.5]] → ~15 s cut
+"""
 # One style: scenes/script.js. Several styles: each template keeps its own placeholder (script-<slug>.js) because the
 # templates use different beat names; once the storyboard is final, write ONE script.js and point every scene at it.
 scenes = []
@@ -38,12 +52,13 @@ for s in a.style:
         shutil.copy(os.path.join(st, s, 'script.example.js'), os.path.join(sc, sname))
     page = open(os.path.join(st, s, 'template.html'), encoding='utf-8').read()
     assert 'src="script.js"' in page, f'{s}/template.html must load script.js'
-    open(os.path.join(sc, sid + '.html'), 'w', encoding='utf-8').write(page.replace('src="script.js"', f'src="{sname}"'))
+    open(os.path.join(sc, sid + '.html'), 'w', encoding='utf-8').write(page.replace('<script src="script.js"></script>', f'<script src="source.js"></script><script src="{sname}"></script>').replace('src="script.js"', f'src="{sname}"'))
     label = open(os.path.join(st, s, 'STYLE.md'), encoding='utf-8').readline().lstrip('# ').strip() or s
     scenes.append({'id': sid, 'label': label, 'dur': 30})
-meta = {}
-mp = os.path.join(a.folder, 'sermon.json')
-if os.path.exists(mp): meta = json.load(open(mp, encoding='utf-8'))
+for f in os.listdir(sc):
+    if f.startswith('script') and f.endswith('.js'):
+        p = os.path.join(sc, f); body = open(p, encoding='utf-8').read()
+        if 'added by new-film.py' not in body: open(p, 'a', encoding='utf-8').write(TAIL)
 json.dump({'title': a.title or meta.get('title', ''), 'source': 'ko', 'scenes': scenes, 'audio': 'scenes/soundtrack.wav', 'poster': 12,
            'fonts': {'local': {'Noto Serif KR': 'NotoSerifKR[wght].ttf', 'Noto Sans KR': 'NotoSansKR[wght].ttf'}}},
           open(os.path.join(film, 'film.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)

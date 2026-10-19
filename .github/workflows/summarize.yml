@@ -1,7 +1,7 @@
 name: summarize
 on:
   push:
-    paths: ["sermons/*/sermon.json", "tools/summarize.py", ".github/workflows/summarize.yml"]
+    paths: ["sermons/*/sermon.json", "sermons/*/source.json", "tools/summarize.py", ".github/workflows/summarize.yml"]
   workflow_dispatch:
   schedule:
     - cron: "17 */3 * * *"   # retry sermons that still have no summary (a fresh live recording can be refused for a while)
