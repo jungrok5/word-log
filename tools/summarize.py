@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Summarise a sermon with the Gemini API (it watches the public YouTube URL itself).
 
-For every sermons/*/sermon.json with a "url" and no summary.md yet, ask Gemini for a detailed summary of the
+For every sermons/*/source.json (or sermon.json) of type sermon with a "url" and no material.md yet, ask Gemini for a detailed summary of the
 sermon part of the service plus the preacher's own key sentences, verbatim, with timestamps. Needs GEMINI_API_KEY.
-Sermons given as text instead of a link: put the text in summary.md yourself (no "url" needed).
+Writes material.md (Gemini's film material from the video); summary.md stays for material given by hand (app summary, script, text).
   python3 tools/summarize.py            # all sermons missing a summary
   python3 tools/summarize.py --check    # only check that the key works (tiny request)
 """
@@ -135,12 +135,12 @@ def main():
     paths = {os.path.dirname(p): p for p in sorted(glob.glob("sermons/*/sermon.json"))}
     paths.update({os.path.dirname(p): p for p in sorted(glob.glob("sermons/*/source.json"))})   # source.json wins
     for meta_path in sorted(paths.values()):
-        out = os.path.join(os.path.dirname(meta_path), "summary.md")
+        out = os.path.join(os.path.dirname(meta_path), "material.md")
         if os.path.exists(out):
             continue
         meta = json.load(open(meta_path, encoding="utf-8"))
-        if not meta.get("url") or meta.get("type", "sermon") != "sermon":
-            continue
+        if not meta.get("url") or meta.get("type", "sermon") != "sermon" or meta.get("material"):
+            continue   # material: "<other folder>" = this film reuses that folder's material
         prompt = PROMPT.format(**meta)
         config = {"temperature": 0.2, "max_output_tokens": 16384, "thinking_level": "low"}
         for m in [ok] + [x for x in MODELS if x != ok]:

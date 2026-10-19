@@ -30,8 +30,9 @@
 ## 순서 (컨펌 전에는 만들지 않는다)
 1. **입력 → `sermons/<YYYY-MM-DD>-<짧은이름>/source.json`** (주일 설교만이 아님; `type`으로 구분):
    - 설교: `{"type":"sermon","url","date","series","title","passage","preacher","church","tags"}` → 푸시하면 Actions
-     `summarize`가 Gemini API로 `summary.md`(영상 재료: 예화·비유·인용·설교자의 말)를 만든다(실패하면 3시간마다 재시도,
-     Secret `GEMINI_API_KEY`). API가 거부하면 Gemini 앱 요약이나 스크립트를 받아 `summary.md`에 넣는다(출처를 맨 위에).
+     `summarize`가 Gemini API로 `material.md`(영상 재료: 예화·비유·인용·설교자의 말)를 만든다(실패하면 3시간마다 재시도,
+     Secret `GEMINI_API_KEY`). API가 거부하면 Gemini 앱 요약이나 스크립트를 받아 `summary.md`에 넣는다(출처를 맨 위에). 같은 설교의 2차 영상은
+     source.json에 `"material": "<원래 폴더>"`를 적어 재료를 다시 받지 않는다.
    - 책: `{"type":"book","book","author","where","publisher","title","tags"}` + 받은 내용은 `summary.md`에.
    - 묵상·주제: `{"type":"meditation"|"topic","title","passage","by","tags"}` + 내용은 `summary.md`에.
    - 자료에 빠진 것(책 제목, 인용 출처 등)은 지어내지 않는다. 확인 안 되는 인용은 화면에 쓰지 않고 그림으로만 살린다.
