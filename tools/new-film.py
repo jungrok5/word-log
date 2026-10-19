@@ -54,7 +54,7 @@ for s in a.style:
     assert 'src="script.js"' in page, f'{s}/template.html must load script.js'
     open(os.path.join(sc, sid + '.html'), 'w', encoding='utf-8').write(page.replace('<script src="script.js"></script>', f'<script src="source.js"></script><script src="{sname}"></script>').replace('src="script.js"', f'src="{sname}"'))
     label = open(os.path.join(st, s, 'STYLE.md'), encoding='utf-8').readline().lstrip('# ').strip() or s
-    scenes.append({'id': sid, 'label': label, 'dur': 30})
+    scenes.append({'id': sid, 'label': label, 'dur': 30})   # set to SCRIPT.DUR once the script is written
 for f in os.listdir(sc):
     if f.startswith('script') and f.endswith('.js'):
         p = os.path.join(sc, f); body = open(p, encoding='utf-8').read()

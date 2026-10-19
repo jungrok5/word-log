@@ -4,12 +4,12 @@
  "scenes": [
   {
    "id": "door-hopper",
-   "label": "B · 호퍼풍 사실주의 (Hopper-style quiet realism)",
-   "dur": 30
+   "label": "문틈 2차 · 호퍼 (27초)",
+   "dur": 27.3
   }
  ],
  "audio": "scenes/soundtrack.wav",
- "poster": 12,
+ "poster": 8.5,
  "fonts": {
   "local": {
    "Noto Serif KR": "NotoSerifKR[wght].ttf",
