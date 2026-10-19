@@ -42,10 +42,17 @@ def interact(model, prompt, url, key, config=None, timeout=900):
     body = {"model": model, "input": [{"type": "text", "text": prompt}, {"type": "video", "uri": url}]}
     if config:
         body["generation_config"] = config
-    req = urllib.request.Request(f"{API}/interactions", data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json", "x-goog-api-key": key})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.load(r)
+    for attempt in range(4):   # 503 / 429 = the model is overloaded right now: wait and try again (1, 2, 4 min)
+        req = urllib.request.Request(f"{API}/interactions", data=json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json", "x-goog-api-key": key})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 503) or attempt == 3:
+                raise
+            print(f"   {model}: HTTP {e.code} (busy) — retrying in {60 * 2 ** attempt} s")
+            time.sleep(60 * 2 ** attempt)
 
 
 def upload(path, mime, key):

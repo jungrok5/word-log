@@ -16,7 +16,7 @@ concurrency: summarize-${{ github.ref }}
 jobs:
   summarize:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Install yt-dlp and ffmpeg (audio fallback)
