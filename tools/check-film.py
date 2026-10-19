@@ -39,7 +39,6 @@ for name, S in d['scripts'].items():
     say((S.get('loop') or 0) > 0, f"loop seam {S.get('loop')} s")
     for cn, segs in (S.get('cuts') or {}).items():
         L = sum(b - a for a, b in segs); say(10 <= L <= 20 if cn == 'short' else True, f'cut "{cn}": {L:.1f} s')
-    if not (S.get('cuts') or {}).get('short'): say(False, 'no short cut yet (≈15 s for discovery — optional, recommended for the first films)')
 
 if FR:
     au = cfg.get('audio'); silent = set()

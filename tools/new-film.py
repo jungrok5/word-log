@@ -39,7 +39,6 @@ TAIL = """
 /* — added by new-film.py: strategy defaults (see CLAUDE.md 영상 전략) — */
 if (window.SOURCE && window.Story) window.SCRIPT.endCard = Story.card(window.SOURCE);   // ≤ 2.5 s on screen; details go in the description
 if (window.SCRIPT.loop == null) window.SCRIPT.loop = 0.6;                             // cross-fade the last 0.6 s into frame 0 (replays seamlessly)
-if (!window.SCRIPT.cuts) window.SCRIPT.cuts = {};                                     // e.g. short: [[0, 3.5], [10, 15], [22, 27.5]] → ~15 s cut
 """
 # One style: scenes/script.js. Several styles: each template keeps its own placeholder (script-<slug>.js) because the
 # templates use different beat names; once the storyboard is final, write ONE script.js and point every scene at it.

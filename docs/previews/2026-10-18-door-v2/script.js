@@ -1,4 +1,4 @@
-/* 문틈 v2 — "열어 준 건 나였다". Beats (s), words, cuts. The end card comes from source.json (Story.card). */
+/* 문틈 v2 — "열어 준 건 나였다". Beats (s) and words. The end card comes from source.json (Story.card). */
 window.SCRIPT = {
   DUR: 27.3,
   beat: {
@@ -25,10 +25,8 @@ window.SCRIPT = {
     [17.8, 22.6, '우리의 유월절 양 곧\n그리스도께서 희생되셨느니라', '고린도전서 5:7 (개역개정)'],
   ],
   accent: '#9c1a1a',
-  cuts: { short: [[0, 3.2], [7.8, 17.4], [24.8, 27.3]] },   // ≈15.3 s: hook → the door taken from me → end card (a cliffhanger into the main cut)
 };
 
 /* — added by new-film.py: strategy defaults (see CLAUDE.md 영상 전략) — */
 if (window.SOURCE && window.Story) window.SCRIPT.endCard = Story.card(window.SOURCE);
 if (window.SCRIPT.loop == null) window.SCRIPT.loop = 0.6;
-if (!window.SCRIPT.cuts) window.SCRIPT.cuts = {};

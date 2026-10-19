@@ -21,9 +21,10 @@
    - 묵상·주제: 제목 / 본문 / (교회·채널 등)
 6. **반복 재생 연결**: 쇼츠는 끝나면 처음부터 다시 돈다. 마지막 장면을 첫 장면과 같은 그림으로 돌아오게 하고,
    `SCRIPT.loop`(기본 0.6초)로 마지막이 첫 프레임에 겹쳐 이어진다.
-7. **short 버전(≈15초, 발견용)**: 본편에서 구간을 골라 `SCRIPT.cuts.short = [[0,3.5],[…],[…,DUR]]`
-   (훅 + 결정적 순간 + 구절 + 엔딩). 같은 장면을 자르는 것이라 추가 그림이 없다. 첫 영상들은 본편과 함께 만든다.
-8. **올리고 재기**: 처음 몇 편은 본편과 short를 다른 날 올려 유지 그래프로 비교한다. 결과는 `metrics.md`,
+7. **해석이 필요 없고, 다음이 궁금해야 한다**: 너무 길면 넘기고, 너무 짧거나 압축하면 "이게 무슨 말이지?" 하며 끝난다.
+   처음 보는 사람이 설명 없이 바로 알아듣는 그림, 그리고 박자마다 "그래서 어떻게 되는데?"가 생겨 다음으로 끌려가는 흐름.
+   짧게 자른 별도 버전은 만들지 않는다(줄이기만 하면 어정쩡하다) — 본편 하나를 제대로.
+8. **올리고 재기**: 올린 뒤 유지 그래프에서 어디서 넘기는지 본다. 결과는 `metrics.md`,
    확인된 교훈은 루트 `LEARNINGS.md`에 한 줄 — **콘티를 짜기 전에 LEARNINGS.md부터 읽는다.**
 
 ## 순서 (컨펌 전에는 만들지 않는다)
@@ -35,27 +36,27 @@
    - 묵상·주제: `{"type":"meditation"|"topic","title","passage","by","tags"}` + 내용은 `summary.md`에.
    - 자료에 빠진 것(책 제목, 인용 출처 등)은 지어내지 않는다. 확인 안 되는 인용은 화면에 쓰지 않고 그림으로만 살린다.
 2. **한 장면 찾기**: 메시지 하나와 그것을 보여 줄 그림 하나. 자료 속 예화·비유·인용이 1순위, 없으면 직접 제안.
-   LEARNINGS.md의 교훈을 반영하고, **`tools/MESSAGE-CHECK.md`의 11개 질문**(화면 속의 나, 누가 행동하나, 비유 하나,
-   구절 ≤ 2, 교회 밖 사람 테스트, 그림만 테스트, 감정 곡선, 기억할 한 줄, 수위, short가 끊기는 곳, 처음 = 끝)에
+   LEARNINGS.md의 교훈을 반영하고, **`tools/MESSAGE-CHECK.md`의 12개 질문**(화면 속의 나, 누가 행동하나, 비유 하나,
+   구절 ≤ 2, 교회 밖 사람·그림만·해석 테스트, 궁금증 사슬, 감정 곡선, 기억할 한 줄, 수위, 처음 = 끝)에
    답할 수 있을 때까지 장면을 고친다. 멋있는 그림보다 "내 이야기"로 느껴지는 그림.
 3. **스타일 검색**: 먼저 **하우스 스타일**(`styles/README.md`, 검증된 키트 — 같은 motion-skills `canvas-film/kits/`)에서
    의미가 맞는 것, 새 그림이 필요할 때만 canvas-film `references/STYLE-INDEX.md` 170개 전체에서(문서의 5단계).
    키트는 그리는 재료일 뿐 — 장면 구성·색·카메라는 매번 새로. 예전 영상과 헷갈려 보이면 다시 설계한다.
 4. **제안**: `tools/storyboard.template.md`를 채워 `sermons/.../storyboard.md` — 추천 스타일 1 + 대안 2–3, 본편 콘티
-   (시간·화면·자막·소리), short 구간, **메시지 점검 표**, 체크리스트. 사용자에게 보여 주고 컨펌받는다.
+   (시간·화면·자막·소리), **메시지 점검 표**, 체크리스트. 사용자에게 보여 주고 컨펌받는다.
 5. **제작** (컨펌 후):
    1. `python3 tools/new-film.py sermons/<폴더> --style <slug> --id <이름>` → `scenes/source.js`(엔딩 카드 자료),
-      `scenes/script.js`(beats·lines·cuts; 엔딩 카드·loop 기본값이 붙어 있음), 키트 템플릿 장면.
+      `scenes/script.js`(beats·lines; 엔딩 카드·loop 기본값이 붙어 있음), 키트 템플릿 장면.
    2. script.js를 콘티대로 쓰고(DUR 25–35, `beat.end = DUR − 2.5` 안팎), 템플릿의 자리 표시 대상을 이번 그림으로 바꾼다.
       템플릿의 검은 페이드인·4초 엔딩은 예전 타이밍이니 위 전략대로 고친다.
    3. 사운드(canvas-film `references/SOUND.md`) → `scenes/soundtrack.wav` → `python3 tools/cut-audio.py sermons/<폴더>`
-      (장면별 소리 연결 + cut 버전 소리).
+      (장면별 소리 연결).
    4. 스틸로 직접 확인 → `python3 tools/check-film.py sermons/<폴더> --frames` 통과.
    5. `python3 tools/preview.py sermons/<폴더>` → 커밋·푸시 → **미리보기 링크**
-      `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(본편 + cut 버전, 소리 포함, 인코딩 없음).
+      `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(소리 포함, 인코딩 없음).
    6. `python3 tools/upload-meta.py sermons/<폴더>` → `upload.md`의 ✍️(제목·고정 댓글 질문)를 다듬어 함께 보여 준다.
    7. **MP4는 사용자가 고른 버전만**: film 폴더에서
-      `node ../../../motion-skills/canvas-film/scripts/render.mjs v --scene <id> [--cut short]` (`out/`은 git에 넣지 않음).
+      `node ../../../motion-skills/canvas-film/scripts/render.mjs v --scene <id>` (`out/`은 git에 넣지 않음).
 6. **업로드**(OAuth 준비 중 — 지금은 사용자가 직접): upload.md 문구로. 48시간·7일 뒤 `tools/metrics.template.md`를
    `sermons/<폴더>/metrics.md`로 채우고, 확인된 교훈을 LEARNINGS.md에.
 

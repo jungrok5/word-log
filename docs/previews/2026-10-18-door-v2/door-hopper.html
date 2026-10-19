@@ -231,12 +231,12 @@ function handState(t) {
   let r = 0, curl = 1, jolt = 0;
   if (t >= B.letGo) {
     const u = t - B.letGo;
-    r = eo(clamp(u / .22)) + .1 * Math.sin(u * 14) * Math.exp(-u * 5) * ss(0, .1, u);
-    curl = lerp(1, 0, ss(0, .1, u)); curl = lerp(curl, .22, ss(.3, 1.4, u));
-    if (t >= B.yank) { const v = t - B.yank; jolt = v < .6 ? Math.sin(v / .6 * Math.PI) : 0; curl = lerp(curl, .1, jolt); }
+    r = eo(clamp(u / .3)) + .08 * Math.sin(u * 12) * Math.exp(-u * 5) * ss(0, .1, u);       // flinch, then it drops
+    curl = lerp(1, .05, ss(0, .1, u)); curl = lerp(curl, .42, ss(.35, 1.5, u));             // springs open, then goes slack
+    if (t >= B.yank) { const v = t - B.yank; jolt = v < .75 ? Math.sin(v / .75 * Math.PI) : 0; curl = lerp(curl, .08, jolt); }   // reaches, too late
     if (t >= B.rest) {
       const v = t - B.rest, k = eio(clamp(v / 1.0));
-      r = 1 - k; curl = lerp(lerp(.22, .05, ss(0, .4, v)), 1, ss(.75, 1.05, v));
+      r = 1 - k; curl = lerp(lerp(.42, .1, ss(0, .4, v)), 1, ss(.75, 1.05, v));
     }
   }
   return { r: clamp(r, -.1, 1.1), curl, jolt };
@@ -247,20 +247,21 @@ function frame(e1, fwd) {
   let e2 = V.norm(V.cross(e3, e1)); if (V.dot(e2, fwd) < 0) e2 = V.mul(e2, -1);
   return [V.norm(e1), e2, e3];
 }
+// let go: the hand drops down and back toward the bottom-right corner, its back to me, fingers loose and apart
+const AWAY = { O: [.42, .66, ZB - .44], e2: [-.62, -.55, -.36], e3: [-.21, .8, -.55] };   // fingers droop down-left across the view
 function handFrame(t, th) {
-  HS = lerp(2.0, 1.5, clamp(handState(t).r));       // drawn large on the lever; true-ish size when pulled back toward me
-  const hs = handState(t), lv = lever(th, 22 * press(t)), n = leafN(th), dn = Math.sin(22 * press(t) * D2R);
+  const hs = handState(t), ro = clamp(hs.r - .5 * hs.jolt, -.1, 1.1), k = clamp(ro);
+  HS = lerp(2.0, 1.55, k);                              // drawn large on the lever; true-ish size when it falls back toward me
+  const lv = lever(th, 22 * press(t)), n = leafN(th), dn = Math.sin(22 * press(t) * D2R);
   // gripping: knuckles along the lever, the hand level and pointing into the door (tipping down with the lever)
   const [g1, g2, g3] = frame(lv.dir, V.norm(V.add(V.mul(n, -1), [0, .1 - .5 * dn, 0])));
   const G = V.add(lv.piv, V.mul(lv.dir, .085));
   const gO = V.add(V.add(G, V.mul(g2, -.088 * HS)), V.mul(g3, .016 * HS));
-  // away: pulled back toward me, lower, the hand open and level
-  const [a1, a2, a3] = frame([-1, -.25, .05], [-.25, .32, 1]);
-  const aO = [.33, .64, ZB - .5];
-  const r = hs.r, rj = clamp(r - .14 * hs.jolt, -.1, 1.1);
-  const O = V.add(V.lerp(gO, aO, rj), [0, .04 * Math.sin(clamp(r) * Math.PI), 0]);
-  const [e1, e2, e3] = frame(V.lerp(g1, a1, clamp(r)), V.lerp(g2, a2, clamp(r)));
-  return { O, e1, e2, e3, curl: hs.curl, lv, grip: 1 - clamp(r) };
+  // blend the axes (keeping a right hand: e1 = e2 × e3), and the wrist position along a slight arc
+  const e2 = V.norm(V.lerp(g2, AWAY.e2, k)); let e3 = V.lerp(g3, AWAY.e3, k);
+  e3 = V.norm(V.sub(e3, V.mul(e2, V.dot(e3, e2)))); const e1 = V.norm(V.cross(e2, e3));
+  const O = V.add(V.lerp(gO, AWAY.O, ro), [.03 * Math.sin(k * Math.PI), .05 * Math.sin(k * Math.PI), 0]);
+  return { O, e1, e2, e3, curl: hs.curl, open: k, lv, grip: 1 - k };
 }
 const hp = (F, p, q, r) => V.add(F.O, V.add(V.mul(F.e1, p * HS), V.add(V.mul(F.e2, q * HS), V.mul(F.e3, r * HS))));
 // a tapered capsule between two 3D points (radii in metres), added to the current path
@@ -279,21 +280,25 @@ function polyPath(ctx, pts) { pts.forEach((q, i) => { const s = P(...q); i ? ctx
 const KN = [[.036, .086], [.012, .092], [-.012, .09], [-.034, .082]];        // knuckles, index → little (p across, q forward)
 const FL = [1, 1.08, 1, .82];                                                  // finger lengths
 function handShapes(F) {
-  const c = F.curl, sh = [];
-  // fingers: the first joint goes forward over the lever, the second curls down in front of it (open: straight, spread)
+  const c = F.curl, o = F.open, sh = [];
+  // fingers: on the lever the first joint goes forward over it and the second curls down in front; let go, they hang
+  // loose and apart (fanned, slightly curled toward the palm), each with a visible gap
   KN.forEach(([p, q], i) => {
-    const sp = (1 - c) * (i - 1.5) * .01, l = FL[i];
-    const k0 = hp(F, p, q, 0), k1 = hp(F, p + sp, q + lerp(.042, .034, c) * l, lerp(-.002, -.014, c)),
-      k2 = hp(F, p + sp * 1.7, q + lerp(.078, .046, c) * l, lerp(-.006, -.042, c));
-    sh.push([x => capsule(x, k1, k2, .0084 * HS, .0074 * HS), .25]);
-    sh.push([x => capsule(x, k0, k1, .0102 * HS, .009 * HS), .45]);
+    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0085, o), l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
+    const k0 = hp(F, p, q, 0),
+      k1 = hp(F, p + fan * .9, q + lerp(.042, .034, c) * l, lerp(-.002, -.014, c) - .004 * o),
+      k2 = hp(F, p + fan * 1.9, q + lerp(.078, .046, c) * l, lerp(-.006, -.042, c) - .006 * o);
+    sh.push([x => capsule(x, k1, k2, .0082 * HS, .0068 * HS), .25]);
+    sh.push([x => capsule(x, k0, k1, .0098 * HS, .0086 * HS), .45]);
   });
-  // thumb: along the index side, under the lever (open: alongside the hand)
-  const t0 = hp(F, .03, .01, -.012), t1 = hp(F, .052, .042, lerp(-.014, -.026, c)), t2 = hp(F, lerp(.06, .05, c), lerp(.074, .066, c), lerp(-.016, -.04, c));
-  sh.push([x => capsule(x, t1, t2, .0105 * HS, .009 * HS), .2]);
-  sh.push([x => capsule(x, t0, t1, .016 * HS, .0115 * HS), .3]);
+  // thumb: under the lever when gripping; let go, it stands off the index side, apart from the fingers
+  const t0 = hp(F, lerp(.03, .036, o), lerp(.01, .006, o), -.012),
+    t1 = hp(F, lerp(.052, .056, o), lerp(.042, .03, o), lerp(lerp(-.014, -.026, c), -.012, o)),
+    t2 = hp(F, lerp(lerp(.06, .05, c), .06, o), lerp(lerp(.074, .066, c), .062, o), lerp(lerp(-.016, -.04, c), -.024, o));
+  sh.push([x => capsule(x, t1, t2, .0102 * HS, .0085 * HS), .3]);
+  sh.push([x => capsule(x, t0, t1, .0155 * HS, .0112 * HS), .35]);
   // back of the hand: a rounded slab from the wrist to the knuckle line
-  sh.push([x => polyPath(x, [hp(F, -.028, -.004, .006), hp(F, -.041, .045, .008), ...KN.slice().reverse().map(([p, q]) => hp(F, p + (p > 0 ? .007 : -.007), q, .004)),
+  sh.push([x => polyPath(x, [hp(F, .002, -.012, .006), hp(F, -.03, -.002, .006), hp(F, -.042, .045, .008), ...KN.slice().reverse().map(([p, q]) => hp(F, p + (p > 0 ? .007 : -.007), q, .004)),
     hp(F, .046, .05, .006), hp(F, .032, -.002, .004)]), .6]);
   KN.forEach(([p, q]) => sh.push([x => capsule(x, hp(F, p, q - .014, .007), hp(F, p, q, .004), .0108 * HS, .0104 * HS), .75]));
   return sh;
@@ -575,10 +580,10 @@ function drawMine(ctx, t, th, amb, I, gapW, wk) {
   ctx.restore();
   // cuff edge (a slightly lighter knitted band) and the wrist
   ctx.beginPath(); capsule(ctx, cuff, V.add(cuff, V.mul(F.e2, -.022 * HS)), .057, .058); ctx.fillStyle = col([52, 54, 58], lvl); ctx.fill();
-  ctx.beginPath(); capsule(ctx, V.add(cuff, V.mul(F.e2, .012)), Wr, .036, .037); ctx.fillStyle = col(SKIN, lvl * .62); ctx.fill();
+  ctx.beginPath(); capsule(ctx, V.add(cuff, V.mul(F.e2, .012)), Wr, .036, .037); ctx.fillStyle = col(SKIN, lvl * lerp(.62, .82, F.open)); ctx.fill();
   // the hand: shade shapes, then the lit side
   const shapes = handShapes(F);
-  for (const [build, tone] of shapes) { ctx.beginPath(); build(ctx); ctx.fillStyle = col(SKIN, lvl * (.5 + .22 * tone)); ctx.fill(); }
+  for (const [build, tone] of shapes) { ctx.beginPath(); build(ctx); ctx.fillStyle = col(SKIN, lvl * (.5 + .22 * tone) * (1 + .3 * F.open)); ctx.fill(); }
   ctx.save(); ctx.beginPath(); for (const [build] of shapes) build(ctx); ctx.clip();
   const hr = .1 * HS * cam.f / dpt(hp(F, 0, .05, 0));
   const gl = ctx.createLinearGradient(hc[0] + ldx * hr, hc[1] + ldy * hr, hc[0] - ldx * hr * .6, hc[1] - ldy * hr * .6);
@@ -587,7 +592,7 @@ function drawMine(ctx, t, th, amb, I, gapW, wk) {
   ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H); ctx.restore();
   // knuckle highlights and nails (tiny, only on the curled fingers' tops)
   for (const [p, q] of KN) { const k = P(...hp(F, p + .003, q - .004, .012)), r = .005 * HS * cam.f / dpt(hp(F, p, q, 0));
-    ctx.beginPath(); ctx.ellipse(k[0], k[1], r * 1.4, r, 0, 0, Math.PI * 2); ctx.fillStyle = rimC(.22 * rim); ctx.fill(); }
+    ctx.beginPath(); ctx.ellipse(k[0], k[1], r * 1.4, r, 0, 0, Math.PI * 2); ctx.fillStyle = rimC(.22 * rim * (1 - .8 * F.open)); ctx.fill(); }
 }
 
 // ---------------- words ----------------
