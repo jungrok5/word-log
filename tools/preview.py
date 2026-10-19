@@ -71,6 +71,11 @@ for s in cfg['scenes']:
                      f'<span class="d">탭해서 재생</span></a>')
 
 title = cfg.get('title', meta.get('title', ''))
+import datetime
+when = ''
+if meta.get('date'):
+    dd = datetime.date.fromisoformat(meta['date'])
+    when = ' '.join(filter(None, [dd.strftime('%Y.%m.%d'), '주일' if dd.weekday() == 6 else '', meta.get('service')]))
 open(os.path.join(out, 'index.html'), 'w', encoding='utf-8').write(f'''<!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>미리보기 · {html.escape(title)}</title>
@@ -86,7 +91,7 @@ border-radius:12px;background:var(--card);color:inherit;text-decoration:none}}
 small{{color:var(--muted)}}
 </style></head><body><main>
 <h1>{html.escape(title)}</h1>
-<p>{html.escape(" · ".join(filter(None, [meta.get("passage"), meta.get("preacher"), meta.get("church"), meta.get("book") and "『" + meta["book"] + "』", meta.get("author"), meta.get("by")])))}</p>
+<p>{html.escape(" · ".join(filter(None, [when, meta.get("passage"), meta.get("preacher"), meta.get("church"), meta.get("book") and "『" + meta["book"] + "』", meta.get("author"), meta.get("by")])))}</p>
 {"".join(cards)}
 <small>브라우저가 직접 그리는 미리보기예요. 영상 아래 ▶ 버튼을 누르면 소리와 함께 재생돼요. 마음에 드는 버전을 알려주시면 MP4로 만들어 드려요.</small>
 </main></body></html>
