@@ -11,16 +11,22 @@ import glob, json, os, subprocess, sys, tempfile, time, urllib.error, urllib.req
 
 API = "https://generativelanguage.googleapis.com/v1beta"
 MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]  # first that works wins; cheapest first
+if os.environ.get("GEMINI_MODEL"):   # workflow_dispatch input: use exactly this model (e.g. gemini-3.8-flash for accuracy)
+    MODELS = [os.environ["GEMINI_MODEL"]]
+ONLY = os.environ.get("ONLY", "").strip()          # a sermons/<folder> name: only that one
+FORCE = os.environ.get("FORCE", "") in ("1", "true")  # redo even if material.md exists (the old one is kept as material.prev.md)
 
 PROMPT = """이 영상은 한국 교회의 예배 실황입니다. 설교 제목: "{title}" (본문: {passage}, 설교: {preacher}).
 이 설교로 30초짜리 임팩트 있는 짧은 영상을 만들려고 합니다. 요약보다 '영상으로 보여 줄 재료'가 필요합니다.
-설교 부분만 보고 마크다운으로 정리하세요. 설교에서 실제로 나온 것만 쓰고, 일반론으로 채우지 마세요.
+예배 영상 안에서 설교가 시작하는 곳부터 끝나는 곳까지(대개 30–50분) 설교 전체를 끝까지 보고 마크다운으로 정리하세요.
+설교에서 실제로 나온 것만 쓰고, 일반론으로 채우지 마세요. 예화·비유·인용(책·저자·인물 포함)은 하나도 빠짐없이 모두 적으세요.
+시각은 영상 전체 기준 [h:mm:ss]로 쓰세요.
 # 영상 재료
-설교 구간: [시작 mm:ss]–[끝 mm:ss]
+설교 구간: [시작 h:mm:ss]–[끝 h:mm:ss]
 ## 핵심 메시지 (한 문장)
-## 예화·비유·이미지 (설교자가 든 이야기, 비유, 장면 묘사 — 각 [mm:ss], 무엇을 어떻게 묘사했는지 구체적으로)
-## 인용 (책·인물·영화 등에서 인용한 것: 출처 이름, 설교자가 말한 그대로의 문장, [mm:ss])
-## 설교자의 말 그대로 (짧고 힘 있는 문장 6–10개, 들리는 그대로, 각 [mm:ss])
+## 예화·비유·이미지 (설교자가 든 이야기, 비유, 장면 묘사 — 각 [h:mm:ss], 무엇을 어떻게 묘사했는지 구체적으로)
+## 인용 (책·인물·영화 등에서 인용한 것: 출처 이름, 설교자가 말한 그대로의 문장, [h:mm:ss])
+## 설교자의 말 그대로 (짧고 힘 있는 문장 6–10개, 들리는 그대로, 각 [h:mm:ss])
 ## 인용된 성경 구절 (장절과 들리는 그대로의 문구)
 ## 흐름 (도입 → 대지 → 결론, 각 2–3줄)"""
 
@@ -136,13 +142,18 @@ def main():
     paths.update({os.path.dirname(p): p for p in sorted(glob.glob("sermons/*/source.json"))})   # source.json wins
     for meta_path in sorted(paths.values()):
         out = os.path.join(os.path.dirname(meta_path), "material.md")
-        if os.path.exists(out):
+        folder = os.path.basename(os.path.dirname(meta_path))
+        if ONLY and folder != ONLY:
             continue
+        if os.path.exists(out):
+            if not (FORCE and ONLY):
+                continue
+            os.replace(out, os.path.join(os.path.dirname(meta_path), "material.prev.md"))
         meta = json.load(open(meta_path, encoding="utf-8"))
         if not meta.get("url") or meta.get("type", "sermon") != "sermon" or meta.get("material"):
             continue   # material: "<other folder>" = this film reuses that folder's material
         prompt = PROMPT.format(**meta)
-        config = {"temperature": 0.2, "max_output_tokens": 16384, "thinking_level": "low"}
+        config = {"temperature": 0.2, "max_output_tokens": 16384, "thinking_level": os.environ.get("THINKING", "low")}
         for m in [ok] + [x for x in MODELS if x != ok]:
             print(f"… {meta_path}: summarising with {m}")
             t0 = time.time()

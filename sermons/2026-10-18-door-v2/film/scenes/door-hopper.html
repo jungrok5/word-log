@@ -262,7 +262,7 @@ const angL = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI;
 const lerpPose = (a, b, k) => ({ S: V.lerp(a.S, b.S, k), yaw: angL(a.yaw, b.yaw, k), pitch: lerp(a.pitch, b.pitch, k), elbow: lerp(a.elbow, b.elbow, k),
   swivel: lerp(a.swivel, b.swivel, k), roll: angL(a.roll, b.roll, k), flex: lerp(a.flex, b.flex, k), dev: lerp(a.dev, b.dev, k) });
 // the grip: the hand closed on the lever (level, pointing into the door), solved every frame as the door moves
-const HS_GRIP = 2.0, HS_AWAY = 1.55;
+const HS_GRIP = 2.0, HS_AWAY = 1.35;
 let G0Z = null;
 function gripPose(th, lam) {
   const lv = lever(th, lam), n = leafN(th), dn = Math.sin(lam * D2R);
@@ -274,7 +274,7 @@ function gripPose(th, lam) {
 }
 // let go: the arm drops and draws back, the forearm across the body, the hand limp and drooping a little to the left,
 // its back still toward me (fingers lie across the view, so they read apart)
-const AWAY_W = [.22, .74, .58];
+const AWAY_W = [.34, .66, .66];
 let AWAY_P = null, REACH_P = null;
 function awayPose() {
   if (AWAY_P) return AWAY_P;
@@ -293,12 +293,12 @@ function handState(t) {
   let r = 0, curl = 1, reach = 0;
   if (t >= B.letGo) {
     const u = t - B.letGo;
-    r = eio(clamp(u / .42));                                                   // the whole arm drops back along an arc
-    curl = lerp(1, .12, ss(0, .16, u)); curl = lerp(curl, .38, ss(.3, 1.3, u)); // springs open, then goes limp
+    r = eio(clamp(u / .5));                                                    // the whole arm drops back along an arc
+    curl = lerp(1, .12, ss(0, .16, u)); curl = lerp(curl, .5, ss(.3, 1.3, u));  // springs open, then goes limp
     if (t >= B.yank) { const v = t - B.yank; reach = ss(0, .28, v) * (1 - ss(.4, .95, v)); curl = lerp(curl, .06, reach); }
     if (t >= B.rest) {                                                         // the let-go path in reverse
       const v = t - B.rest; r = 1 - eio(clamp(v / 1.0));
-      curl = lerp(lerp(.38, .15, ss(0, .4, v)), 1, ss(.72, 1.0, v));
+      curl = lerp(lerp(.5, .15, ss(0, .4, v)), 1, ss(.72, 1.0, v));
     }
   }
   return { r, curl, reach };
@@ -333,7 +333,7 @@ function handShapes(F) {
   // fingers: on the lever the first joint goes forward over it and the second curls down in front; let go, they hang
   // loose and apart (fanned, slightly curled toward the palm), each with a visible gap
   KN.forEach(([p, q], i) => {
-    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0085, o), l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
+    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0045, o), l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
     const k0 = hp(F, p, q, 0),
       k1 = hp(F, p + fan * .9, q + lerp(.042, .034, c) * l, lerp(-.002, -.014, c) - .004 * o),
       k2 = hp(F, p + fan * 1.9, q + lerp(.078, .046, c) * l, lerp(-.006, -.042, c) - .006 * o);

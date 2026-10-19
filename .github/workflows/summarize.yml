@@ -3,6 +3,11 @@ on:
   push:
     paths: ["sermons/*/sermon.json", "sermons/*/source.json", "tools/summarize.py", ".github/workflows/summarize.yml"]
   workflow_dispatch:
+    inputs:
+      folder: { description: "sermons/<folder> to (re)do — empty = all missing", required: false, default: "" }
+      model: { description: "Gemini model (empty = cheapest first; gemini-3.8-flash for accuracy)", required: false, default: "" }
+      force: { description: "redo even if material.md exists (old kept as material.prev.md)", type: boolean, default: false }
+      thinking: { description: "thinking level", required: false, default: "low" }
   schedule:
     - cron: "17 */3 * * *"   # retry sermons that still have no material.md (a fresh live recording can be refused for a while)
 permissions:
@@ -23,11 +28,16 @@ jobs:
         run: python3 -u tools/summarize.py --check
       - name: Summarise new sermons
         continue-on-error: ${{ github.event_name == 'schedule' }}
-        env: { GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}" }
+        env:
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+          GEMINI_MODEL: "${{ inputs.model }}"
+          ONLY: "${{ inputs.folder }}"
+          FORCE: "${{ inputs.force }}"
+          THINKING: "${{ inputs.thinking || 'low' }}"
         run: python3 -u tools/summarize.py
       - name: Commit summaries
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sermons/*/material.md
+          git add -A sermons
           git diff --cached --quiet || { git commit -m "Add sermon material (Gemini)"; git push; }
