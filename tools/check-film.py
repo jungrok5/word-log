@@ -34,6 +34,8 @@ for name, S in d['scripts'].items():
     short = [b - a for a, b, *_ in lines if (b - a) < 1.6]
     say(not short, 'every line ≥ 1.6 s on screen' if not short else f'{len(short)} line(s) shorter than 1.6 s')
     say(all(s.count('\n') <= 1 for _, _, s, *__ in lines), '≤ 2 lines per caption', True)
+    nv = sum(1 for l in lines if len(l) > 3 and l[3])
+    say(nv <= 2, f'{nv} scripture line(s) on screen (≤ 2 — MESSAGE-CHECK #4)')
     say((S.get('loop') or 0) > 0, f"loop seam {S.get('loop')} s")
     for cn, segs in (S.get('cuts') or {}).items():
         L = sum(b - a for a, b in segs); say(10 <= L <= 20 if cn == 'short' else True, f'cut "{cn}": {L:.1f} s')

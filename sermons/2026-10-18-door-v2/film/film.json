@@ -1,0 +1,19 @@
+{
+ "title": "절대로 괜찮다고 넘기면 안 되는 것",
+ "source": "ko",
+ "scenes": [
+  {
+   "id": "door-hopper",
+   "label": "B · 호퍼풍 사실주의 (Hopper-style quiet realism)",
+   "dur": 30
+  }
+ ],
+ "audio": "scenes/soundtrack.wav",
+ "poster": 12,
+ "fonts": {
+  "local": {
+   "Noto Serif KR": "NotoSerifKR[wght].ttf",
+   "Noto Sans KR": "NotoSansKR[wght].ttf"
+  }
+ }
+}
