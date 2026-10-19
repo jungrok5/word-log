@@ -226,42 +226,91 @@ function lever(th, lam) {
   const piv = leafPt(th, LEV.a, LEV.b, LEV.y), end = leafPt(th, LEV.a - LEV.len * Math.cos(lam * D2R), LEV.b, LEV.y - LEV.len * Math.sin(lam * D2R));
   return { piv, end, dir: V.norm(V.sub(end, piv)), rose: leafPt(th, LEV.a, .004, LEV.y) };
 }
-// release r: 0 = gripping the lever, 1 = pulled back to the rest-away pose. curl: 1 = closed round the lever, 0 = open
-function handState(t) {
-  let r = 0, curl = 1, jolt = 0;
-  if (t >= B.letGo) {
-    const u = t - B.letGo;
-    r = eo(clamp(u / .3)) + .08 * Math.sin(u * 12) * Math.exp(-u * 5) * ss(0, .1, u);       // flinch, then it drops
-    curl = lerp(1, .05, ss(0, .1, u)); curl = lerp(curl, .42, ss(.35, 1.5, u));             // springs open, then goes slack
-    if (t >= B.yank) { const v = t - B.yank; jolt = v < .75 ? Math.sin(v / .75 * Math.PI) : 0; curl = lerp(curl, .08, jolt); }   // reaches, too late
-    if (t >= B.rest) {
-      const v = t - B.rest, k = eio(clamp(v / 1.0));
-      r = 1 - k; curl = lerp(lerp(.42, .1, ss(0, .4, v)), 1, ss(.75, 1.05, v));
-    }
-  }
-  return { r: clamp(r, -.1, 1.1), curl, jolt };
+// ---- my arm as a rig: shoulder (off-frame, bottom right) → elbow → wrist → hand. Upper arm and forearm keep their
+// length in 3-D; the hand hangs off the forearm through a wrist with a natural range (flexion ≤ 60°, deviation ≤ 25°,
+// roll about the forearm). Poses are joint angles; every move is an eased interpolation of those angles.
+const LU = .58, LF = .58, WFX = 60 * D2R, WDV = 25 * D2R;
+const S_GRIP = [.44, 1.22, .17], S_BACK = [.47, 1.19, .06];      // the shoulder leans in while pushing, draws back after
+const SW_REF = [1, -.8, -.15];                                     // the elbow points out and down
+function rot(v, k, a) { const c = Math.cos(a), s = Math.sin(a); return V.add(V.add(V.mul(v, c), V.mul(V.cross(k, v), s)), V.mul(k, V.dot(k, v) * (1 - c))); }
+const perpTo = (f, ref) => V.norm(V.sub(ref, V.mul(f, V.dot(f, ref))));
+const sAng = (a, b, ax) => Math.atan2(V.dot(ax, V.cross(a, b)), V.dot(a, b));
+// forward kinematics: pose → shoulder, elbow, wrist, forearm direction, hand frame (e1 index-ward, e2 fingers, e3 back)
+function fk(p) {
+  const w = [Math.sin(p.yaw) * Math.cos(p.pitch), Math.sin(p.pitch), Math.cos(p.yaw) * Math.cos(p.pitch)];
+  const d = Math.sqrt(LU * LU + LF * LF - 2 * LU * LF * Math.cos(p.elbow));
+  const a = (LU * LU - LF * LF + d * d) / (2 * d), h = Math.sqrt(Math.max(0, LU * LU - a * a));
+  const k = rot(perpTo(w, SW_REF), w, p.swivel);
+  const E = V.add(p.S, V.add(V.mul(w, a), V.mul(k, h))), Wr = V.add(p.S, V.mul(w, d)), f = V.norm(V.sub(Wr, E));
+  const e30 = rot(perpTo(f, [0, 1, 0]), f, p.roll), e10 = V.cross(f, e30);
+  const e2p = V.sub(V.mul(f, Math.cos(p.flex)), V.mul(e30, Math.sin(p.flex))), e3 = V.add(V.mul(f, Math.sin(p.flex)), V.mul(e30, Math.cos(p.flex)));
+  const e2 = V.norm(V.add(V.mul(e2p, Math.cos(p.dev)), V.mul(e10, Math.sin(p.dev)))), e1 = V.norm(V.cross(e2, e3));
+  return { S: p.S, E, Wr, f, e1, e2, e3 };
 }
-// an orthonormal hand frame: e1 across the knuckles toward the index finger, e2 wrist → knuckles, e3 out of the back
+// inverse kinematics: wrist at W, hand frame (e2t, e3t) → pose; the wrist angles are clamped to their range
+function ik(S, W, e2t, e3t, swivel = 0) {
+  const v = V.sub(W, S), d = clamp(Math.hypot(...v), .2, LU + LF - .002), w = V.norm(v);
+  const p = { S, yaw: Math.atan2(w[0], w[2]), pitch: Math.asin(clamp(w[1], -1, 1)), elbow: Math.acos(clamp((LU * LU + LF * LF - d * d) / (2 * LU * LF), -1, 1)),
+    swivel, roll: 0, flex: 0, dev: 0 };
+  const { f } = fk(p), fl = Math.asin(clamp(V.dot(e3t, f), -1, 1)), e30 = perpTo(f, e3t);
+  p.roll = sAng(perpTo(f, [0, 1, 0]), e30, f);
+  const e10 = V.cross(f, e30), e2p = V.sub(V.mul(f, Math.cos(fl)), V.mul(e30, Math.sin(fl)));
+  p.flex = clamp(fl, -WFX, WFX); p.dev = clamp(Math.atan2(V.dot(e2t, e10), V.dot(e2t, e2p)), -WDV, WDV);
+  return p;
+}
+const angL = (a, b, k) => { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * k; };
+const lerpPose = (a, b, k) => ({ S: V.lerp(a.S, b.S, k), yaw: angL(a.yaw, b.yaw, k), pitch: lerp(a.pitch, b.pitch, k), elbow: lerp(a.elbow, b.elbow, k),
+  swivel: lerp(a.swivel, b.swivel, k), roll: angL(a.roll, b.roll, k), flex: lerp(a.flex, b.flex, k), dev: lerp(a.dev, b.dev, k) });
+// the grip: the hand closed on the lever (level, pointing into the door), solved every frame as the door moves
+const HS_GRIP = 2.0, HS_AWAY = 1.35;
+let G0Z = null;
+function gripPose(th, lam) {
+  const lv = lever(th, lam), n = leafN(th), dn = Math.sin(lam * D2R);
+  const [g1, g2, g3] = frame(lv.dir, V.norm(V.add(V.mul(n, -1), [0, .1 - .5 * dn, 0])));
+  const G = V.add(lv.piv, V.mul(lv.dir, .085)), W = V.add(V.add(G, V.mul(g2, -.088 * HS_GRIP)), V.mul(g3, .016 * HS_GRIP));
+  if (G0Z === null) G0Z = V.add(lever(.6, 0).piv, V.mul(lever(.6, 0).dir, .085))[2];
+  const S = V.add(S_GRIP, [0, -.04 * clamp((G[2] - G0Z) / .3), Math.min(.2, .9 * Math.max(0, G[2] - G0Z))]);   // lean in with the door
+  return ik(S, W, g2, g3);
+}
+// let go: the arm drops and draws back, the forearm across the body, the hand limp and drooping a little to the left,
+// its back still toward me (fingers lie across the view, so they read apart)
+const AWAY_W = [.34, .66, .66];
+let AWAY_P = null, REACH_P = null;
+function awayPose() {
+  if (AWAY_P) return AWAY_P;
+  const e2 = V.norm([-.8, -.36, .22]), e3 = perpTo(e2, [-.2, .8, -.55]);
+  AWAY_P = ik(S_BACK, AWAY_W, e2, e3);
+  REACH_P = lerpPose(AWAY_P, gripPose(32, 0), .62);                  // the reach at the yank: the same arm, toward the door
+  return AWAY_P;
+}
 function frame(e1, fwd) {
   let e3 = V.norm(V.cross(e1, fwd)); if (e3[1] < 0) e3 = V.mul(e3, -1);
   let e2 = V.norm(V.cross(e3, e1)); if (V.dot(e2, fwd) < 0) e2 = V.mul(e2, -1);
   return [V.norm(e1), e2, e3];
 }
-// let go: the hand drops down and back toward the bottom-right corner, its back to me, fingers loose and apart
-const AWAY = { O: [.42, .66, ZB - .44], e2: [-.62, -.55, -.36], e3: [-.21, .8, -.55] };   // fingers droop down-left across the view
+// r: 0 on the lever … 1 let go; reach: the too-late reach at the yank; curl: 1 closed … 0 open
+function handState(t) {
+  let r = 0, curl = 1, reach = 0;
+  if (t >= B.letGo) {
+    const u = t - B.letGo;
+    r = eio(clamp(u / .5));                                                    // the whole arm drops back along an arc
+    curl = lerp(1, .12, ss(0, .16, u)); curl = lerp(curl, .5, ss(.3, 1.3, u));  // springs open, then goes limp
+    if (t >= B.yank) { const v = t - B.yank; reach = ss(0, .28, v) * (1 - ss(.4, .95, v)); curl = lerp(curl, .06, reach); }
+    if (t >= B.rest) {                                                         // the let-go path in reverse
+      const v = t - B.rest; r = 1 - eio(clamp(v / 1.0));
+      curl = lerp(lerp(.5, .15, ss(0, .4, v)), 1, ss(.72, 1.0, v));
+    }
+  }
+  return { r, curl, reach };
+}
 function handFrame(t, th) {
-  const hs = handState(t), ro = clamp(hs.r - .5 * hs.jolt, -.1, 1.1), k = clamp(ro);
-  HS = lerp(2.0, 1.55, k);                              // drawn large on the lever; true-ish size when it falls back toward me
-  const lv = lever(th, 22 * press(t)), n = leafN(th), dn = Math.sin(22 * press(t) * D2R);
-  // gripping: knuckles along the lever, the hand level and pointing into the door (tipping down with the lever)
-  const [g1, g2, g3] = frame(lv.dir, V.norm(V.add(V.mul(n, -1), [0, .1 - .5 * dn, 0])));
-  const G = V.add(lv.piv, V.mul(lv.dir, .085));
-  const gO = V.add(V.add(G, V.mul(g2, -.088 * HS)), V.mul(g3, .016 * HS));
-  // blend the axes (keeping a right hand: e1 = e2 × e3), and the wrist position along a slight arc
-  const e2 = V.norm(V.lerp(g2, AWAY.e2, k)); let e3 = V.lerp(g3, AWAY.e3, k);
-  e3 = V.norm(V.sub(e3, V.mul(e2, V.dot(e3, e2)))); const e1 = V.norm(V.cross(e2, e3));
-  const O = V.add(V.lerp(gO, AWAY.O, ro), [.03 * Math.sin(k * Math.PI), .05 * Math.sin(k * Math.PI), 0]);
-  return { O, e1, e2, e3, curl: hs.curl, open: k, lv, grip: 1 - k };
+  const hs = handState(t), A = awayPose();
+  let p = hs.r < 1 ? gripPose(th, 22 * press(t)) : A;
+  if (hs.r > 0 && hs.r < 1) p = lerpPose(p, A, hs.r);
+  if (hs.reach > 0) p = lerpPose(p, REACH_P, hs.reach);
+  HS = lerp(HS_GRIP, HS_AWAY, hs.r);
+  const K = fk(p);
+  return { O: K.Wr, e1: K.e1, e2: K.e2, e3: K.e3, E: K.E, S: K.S, f: K.f, curl: hs.curl, open: hs.r };
 }
 const hp = (F, p, q, r) => V.add(F.O, V.add(V.mul(F.e1, p * HS), V.add(V.mul(F.e2, q * HS), V.mul(F.e3, r * HS))));
 // a tapered capsule between two 3D points (radii in metres), added to the current path
@@ -284,7 +333,7 @@ function handShapes(F) {
   // fingers: on the lever the first joint goes forward over it and the second curls down in front; let go, they hang
   // loose and apart (fanned, slightly curled toward the palm), each with a visible gap
   KN.forEach(([p, q], i) => {
-    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0085, o), l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
+    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0045, o), l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
     const k0 = hp(F, p, q, 0),
       k1 = hp(F, p + fan * .9, q + lerp(.042, .034, c) * l, lerp(-.002, -.014, c) - .004 * o),
       k2 = hp(F, p + fan * 1.9, q + lerp(.078, .046, c) * l, lerp(-.006, -.042, c) - .006 * o);
@@ -557,10 +606,8 @@ function drawMine(ctx, t, th, amb, I, gapW, wk) {
   const warm = wk;
   const col = (c, k) => rgb(c.map(v => v * k));
   const rimC = (a) => warm > .5 ? `rgba(255,210,150,${a})` : `rgba(226,230,218,${a})`;
-  // the arm: wrist → elbow → shoulder (off-screen, bottom right)
-  const Wr = hp(F, 0, -.01, .004), cuff = V.add(Wr, V.mul(F.e2, -.026 * HS));
-  const Sh = V.add([.46, 1.2, .1], [0, 0, -.06 * (1 - F.grip)]);
-  const mid = V.lerp(cuff, Sh, .5), El = V.add(mid, [.09, -.1, 0]);
+  // the arm from the rig: wrist → elbow → shoulder (off-screen, bottom right); the cuff sits on the forearm
+  const Wr = F.O, El = F.E, Sh = F.S, cuff = V.add(Wr, V.mul(F.f, -.05));
   const arm = x => { capsule(x, cuff, El, .056, .064); capsule(x, El, Sh, .064, .072); };
   // where the light comes from on screen: the gap at the door's edge (right of my hand), later the open doorway (left)
   const hc = P(...hp(F, 0, .05, 0)), wide = ss(30, 70, th), src = P(...V.lerp([X1 + .02, 1.1, ZB + .05], [-.2, 1.3, ZB + .4], wide));
@@ -579,8 +626,8 @@ function drawMine(ctx, t, th, amb, I, gapW, wk) {
     ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(a[0] - nx * 30, a[1] - ny * 30); ctx.quadraticCurveTo(b[0], b[1], a[0] + nx * 40, a[1] + ny * 40); ctx.stroke(); }
   ctx.restore();
   // cuff edge (a slightly lighter knitted band) and the wrist
-  ctx.beginPath(); capsule(ctx, cuff, V.add(cuff, V.mul(F.e2, -.022 * HS)), .057, .058); ctx.fillStyle = col([52, 54, 58], lvl); ctx.fill();
-  ctx.beginPath(); capsule(ctx, V.add(cuff, V.mul(F.e2, .012)), Wr, .036, .037); ctx.fillStyle = col(SKIN, lvl * lerp(.62, .82, F.open)); ctx.fill();
+  ctx.beginPath(); capsule(ctx, cuff, V.add(cuff, V.mul(F.f, -.04)), .057, .058); ctx.fillStyle = col([52, 54, 58], lvl); ctx.fill();
+  ctx.beginPath(); capsule(ctx, V.add(cuff, V.mul(F.f, .012)), Wr, .036, .037); ctx.fillStyle = col(SKIN, lvl * lerp(.62, .82, F.open)); ctx.fill();
   // the hand: shade shapes, then the lit side
   const shapes = handShapes(F);
   for (const [build, tone] of shapes) { ctx.beginPath(); build(ctx); ctx.fillStyle = col(SKIN, lvl * (.5 + .22 * tone) * (1 + .3 * F.open)); ctx.fill(); }
