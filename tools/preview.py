@@ -93,10 +93,13 @@ if not a.index_only:
         open(os.path.join(out, s['id'] + '.html'), 'w', encoding='utf-8').write(page)
         poster = False
         if not a.no_poster and os.path.exists(render):   # a 360 px thumbnail of the poster frame, for the version list
-            r = subprocess.run(['node', os.path.abspath(render), 'v', '--scene', s['id'], '--stills', str(pt)], cwd=film, capture_output=True, text=True)
             tt = str(pt)[:-2] if str(pt).endswith('.0') else str(pt)
             png = os.path.join(film, 'out', f"still-{s['id']}-v-{tt.replace('.', '_')}.png")
-            if r.returncode == 0 and os.path.exists(png):
+            if os.path.exists(png): os.remove(png)                # an old still must never pass for a new one
+            r = subprocess.run(['node', os.path.abspath(render), 'v', '--scene', s['id'], '--stills', str(pt)], cwd=film, capture_output=True, text=True, timeout=300)
+            if r.returncode != 0 or not os.path.exists(png):      # the scene did not render (a script error, a missing file …)
+                raise SystemExit(f"✖ {s['id']}: the scene failed to render — fix it before publishing (a page that won't open must never go up).\n{(r.stderr or r.stdout)[-1500:]}")
+            if True:
                 poster = subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', png, '-vf', 'scale=360:-2', '-q:v', '5',
                                          os.path.join(out, s['id'] + '.jpg')]).returncode == 0
         rec['scenes'].append({'id': s['id'], 'label': s['label'], 'dur': s.get('dur', ''), 'cuts': cuts, 'poster': poster})

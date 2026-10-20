@@ -329,7 +329,7 @@ function handShapes(F) {
   // fingers: on the lever the first joint goes forward over it and the second curls down in front; let go, they hang
   // loose and apart (fanned, slightly curled toward the palm), each with a visible gap
   KN.forEach(([p, q], i) => {
-    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0045, o) * (1 - .75 * (F.palm || 0)),   // flat on the door: fingers together l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
+    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0045, o) * (1 - .75 * (F.palm || 0)), l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
     const k0 = hp(F, p, q, 0),
       k1 = hp(F, p + fan * .9, q + lerp(.042, .034, c) * l, lerp(-.002, -.014, c) - .004 * o),
       k2 = hp(F, p + fan * 1.9, q + lerp(.078, .046, c) * l, lerp(-.006, -.042, c) - .006 * o);
