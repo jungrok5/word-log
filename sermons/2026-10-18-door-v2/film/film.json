@@ -4,12 +4,12 @@
  "scenes": [
   {
    "id": "door-hopper",
-   "label": "문틈 2차 · 호퍼 (27초)",
-   "dur": 27.3
+   "label": "문틈 · 호퍼 (27.5초)",
+   "dur": 27.5
   }
  ],
  "audio": "scenes/soundtrack.wav",
- "poster": 8.5,
+ "poster": 13.5,
  "fonts": {
   "local": {
    "Noto Serif KR": "NotoSerifKR[wght].ttf",

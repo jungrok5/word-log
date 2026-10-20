@@ -91,48 +91,38 @@ function aperture(th) {
 
 // ---------------- timing (all from SCRIPT.beat) ----------------
 const creak = Hopper.creak, breath = t => Hopper.breathe(t, B.breath, 1.2, 2.2);
-const TUG = B.claw + .7;                          // the other side tugs while my hand still holds the lever
-function press(t) {                               // my hand presses the lever down just before each push
-  let p = 0; for (const b of B.push) { const u = t - (b - .38); p += ss(0, .2, u) * (1 - ss(.7, 1.05, u)); } return p;
+function press(t) {                               // my hand presses the lever down before each push and before the shove
+  let p = 0; for (const b of [...B.push, B.open]) { const u = t - (b - .38); p += ss(0, .2, u) * (1 - ss(.7, 1.05, u)); }
+  return p + .3 * ss(B.hold, B.hold + .6, t) * (1 - ss(B.open - .45, B.open - .3, t));          // gripping harder in the stillness
 }
+const OPEN_TH = 36, TUG_TH = 52;                  // my shove ends where my arm ends; the other side drags it further
 function theta(t) {
-  let th = .6;
-  th += 8.4 * creak(t - B.push[0]) + 8 * creak(t - B.push[1]) + 8 * creak(t - B.push[2]);    // .6 → 9 → 17 → 25
-  th += 3 * eo(clamp((t - TUG) / .14)) - .5 * creak(t - TUG - .14, .5);                       // the tug (felt in my hand)
-  th += 4 * eio(clamp((t - (B.letGo + .5)) / 2.0));                                           // creeping open from the other side
-  if (t < B.yank) th += .7 * breath(t);
-  else {
-    const u = t - B.yank;
-    if (u < .22) th = lerp(th, 106, (u / .22) * (u / .22));
-    else th = 99 + 7 * Math.exp(-(u - .22) * 4.5) * Math.cos((u - .22) * 16);
-  }
-  if (t >= B.close) {
-    const k = eio(clamp((t - B.close) / 1.2)), u = t - (B.close + 1.2);
-    th = lerp(99, .6, k) + (u > 0 ? 1.4 * Math.exp(-u * 6) * Math.abs(Math.sin(u * 17)) : 0);
-  }
+  let th = .6 + 8.4 * creak(t - B.push[0]) + 8 * creak(t - B.push[1]) + 8 * creak(t - B.push[2]);   // .6 → 9 → 17 → 25
+  if (t < B.open) th += .7 * breath(t) + .9 * ss(B.claw, B.claw + .5, t) * (.5 + .5 * Math.sin((t - B.claw) * 3.1));   // its fingers worry the edge
+  else { const u = t - B.open; th += (OPEN_TH - 25) * eo(clamp(u / .3)) + 1.4 * Math.exp(-Math.max(0, u - .3) * 6) * Math.sin(u * 20) * ss(.25, .3, u); }
+  if (t >= B.tug) { const k = clamp((t - B.tug) / 1.3); th += (TUG_TH - OPEN_TH) * (eio(k) + .06 * Math.sin(k * 26) * (1 - k)); }   // pulled away in jerks
+  if (t >= B.close) { const k = eio(clamp((t - B.close) / 1.2)), u = t - (B.close + 1.2);
+    th = lerp(th, .6, k) + (u > 0 ? 1.2 * Math.exp(-u * 6) * Math.abs(Math.sin(u * 17)) : 0); }   // pushed shut from the other side
   return th;
 }
 function lampI(t) {
-  let I = 1 - .16 * breath(t) - .07 * ss(B.claw, B.claw + .5, t) * (1 - ss(B.yank - .1, B.yank, t)) * Hopper.flicker(t, 8, 3, .74);
-  if (t >= B.yank) {
-    const u = t - B.yank;
-    I = 1 + 1.25 * Math.exp(-u * 4.5) * ss(0, .05, u);
-    I = lerp(I, .62, ss(B.mine - .1, B.mine + .6, t));                                        // the room goes quiet
-    const fl = t - B.recoil;
-    if (fl > 0) I = .62 + .2 * ss(0, .5, fl) - .3 * Hopper.flicker(t, 13, 6, .66) * (1 - ss(.2, 1.1, fl));
-  }
-  if (t >= B.close) I = lerp(I, 1, ss(B.close, B.close + 1.2, t));
+  let I = 1 - .16 * breath(t) - .07 * ss(B.claw, B.claw + .5, t) * (1 - ss(B.open - .1, B.open, t)) * Hopper.flicker(t, 8, 3, .74);
+  const sp = t - B.shadow; if (sp > 0 && sp < .8) I *= 1 - .35 * Math.sin(Math.PI * sp / .8);                   // something passes the lamp
+  if (t >= B.open) { const u = t - B.open; I = 1 + .9 * Math.exp(-u * 4.5) * ss(0, .05, u); I = lerp(I, .7, ss(B.mine - .1, B.mine + .6, t));
+    if (t >= B.tug && t < B.light) I = .7 - .25 * Hopper.flicker(t, 11, 5, .7); }
+  if (t >= B.light) I = lerp(I, 1.25, ss(B.light, B.light + .8, t));                                           // warm light in the hall
+  if (t >= B.marks) I = lerp(I, 1, ss(B.marks, B.marks + 1, t));
   return Math.max(0, I);
 }
-const warmK = t => ss(B.recoil, B.close + 1.0, t);
+const warmK = t => ss(B.light, B.light + .9, t);
 function ambK(t) {
   let a = .8 - .05 * breath(t);
-  a -= .3 * ss(B.yank + .05, B.yank + .8, t);                                                 // the shadow floods
-  a += .14 * ss(B.blood[0], B.blood[2] + .6, t) + .16 * ss(B.close, B.close + 1.4, t);
-  return Math.min(.8, a);
+  a -= .32 * ss(B.open + .05, B.open + .8, t) * (1 - ss(B.close, B.close + 1.2, t));                           // the shadow floods
+  a += .08 * ss(B.marks, B.marks + 1.2, t);
+  return Math.min(.82, a);
 }
-// a slow push in until the door is taken, then back to exactly frame 0 for the loop
-const zoomAt = t => 1 + .035 * ss(0, B.yank, t) * (1 - ss(B.close, B.rest + .8, t)) + .012 * Math.exp(-Math.max(0, t - B.yank) * 5) * ss(B.yank, B.yank + .04, t);
+// a slow push in until I shove it open, then back to exactly frame 0 for the loop
+const zoomAt = t => 1 + .035 * ss(0, B.open, t) * (1 - ss(B.close, B.rest + .8, t)) + .014 * Math.exp(-Math.max(0, t - B.open) * 5) * ss(B.open, B.open + .04, t);
 
 // ---------------- the unseen one: horned shadow and the hand at the edge ----------------
 const bez = Hopper.bez;
@@ -169,25 +159,28 @@ function silhouette(arm, VS) {                     // from 문틈 1 (front view,
 const SIL = [0, .25, .5, .75, 1].map(a => silhouette(a, .62));
 const silAt = arm => SIL[Math.round(clamp(arm) * 4)];
 function demon(t) {
-  if (t < B.breath || t >= B.close + .3) return null;
-  let dx = 0, dz = 0, k = 1, arm;
-  if (t < B.yank) {
-    const a = eio(clamp((t - B.breath) / 1.3)); dx = lerp(.6, 0, a); dz = lerp(.35, 0, a);
-    k = 1 + .015 * Math.sin((t - B.breath) * 2.6);
-    arm = eio(clamp((t - B.claw + .3) / .9));
-  } else {
-    const u = t - B.yank;
-    arm = lerp(1, 0, eo(clamp(u / .45)));
-    dx = -.22 * eo(clamp((u - .05) / .7)); dz = -.2 * eo(clamp((u - .05) / .7));               // steps up to the doorway
-    k = 1 + .1 * eo(clamp((u - .05) / .7)) + .04 * ss(B.mine, B.blood[0], t) + .012 * Math.sin(t * 2.2);
-    const fl = t - B.recoil;
-    if (fl > 0) {
-      k *= 1 - .1 * Math.min(1, fl / .08) * Math.exp(-Math.max(0, fl - .1) * 3);
-      dx += .05 * Math.sin(fl * 46) * Math.exp(-fl * 7);
-      const w = eio(clamp((fl - .15) / .8)); dx += 1.1 * w; dz += .6 * w; k *= 1 - .25 * w;
-    }
+  if (t < B.push[0] || t >= B.close + 1.0) return null;
+  let dx, dz, k = 1, arm = 0, a;
+  if (t < B.breath) { a = eio(clamp((t - B.push[0]) / 1.0)); dx = lerp(.3, .25, a); dz = lerp(.62, .55, a); }        // ① far down the hall: only its horns' shadow reaches the gap
+  else if (t < B.claw) { a = eio(clamp((t - B.breath) / 1.2)); dx = lerp(.25, .06, a); dz = lerp(.55, .12, a); k = 1 + .015 * Math.sin((t - B.breath) * 2.6); }   // ② its shadow crosses onto my floor
+  else if (t < B.open) { a = eio(clamp((t - B.claw) / 1.0)); dx = lerp(.06, 0, a); dz = lerp(.12, 0, a); k = 1 + .015 * Math.sin((t - B.breath) * 2.6); arm = eio(clamp((t - B.claw + .2) / .8)); }   // ③ at the edge
+  else {                                                                                                         // in the gap I opened
+    const u = t - B.open; a = eo(clamp((u - .1) / .9)); dx = lerp(0, -.42, a); dz = lerp(0, -.6, a); k = 1 + .1 * a + .012 * Math.sin(t * 2.2);
+    arm = t >= B.tug - .3 ? eio(clamp((t - B.tug + .3) / .4)) : 0;                                               // reaches for the edge to pull it
+    if (t >= B.light) { const fl = t - B.light; arm *= 1 - eo(clamp(fl / .3)); k *= 1 - .08 * Math.min(1, fl / .1) * Math.exp(-Math.max(0, fl - .1) * 3);
+      const w = eio(clamp((t - B.close) / 1.0)); dx += 1.0 * w; dz += .9 * w; k *= 1 - .3 * w; }               // flinches from the light, pushed out
   }
   return { dx, dz, k, arm };
+}
+// after I open it: the horned shape itself, back-lit by the hall lamp, seen through the gap (feet on the floor)
+function drawFigure(ctx, fg, t) {
+  const vis = ss(B.open, B.open + .35, t) * (1 - ss(B.close, B.close + 1.0, t)); if (vis <= 0 || !fg) return;
+  const cx = DEMON[0] + fg.dx, cz = DEMON[1] + fg.dz, s = 1.3 * fg.k;
+  ctx.save(); ctx.globalAlpha = vis; ctx.beginPath();
+  silAt(fg.arm).forEach(([u, v], i) => { const p = P(cx + u * s, Math.max(0, (v + .3) * s * .86), cz); i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); });
+  ctx.closePath(); ctx.fillStyle = '#060707'; ctx.fill();
+  ctx.strokeStyle = 'rgba(214,208,186,.22)'; ctx.lineWidth = 3; ctx.stroke();                                    // the lamp behind it rims the outline
+  ctx.restore();
 }
 // the shadow on the floor: the silhouette stands in a vertical plane facing the lamp, projected by the lamp
 function demonShadow(fg) {
@@ -209,11 +202,14 @@ function fingerPts(th, yh, f, curl) {
   }
   return out;
 }
-function clawState(t) {
-  if (t < B.claw || t >= B.yank + .12) return null;
-  let k = t - B.claw; if (t > TUG) k += .3 * eo(clamp((t - TUG) / .15));                   // the grip tightens on the tug
-  return { k, off: t > B.yank ? eo((t - B.yank) / .12) : 0 };
+function clawState(t) {                          // its fingers on the edge: before I shove, and again when it pulls
+  if (t >= B.claw && t < B.open + .12) return { k: t - B.claw, off: t > B.open ? eo((t - B.open) / .12) : 0 };
+  if (t >= B.tug - .3 && t < B.light + .3) return { k: (t - B.tug + .3) * 1.5, off: t > B.light ? eo((t - B.light) / .3) : 0 };
+  return null;
 }
+// the other hand: a man's right hand round the same edge, from the corridor side; pushes the door shut, lets go at B.marks
+const YH2 = 1.24, FING2 = FING.map(f => ({ ...f, dy: f.dy * .42, len: f.len * .72, sp: f.sp * .4 }));   // a man's hand: fingers close together
+function saviorState(t) { if (t < B.grab || t >= B.marks + .6) return null; return { k: (t - B.grab) * 1.4, off: t > B.marks ? eo((t - B.marks) / .6) : 0 }; }
 const curlAt = (hs, f) => eo(clamp((hs.k - f.d) / .75)) * (1 - hs.off);
 
 // ---------------- my hand and sleeve ----------------
@@ -290,27 +286,27 @@ function frame(e1, fwd) {
 }
 // r: 0 on the lever … 1 let go; reach: the too-late reach at the yank; curl: 1 closed … 0 open
 function handState(t) {
-  let r = 0, curl = 1, reach = 0;
-  if (t >= B.letGo) {
-    const u = t - B.letGo;
-    r = eio(clamp(u / .5));                                                    // the whole arm drops back along an arc
-    curl = lerp(1, .12, ss(0, .16, u)); curl = lerp(curl, .5, ss(.3, 1.3, u));  // springs open, then goes limp
-    if (t >= B.yank) { const v = t - B.yank; reach = ss(0, .28, v) * (1 - ss(.4, .95, v)); curl = lerp(curl, .06, reach); }
-    if (t >= B.rest) {                                                         // the let-go path in reverse
-      const v = t - B.rest; r = 1 - eio(clamp(v / 1.0));
-      curl = lerp(lerp(.5, .15, ss(0, .4, v)), 1, ss(.72, 1.0, v));
-    }
-  }
-  return { r, curl, reach };
+  let r = 0, curl = 1, palm = 0;
+  if (t >= B.slip) { const u = t - B.slip; r = eio(clamp(u / .5)); curl = lerp(1, .12, ss(0, .16, u)); curl = lerp(curl, .5, ss(.3, 1.3, u)); }   // dragged, it slips off
+  if (t >= B.rest) { const v = t - B.rest; palm = eio(clamp(v / 1.4)); curl = lerp(curl, 0, ss(.5, 1.3, v)); }    // to the shut door, flat
+  return { r, curl, palm };
+}
+// my palm flat on the shut door beside the marks: back of the hand to me, fingers up
+const HS_PALM = 1.5; let PALM_P = null;
+function palmPose() {
+  if (PALM_P) return PALM_P;
+  const e2 = V.norm([.12, 1, 0]), e3 = V.norm([0, 0, -1]), W = [.1, 1.06, ZH - .006 - .012 * HS_PALM];   // beside his marks
+  PALM_P = ik(V.add(S_GRIP, [0, -.04, .2]), W, e2, e3);
+  return PALM_P;
 }
 function handFrame(t, th) {
   const hs = handState(t), A = awayPose();
   let p = hs.r < 1 ? gripPose(th, 22 * press(t)) : A;
   if (hs.r > 0 && hs.r < 1) p = lerpPose(p, A, hs.r);
-  if (hs.reach > 0) p = lerpPose(p, REACH_P, hs.reach);
-  HS = lerp(HS_GRIP, HS_AWAY, hs.r);
+  if (hs.palm > 0) p = lerpPose(p, palmPose(), hs.palm);
+  HS = lerp(lerp(HS_GRIP, HS_AWAY, hs.r), HS_PALM, hs.palm);
   const K = fk(p);
-  return { O: K.Wr, e1: K.e1, e2: K.e2, e3: K.e3, E: K.E, S: K.S, f: K.f, curl: hs.curl, open: hs.r };
+  return { O: K.Wr, e1: K.e1, e2: K.e2, e3: K.e3, E: K.E, S: K.S, f: K.f, curl: hs.curl, open: hs.r * (1 - hs.palm), palm: hs.palm };
 }
 const hp = (F, p, q, r) => V.add(F.O, V.add(V.mul(F.e1, p * HS), V.add(V.mul(F.e2, q * HS), V.mul(F.e3, r * HS))));
 // a tapered capsule between two 3D points (radii in metres), added to the current path
@@ -333,7 +329,7 @@ function handShapes(F) {
   // fingers: on the lever the first joint goes forward over it and the second curls down in front; let go, they hang
   // loose and apart (fanned, slightly curled toward the palm), each with a visible gap
   KN.forEach(([p, q], i) => {
-    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0045, o), l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
+    const fan = (1.5 - i) * lerp(.01 * (1 - c), .0045, o) * (1 - .75 * (F.palm || 0)),   // flat on the door: fingers together l = FL[i] * lerp(1, 1.06, o);     // index → +p, little → −p
     const k0 = hp(F, p, q, 0),
       k1 = hp(F, p + fan * .9, q + lerp(.042, .034, c) * l, lerp(-.002, -.014, c) - .004 * o),
       k2 = hp(F, p + fan * 1.9, q + lerp(.078, .046, c) * l, lerp(-.006, -.042, c) - .006 * o);
@@ -354,7 +350,7 @@ function handShapes(F) {
 }
 
 // ---------------- static layers ----------------
-let base, lit, litW, corr, corrW, bristles;
+let base, lit, litW, corr, corrW;
 const plane = fill3;
 function buildBase() {
   return Hopper.layer(x => {
@@ -419,19 +415,24 @@ function buildCorridor(warm) {
 }
 const rng = Pilot.rng;
 
-// ---------------- the blood: lintel, left post, right post ----------------
-const ZS = ZB - .03;
-const STROKES = [
-  { a: [X0 - .08, DH + .066, ZS], b: [X1 + .08, DH + .054, ZS], w: .078, t: B.blood[0], seed: 501 },
-  { a: [X0 - .05, DH - .04, ZS], b: [X0 - .056, DH - .92, ZS], w: .062, t: B.blood[1], seed: 502 },
-  { a: [X1 + .052, DH - .04, ZS], b: [X1 + .046, DH - .86, ZS], w: .062, t: B.blood[2], seed: 503 },
-];
+// ---------------- the red: four fingermarks where his fingers held the edge (on my side of the door) ----------------
+function drawMarks(ctx, th, amb, t) {
+  const k = ss(B.marks, B.marks + .45, t); if (k <= 0) return;
+  const lb = Math.min(1.05, .78 + .3 * amb / .8);
+  FING2.forEach((f, i) => { const q = fingerPts(th, YH2, f, .9), tip = q[4], prev = q[3];
+    const c = P(...tip), e = P(...V.lerp(tip, prev, -.6)), r = .0095 * cam.f / dpt(tip), an = Math.atan2(e[1] - c[1], e[0] - c[0]);
+    ctx.save(); ctx.translate(c[0], c[1]); ctx.rotate(an);
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 1.45, r, 0, 0, Math.PI * 2); ctx.fillStyle = `rgba(${[150, 22, 22].map(v => Math.round(v * lb)).join(',')},${.92 * k})`; ctx.fill();   // the pad
+    ctx.beginPath(); ctx.ellipse(-r * 1.6, 0, r * 1.3, r * .45, 0, 0, Math.PI * 2); ctx.fillStyle = `rgba(${[150, 22, 22].map(v => Math.round(v * lb)).join(',')},${.5 * k})`; ctx.fill();   // smeared toward the edge
+    for (let j = 0; j < 3; j++) { ctx.beginPath(); ctx.ellipse(0, 0, r * (1.1 - j * .3), r * (.7 - j * .2), 0, 0, Math.PI * 2); ctx.strokeStyle = `rgba(90,10,10,${.35 * k})`; ctx.lineWidth = 1; ctx.stroke(); }   // whorls
+    ctx.restore(); });
+}
 
 // ---------------- draw ----------------
 const FOCUS = P(-.05, 1.05, ZB);
 function draw(ctx, t) {
   const th = theta(t), I = lampI(t), amb = ambK(t), wk = warmK(t), ap = aperture(th), gapW = ap ? ap.x1 - ap.x0 : 0, fg = demon(t);
-  const sh = fg ? demonShadow(fg) : null, cs = clawState(t);
+  const sh = fg ? demonShadow(fg) : null, cs = clawState(t), sv = saviorState(t);
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   ctx.save(); Hopper.push(ctx, zoomAt(t), FOCUS);
   // 1. my room in night ambient
@@ -442,7 +443,9 @@ function draw(ctx, t) {
     Hopper.drawLit(ctx, I, corr, corrW, wk);
     if (I > 1) Hopper.glow(ctx, P(.6, 1.5, ZF), 700, '255,252,240', .55 * (I - 1));
     if (sh) Hopper.within(ctx, cam, [corrFloor], c => Hopper.shadowIn(c, cam, [sh], d => { d.fillStyle = 'rgba(8,9,9,.84)'; d.fillRect(0, 0, W, H); }));
+    drawFigure(ctx, fg, t);
     if (cs) drawForearm(ctx, th, cs);
+    if (sv) drawHisForearm(ctx, th, sv, I);
     ctx.restore();
   }
   // 3. the lamp's light past the leaf onto my floor, the shadow inside it
@@ -457,19 +460,14 @@ function draw(ctx, t) {
     Hopper.glow(ctx, P(-.3, 0, ZB - .25), 640, wk > .5 ? '255,214,160' : '226,224,206', .12 * bk);
   }
   // 4. the door leaf (with its lever and his fingers), then the light under it and the thread at its edge
-  drawLeafClipped(ctx, t, th, amb, I, gapW, wk, cs);
-  drawLeak(ctx, th, I, wk);
-  // 5. the blood on the casing
-  if (t >= B.blood[0]) {
-    const lb = Math.min(1.05, .82 + .25 * amb / .8 + .1 * wk);
-    STROKES.forEach((s, i) => Hopper.brushStroke(ctx, cam, s, bristles[i], eo(clamp((t - s.t) / .42)), lb, ACC));
-  }
+  drawLeafClipped(ctx, t, th, amb, I, gapW, wk, cs, sv);
+  drawLeak(ctx, th, I, wk, t);
   // 6. my hand and sleeve (nearest)
   drawMine(ctx, t, th, amb, I, gapW, wk);
   ctx.restore();
   Hopper.finish(ctx);
   // the room goes quiet behind 열어 준 건 나였다, then sinks for the end card
-  quiet(ctx, Pilot.win(t, B.mine - .1, B.blood[0] + .2, .6, .9));
+  quiet(ctx, Pilot.win(t, B.mine - .1, B.light + .3, .6, .9));
   Hopper.sink(ctx, ss(B.end - .2, B.end + .9, t));
   // words
   Hopper.captions(ctx, t, LINES);
@@ -486,7 +484,7 @@ function quiet(ctx, k) {
 }
 // the leaf is drawn twice: its part still inside the wall's thickness clipped to the room-side opening, the part that
 // has swung into the corridor clipped to the corridor-side opening (the wall hides the rest)
-function drawLeafClipped(ctx, t, th, amb, I, gapW, wk, cs) {
+function drawLeafClipped(ctx, t, th, amb, I, gapW, wk, cs, sv) {
   const s = Math.sin(th * D2R), aStar = s > 1e-4 ? clamp((ZB + T - ZH) / s, 0, DW) : DW;
   const strip = (a0, a1) => [leafPt(th, a0, .3, -.05), leafPt(th, a1, .3, -.05), leafPt(th, a1, .3, DH + .05), leafPt(th, a0, .3, DH + .05),
     leafPt(th, a0, -.3, DH + .05), leafPt(th, a1, -.3, DH + .05), leafPt(th, a1, -.3, -.05), leafPt(th, a0, -.3, -.05)];
@@ -498,6 +496,8 @@ function drawLeafClipped(ctx, t, th, amb, I, gapW, wk, cs) {
     ctx.beginPath(); hull.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath(); ctx.clip();
     drawLeaf(ctx, t, th, amb, I, gapW, wk);
     if (cs) drawFingers(ctx, th, cs, amb, I);
+    if (sv) drawHisFingers(ctx, th, sv, amb, I, wk);
+    drawMarks(ctx, th, amb, t);
     ctx.restore();
   }
 }
@@ -536,7 +536,7 @@ function drawLeaf(ctx, t, th, amb, I, gapW, wk) {
   ctx.beginPath(); capsule(ctx, lv2.piv, lv2.end, .0105, .0095); ctx.fillStyle = C([112, 100, 72]); ctx.fill();
   ctx.beginPath(); capsule(ctx, V.add(lv2.piv, [0, .005, 0]), V.add(lv2.end, [0, .005, 0]), .004, .0035); ctx.fillStyle = C([176, 158, 116], .95); ctx.fill();
 }
-function drawLeak(ctx, th, I, wk) {
+function drawLeak(ctx, th, I, wk, t) {
   // light under the door and the thread at the edge while it is (nearly) shut
   const k = Math.min(1, I) * (1 - ss(6, 16, th)); if (k < .01) return;
   const warm = wk > .5;
@@ -549,7 +549,11 @@ function drawLeak(ctx, th, I, wk) {
   ctx.save(); ctx.globalCompositeOperation = 'screen';
   fill3(ctx, [[X0 + .03, 0, ZB + .004], [X1 - .01, 0, ZB + .004], [X1 - .01, .012, ZH - .001], [X0 + .03, .012, ZH - .001]], warm ? `rgba(255,214,150,${.8 * k})` : `rgba(232,236,222,${.75 * k})`);
   ctx.restore();
-  const thr = Math.min(1, I) * (1 - ss(4, 12, th));
+  const sp = (t - B.shadow) / .7;                         // the hook: a dark shape crosses the light under the door, right → left
+  if (sp > 0 && sp < 1 && k > .01) { const xs = lerp(X1 + .15, X0 - .15, sp), m2 = P(xs, 0, ZB - .01), wpx = .45 * cam.f / dpt([xs, 0, ZB]);
+    ctx.save(); ctx.translate(m2[0], m2[1]); ctx.scale(1, .2); const g2 = ctx.createRadialGradient(0, 0, 0, 0, 0, wpx);
+    g2.addColorStop(0, `rgba(2,2,2,${Math.sin(Math.PI * sp)})`); g2.addColorStop(1, 'rgba(3,3,3,0)'); ctx.fillStyle = g2; ctx.fillRect(-wpx, -wpx * 5, wpx * 2, wpx * 10); ctx.restore(); }
+  const thr = Math.min(1, I) * (1 - ss(4, 12, th)) * (sp > 0 && sp < .45 ? 1 - .8 * Math.sin(Math.PI * sp / .45) : 1);
   if (thr > .01) Hopper.glowLine(ctx, P(X1 - .004, DH - .02, ZH), P(X1 - .004, .02, ZH),
     warm ? `rgba(255,220,160,${.85 * thr})` : `rgba(240,242,228,${.8 * thr})`, warm ? 'rgba(255,200,120,1)' : 'rgba(232,238,222,1)', 30, 3.2);
 }
@@ -563,6 +567,36 @@ function drawForearm(ctx, th, hs) {
     ctx.lineWidth = r * 2; ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i + 1][0], pts[i + 1][1]); ctx.stroke(); }
   for (const f of FING) { const c = curlAt(hs, f); if (c <= 0) continue; const q = fingerPts(th, YH, f, c);
     const a = P(...kn), b = P(...q[0]); ctx.lineWidth = .03 * cam.f / dpt(q[0]) * 2; ctx.beginPath(); ctx.moveTo(a[0], a[1] + (b[1] - a[1]) * .3); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+}
+// his hand: a man's forearm in a pale sleeve in the gap (lit warm from the hall), the back of the hand with a dark
+// wound, and fingers round the edge onto my side — no claws; same machinery as the claws, other height, skin tones
+function drawHisForearm(ctx, th, hs, I) {   // his hand and forearm in the gap: knuckles at the edge, the wrist (with the nail wound) and a pale sleeve into the hall
+  const app = eo(clamp(hs.k / .5)) * (1 - hs.off); if (app <= 0) return;
+  const L = (a, b, y) => leafPt(th, DW + a, b, YH2 + y);
+  const li = .7 + .3 * Math.min(1.25, I), sk = rgb([200, 160, 124].map(v => Math.min(255, v * li))), skL = rgb([236, 204, 166].map(v => Math.min(255, v * li))), sl = rgb([226, 214, 190].map(v => Math.min(255, v * li)));
+  const kn = L(.01, -.025, 0), wr = L(.11, -.07, -.03), cf = L(.2, -.11, -.06), el = L(.5, -.24, -.16);
+  ctx.save(); ctx.globalAlpha = app;
+  ctx.beginPath(); capsule(ctx, cf, el, .042, .05); ctx.fillStyle = sl; ctx.fill();                                // the sleeve
+  ctx.beginPath(); capsule(ctx, wr, cf, .03, .036); ctx.fillStyle = sk; ctx.fill();                                // the wrist
+  ctx.beginPath(); capsule(ctx, kn, wr, .036, .031); ctx.fillStyle = sk; ctx.fill();                               // the hand
+  ctx.beginPath(); capsule(ctx, V.add(kn, [0, .012, 0]), V.add(wr, [0, .01, 0]), .012, .01); ctx.fillStyle = skL; ctx.fill();   // warm light along its top
+  const wd = P(...V.lerp(wr, cf, .3)), r = .013 * cam.f / dpt(wr);                                                // the wound in the wrist
+  ctx.beginPath(); ctx.ellipse(wd[0], wd[1], r * 1.15, r, .3, 0, Math.PI * 2); ctx.fillStyle = 'rgb(86,14,14)'; ctx.fill();
+  ctx.beginPath(); ctx.ellipse(wd[0], wd[1], r * 1.8, r * 1.55, .3, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(126,32,28,.7)'; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.restore();
+}
+function drawHisFingers(ctx, th, hs, amb, I, wk) {
+  const sk = [206, 166, 130].map(v => Math.min(255, v * (.55 + .25 * amb + .25 * Math.min(1.2, I))));
+  for (const f of FING2) {
+    const c = curlAt(hs, f); if (c <= 0) continue;
+    const q = fingerPts(th, YH2, f, c * .9).slice(0, 5), sp = q.map(p => P(...p)), segs = sp.length - 1, show = c * segs;   // (f from FING2)
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (let i = 0; i < segs; i++) { if (i >= show) break;
+      const k = Math.min(1, show - i), a = sp[i], b0 = sp[i + 1], z = dpt(q[i]), b = [a[0] + (b0[0] - a[0]) * k, a[1] + (b0[1] - a[1]) * k];
+      const r = lerp(.0105, .0085, i / segs) * cam.f / z;
+      ctx.strokeStyle = rgb(sk); ctx.lineWidth = r * 2; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,214,160,${.35 * wk})`; ctx.lineWidth = Math.max(1, r * .35); ctx.beginPath(); ctx.moveTo(a[0], a[1] - r * .6); ctx.lineTo(b[0], b[1] - r * .6); ctx.stroke(); }
+  }
 }
 function drawFingers(ctx, th, hs, amb, I) {
   for (const f of FING) {
@@ -601,8 +635,8 @@ const SKIN = [150, 118, 96], SKIN_LIT = [228, 206, 180], SLEEVE = [38, 40, 44], 
 function drawMine(ctx, t, th, amb, I, gapW, wk) {
   const F = handFrame(t, th);
   // how much light reaches my hand: the room's ambient, plus the doorway (thread → wedge → wide open)
-  const door = Math.min(1.3, I) * (.18 + .82 * Math.min(1, gapW / .45)) * (t >= B.yank ? 1 : .9);
-  const lvl = .32 + .55 * amb + .1 * door, rim = clamp(.25 + .75 * door) * (1 - .5 * ss(B.mine, B.mine + .6, t) * (1 - ss(B.blood[0], B.close, t)));
+  const door = Math.min(1.3, I) * (.18 + .82 * Math.min(1, gapW / .45)) * (t >= B.open ? 1 : .9);
+  const lvl = .32 + .55 * amb + .1 * door, rim = clamp(.25 + .75 * door) * (1 - .5 * ss(B.mine, B.mine + .6, t) * (1 - ss(B.light, B.close, t)));
   const warm = wk;
   const col = (c, k) => rgb(c.map(v => v * k));
   const rimC = (a) => warm > .5 ? `rgba(255,210,150,${a})` : `rgba(226,230,218,${a})`;
@@ -657,7 +691,7 @@ const CARD = (() => {
 
 Pilot.run({ W, H, dur: DUR, fonts: Hopper.FONTS,
   init: async () => { Hopper.init(); base = buildBase(); lit = buildLit(false); litW = buildLit(true); corr = buildCorridor(false); corrW = buildCorridor(true);
-    bristles = STROKES.map(s => Hopper.brush(s.seed)); },
+  },
   draw });
 </script>
 </body>
