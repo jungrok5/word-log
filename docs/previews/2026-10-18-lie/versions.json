@@ -1,0 +1,29 @@
+[
+ {
+  "v": 1,
+  "date": "2026-10-20",
+  "note": "첫 버전",
+  "scenes": [
+   {
+    "id": "lie-charcoal",
+    "label": "아빠 없다고 해 · 목탄",
+    "dur": 28.5,
+    "poster": true
+   }
+  ]
+ },
+ {
+  "v": 2,
+  "date": "2026-10-20",
+  "note": "손·팔을 물리적으로 맞게 수정",
+  "scenes": [
+   {
+    "id": "lie-charcoal",
+    "label": "아빠 없다고 해 · 목탄",
+    "dur": 28.5,
+    "cuts": [],
+    "poster": true
+   }
+  ]
+ }
+]

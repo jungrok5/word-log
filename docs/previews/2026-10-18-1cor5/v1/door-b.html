@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>문틈 · B 호퍼풍 사실주의</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&family=Noto+Sans+KR:wght@400;500;600&display=swap">
+</head>
+<body>
+<script src="lib.js"></script>
+<script src="story.js"></script><script src="door-common.js"></script><script src="kit-hopper.js"></script>
+<script>
+/* 문틈 · B — Hopper-style quiet realism (Lemo-Opuscar no. 48 "Hopper-Style American Realism").
+   One still, almost empty room at night, painted in flat matte planes. The whole picture is a real little 3D room
+   (metres, one-point camera, low and still) so every light shape is a true perspective projection:
+   - a door in the back wall, hinged on the left, swinging INTO the room; beyond it a lit corridor with one unseen lamp;
+   - the light that passes the gap (corridor lamp → doorway → past the door's free edge) is projected onto the floor:
+     a hard-edged parallelogram that widens with each opening;
+   - the horned shadow is a silhouette in the doorway plane, projected from the lamp onto the floor (cast by a figure we
+     never see); the hand's shadow is projected the same way;
+   - a cool moon parallelogram (window off-screen right) lies on the back wall, the only other light.
+   The blood red #9c1a1a is the one saturated colour.
+   The style itself (camera, room, lights, paint, canvas weave, words) lives in kit-hopper.js (styles/hopper/); this file
+   keeps only the door story: the room's measurements, the door and its gap, the corridor, the shadow, the hand, the blood. */const { clamp, lerp, ss, eo, eio, noise, rgb } = Pilot;
+const W = Pilot.W, H = Pilot.H, V = Pilot.ori === 'v';
+const B = DOOR.beat, DUR = DOOR.DUR, D2R = Math.PI / 180, Q = Hopper.Q;
+
+// ---------------- the room (metres; x right, y up, z away from the camera) ----------------
+const ZB = 5, T = 0.14;                       // back wall plane (room face) and wall thickness
+const X0 = -0.75, X1 = 0.15, DW = X1 - X0, DH = 2.05;   // doorway (hinge on the left, X0)
+const XL = -1.05, XR = 1.45, HC = 3.2, ZN = 0.7;         // side walls, ceiling, near clip
+const CAS = 0.1, CASH = 0.12;                 // door casing width / head height
+const LAMP = Hopper.lamp({ x: -0.45, y: 2.5, z: 6.6 });  // the corridor lamp (never seen)
+const LP = LAMP, DL = LP.z - ZB;
+const ZF = 6.75, HCC = 2.7;                   // corridor far wall, corridor ceiling
+const cam = Hopper.camera({ ...Hopper.eye(), zn: ZN }), CAM = cam, P = cam.P, path3 = cam.path, fill3 = cam.fill;
+const R = Hopper.room({ xl: XL, xr: XR, h: HC, zn: ZN, zb: ZB }, cam);
+const floorPoly = () => [[XL, 0, ZN], [XR, 0, ZN], [XR, 0, ZB], [X1, 0, ZB], [X1, 0, ZB + T], [X0, 0, ZB + T], [X0, 0, ZB], [XL, 0, ZB]];
+const innerOpening = () => [[X0, 0, ZB + T], [X1, 0, ZB + T], [X1, DH, ZB + T], [X0, DH, ZB + T]];
+
+// ---------------- the door leaf ----------------
+const leafPt = Hopper.hinge(X0, ZB);
+// the part of the doorway the lamp still shines through, as a rect in the doorway plane: [x0, x1] × [0, h]
+const X0T = LP.x + (X0 - LP.x) * DL / (DL - T);          // left jamb (tunnel) limit
+const AH = Math.min(DH, LP.y + (DH - LP.y) * DL / (DL - T));
+function aperture(th) {
+  const c = Math.cos(th * D2R), s = Math.sin(th * D2R), ex = X0 + DW * c, ez = ZB - DW * s;
+  const xc = LP.x + (ex - LP.x) * DL / (LP.z - ez);
+  return { x0: Math.max(xc, X0T), x1: X1, h: AH };
+}
+
+// ---------------- timing ----------------
+const creak = Hopper.creak;
+const breath = t => Hopper.breathe(t, B.breath);
+function theta(t) {
+  let th = 7;
+  th += 8 * creak(t - B.open[0]); th += 11 * creak(t - B.open[1]); th += 14 * creak(t - B.open[2]);   // 15 → 26 → 40
+  th += 6 * eio(clamp((t - (B.claw + 1.0)) / 1.4));                                                   // the hand pulls → 46
+  if (t < B.burst) th += .7 * breath(t);
+  else {
+    const u = t - B.burst;
+    if (u < .2) th = lerp(th, 70, (u / .2) * (u / .2));
+    else th = 67 + 3 * Math.exp(-(u - .2) * 5) * Math.cos((u - .2) * 22);
+  }
+  if (t >= B.close) {
+    const k = eio(clamp((t - B.close) / 1.2)), u = t - (B.close + 1.2);
+    th = lerp(67, 7, k) + (u > 0 ? .9 * Math.exp(-u * 7) * Math.sin(u * 30) : 0);
+  }
+  return th;
+}
+const BLACK0 = 16.5, BACK = 19.3;              // cut to black, light returns
+function lampI(t) {
+  let I = 1;
+  if (t < B.burst) I *= 1 - .12 * breath(t) - .06 * ss(B.shadowIn, B.shadowIn + 1, t) * Hopper.flicker(t, 7, 2, .78);
+  else if (t < BLACK0) { const u = t - B.burst; I = 1 + 1.3 * Math.exp(-u * 4) * ss(0, .04, u); I *= 1 - ss(16.05, 16.45, t); }
+  else if (t < BACK) I = 0;
+  else {
+    const fl = 1 - .35 * Hopper.flicker(t, 11, 5, .72) * (1 - ss(B.recoil, B.recoil + .5, t));
+    I = (.5 * ss(BACK, 20.5, t) + .14 * ss(B.recoil, B.recoil + .9, t) + .3 * ss(B.close, B.close + 1.4, t)) * fl;
+  }
+  return I;
+}
+const warmK = t => ss(B.close, B.close + 1.4, t);
+function ambK(t) {
+  if (t < BLACK0) return .8 * ss(0, 1.4, t) * (1 - .6 * ss(15.8, 16.2, t) - .4 * ss(16.25, BLACK0, t));
+  if (t < BACK) return 0;
+  return .62 * ss(BACK, 20.6, t) + .14 * ss(B.close, B.close + 1.4, t);
+}
+
+// ---------------- the horned shadow (a silhouette in the doorway plane) ----------------
+// unit silhouette, front view, crouched and hunched: horns, head, high shoulders, one arm reaching left (toward the
+// door's edge). v above the shoulders is stretched because the floor foreshortens it again.
+const bez = Hopper.bez;
+function silhouette(arm, VS) {
+  // standing, slightly hunched; shoulders ~1.06, head 1.1–1.33, horns to ~1.62 (doorway-plane metres at k = 1).
+  // The floor squeezes everything below ~0.9 into a thin band at the threshold, so the readable part is head + horns.
+  const s = [], sv = v => v < 1 ? v : 1 + (v - 1) * VS, A = (u, v) => [u, sv(v)];
+  const go = (p1, p2, p3) => { const p0 = s[s.length - 1]; bez(s, p0, p1, p2, p3); };
+  s.push(A(-.2, -.3));
+  go(A(-.2, .2), A(-.19, .6), A(-.18, .88));
+  // left arm: hangs (arm=0) or reaches out to the left toward the door's edge (arm=1)
+  const ex = lerp(-.21, -.36, arm), ey = lerp(.7, 1.08, arm), hx = lerp(-.21, -.56, arm), hy = lerp(.45, 1.14, arm);
+  go(A(-.2, .95), A(ex + .02, ey - .05), A(ex, ey - .025));
+  go(A((ex + hx) / 2, (ey + hy) / 2 - .025), A(hx + .04, hy - .025), A(hx, hy - .015));
+  const fx = hx, fy = hy, fl = .3 + .7 * arm;
+  s.push(A(fx - .08 * fl, fy - .035)); s.push(A(fx - .005, fy - .004));
+  s.push(A(fx - .1 * fl, fy + .012)); s.push(A(fx, fy + .014));
+  s.push(A(fx - .08 * fl, fy + .055)); s.push(A(fx + .02, fy + .028));
+  go(A((ex + hx) / 2 + .01, (ey + hy) / 2 + .04), A(ex + .02, ey + .04), A(lerp(-.17, -.2, arm), lerp(1.06, 1.08, arm)));
+  // hunched shoulder, neck, head (a long skull)
+  go(A(-.15, 1.09), A(-.085, 1.08), A(-.05, 1.1));
+  go(A(-.06, 1.15), A(-.068, 1.22), A(-.055, 1.28));
+  // left horn: out, up, curling in at the tip
+  go(A(-.09, 1.31), A(-.15, 1.36), A(-.16, 1.45));
+  go(A(-.165, 1.52), A(-.14, 1.59), A(-.11, 1.625));
+  go(A(-.125, 1.57), A(-.13, 1.5), A(-.11, 1.44));
+  go(A(-.09, 1.39), A(-.05, 1.35), A(-.025, 1.335));
+  go(A(-.01, 1.345), A(.01, 1.345), A(.025, 1.335));
+  go(A(.05, 1.35), A(.09, 1.39), A(.11, 1.44));
+  go(A(.13, 1.5), A(.125, 1.57), A(.11, 1.625));
+  go(A(.14, 1.59), A(.165, 1.52), A(.16, 1.45));
+  go(A(.15, 1.36), A(.09, 1.31), A(.055, 1.28));
+  go(A(.068, 1.22), A(.06, 1.15), A(.05, 1.1));
+  go(A(.085, 1.08), A(.15, 1.09), A(.18, 1.03));
+  go(A(.2, .9), A(.2, .5), A(.2, .1));
+  s.push(A(.2, -.3));
+  return s;
+}
+// where the shadow is: { x, k, sink, arm } or null
+function figure(t) {
+  if (t >= B.shadowIn && t < BLACK0) {
+    const k0 = .94 * (1 + .015 * Math.sin((t - B.shadowIn) * 2.6));
+    let x = lerp(.5, -.02, eio((t - B.shadowIn) / 1.5)), k = k0, arm = eio(clamp((t - B.claw + .2) / 1.0));
+    if (t > B.burst + .32) { const u = clamp((t - B.burst - .32) / .72); k = lerp(k0, 5.5, u * u * (3 - 2 * u) * u); x = lerp(x, -.15, u); }
+    return { x, k, sink: 0, arm };
+  }
+  if (t >= BACK && t < B.close) {
+    let x = -.13, k = 1.06 * (1 + .015 * Math.sin(t * 2.2)), sink = 0;
+    const fl = t - B.recoil;
+    if (fl > 0) {
+      k *= 1 - .12 * Math.min(1, fl / .08) * Math.exp(-Math.max(0, fl - .1) * 3);
+      x += .04 * Math.sin(fl * 46) * Math.exp(-fl * 7);
+      const w = eio(clamp((fl - .15) / .8)); x = lerp(x, -1.25, w); k *= 1 - .35 * w; sink = .35 * w;
+    }
+    return { x, k, sink, arm: 0 };
+  }
+  return null;
+}
+
+// ---------------- static paint layers (built once) ----------------
+let base, lit, litW, corr, corrW, bristles;
+const plane = fill3;
+function buildBase() {
+  return Hopper.layer(x => {
+    // the room shell (night look: ceiling, walls, dragged strokes, shade under the ceiling) and the dark plank floor,
+    // whose planks run on under the door to the corridor side of the threshold
+    R.paint(x);
+    R.boards(x, Hopper.BOARDS.night, { seed: 21, z1: ZB + T, clip: floorPoly() });
+    // the moon: a window off-screen on the right wall throws four hard panes onto the back wall
+    const moon = Hopper.sun([-1, -.5, 1.4]), panes = [];
+    for (const [y0, y1] of [[.95, 1.68], [1.73, 2.45]]) for (const [z0, z1] of [[3.6, 4.08], [4.13, 4.6]]) panes.push(moon.project(Q.x(XR, z0, z1, y0, y1), Hopper.wallZ(ZB)));
+    Hopper.lightShapes(x, cam, panes, Hopper.PAL.night.moon, [[XL, .15, ZB], [XR, .15, ZB], [XR, HC, ZB], [XL, HC, ZB]]);
+    // baseboards, broken by the door casing
+    R.baseboards(x, { gaps: [[X0 - CAS, X1 + CAS]], line: ['rgba(120,112,92,.3)', 'rgba(120,112,92,.35)'] });
+    // doorway: black hole (the corridor is painted in each frame), reveal faces, threshold
+    plane(x, [[X0, 0, ZB], [X1, 0, ZB], [X1, DH, ZB], [X0, DH, ZB]], '#050606');
+    plane(x, [[X0, 0, ZB], [X0, 0, ZB + T], [X0, DH, ZB + T], [X0, DH, ZB]], '#34312a');
+    plane(x, [[X0, DH, ZB], [X1, DH, ZB], [X1, DH, ZB + T], [X0, DH, ZB + T]], '#24221d');
+    plane(x, [[X0, 0, ZB], [X1, 0, ZB], [X1, 0, ZB + T], [X0, 0, ZB + T]], '#3a3127');
+    // casing (painted trim, a little lighter than the wall), with its soft shadow on the wall
+    const zc = ZB - .02;
+    Hopper.softShadow(x, cam, [[X0 - CAS - .02, 0, ZB], [X1 + CAS + .03, 0, ZB], [X1 + CAS + .03, DH + CASH + .03, ZB], [X0 - CAS - .02, DH + CASH + .03, ZB]], 6, .35);
+    const casL = [[X0 - CAS, 0, zc], [X0, 0, zc], [X0, DH, zc], [X0 - CAS, DH, zc]], casR = [[X1, 0, zc], [X1 + CAS, 0, zc], [X1 + CAS, DH, zc], [X1, DH, zc]];
+    const casH = [[X0 - CAS - .015, DH, zc], [X1 + CAS + .015, DH, zc], [X1 + CAS + .015, DH + CASH, zc], [X0 - CAS - .015, DH + CASH, zc]];
+    for (const q of [casL, casR, casH]) plane(x, q, Hopper.PAL.night.trim);
+    // trim details: inner bead lighter, outer edge darker, head cap
+    plane(x, [[X0 - .016, 0, zc], [X0, 0, zc], [X0, DH, zc], [X0 - .016, DH, zc]], '#5d584b');
+    plane(x, [[X1, 0, zc], [X1 + .016, 0, zc], [X1 + .016, DH, zc], [X1, DH, zc]], '#3f3c33');
+    plane(x, [[X0 - CAS - .03, DH + CASH, zc - .01], [X1 + CAS + .03, DH + CASH, zc - .01], [X1 + CAS + .03, DH + CASH + .03, zc - .01], [X0 - CAS - .03, DH + CASH + .03, zc - .01]], '#58534a');
+    plane(x, [[X0 - CAS - .015, DH, zc], [X1 + CAS + .015, DH, zc], [X1 + CAS + .015, DH + .014, zc], [X0 - CAS - .015, DH + .014, zc]], '#3b382f');
+    plane(x, [[X0 - CAS, 0, zc - .002], [X0, 0, zc - .002], [X0, .18, zc - .002], [X0 - CAS, .18, zc - .002]], '#2a2924');
+    plane(x, [[X1, 0, zc - .002], [X1 + CAS, 0, zc - .002], [X1 + CAS, .18, zc - .002], [X1, .18, zc - .002]], '#2a2924');
+    x.save(); for (const q of [casL, casR, casH]) path3(x, q, false); x.clip();
+    Hopper.strokes(x, cam, 90, 31, (u, v) => [lerp(X0 - CAS, X1 + CAS, u), lerp(0, DH + CASH, v), zc], { len: [.15, .5], slant: .01, w: .012, a: .06 }); x.restore();
+    // a light switch plate beside the door (one Hopper-ish human detail)
+    plane(x, [[X1 + CAS + .14, 1.08, ZB - .01], [X1 + CAS + .22, 1.08, ZB - .01], [X1 + CAS + .22, 1.2, ZB - .01], [X1 + CAS + .14, 1.2, ZB - .01]], '#4d483d');
+    plane(x, [[X1 + CAS + .175, 1.12, ZB - .012], [X1 + CAS + .185, 1.12, ZB - .012], [X1 + CAS + .185, 1.16, ZB - .012], [X1 + CAS + .175, 1.16, ZB - .012]], '#2a2822');
+  });
+}
+// the floor as the lamp lights it: light planks, falling off toward the camera, cold (greenish bulb) or warm (hope)
+const buildLit = warm => Hopper.layer(x => {
+  R.boards(x, Hopper.BOARDS.nightLit, { seed: 21, z1: ZB + T, clip: floorPoly() });
+  Hopper.lampTint(x, warm ? Hopper.PAL.night.lampWarm : Hopper.PAL.night.lampCold, P(0, 0, ZB)[1], .3);
+});
+function buildCorridor(warm) {
+  return Hopper.layer(x => {
+    const lw = P(LP.x, LP.y, ZF), R = CAM.f * 1.7 / ZF;
+    // far wall
+    let g = x.createRadialGradient(lw[0], lw[1], 0, lw[0], lw[1], R);
+    if (warm) { g.addColorStop(0, '#fbe3b4'); g.addColorStop(.35, '#e2bf86'); g.addColorStop(1, '#5e4a33'); }
+    else { g.addColorStop(0, '#eeeadb'); g.addColorStop(.35, '#cdc8b3'); g.addColorStop(1, '#55534a'); }
+    const far = Q.z(-3, 3, 0, HCC, ZF);
+    Hopper.plane(x, cam, far, g, { n: 120, seed: 41, fn: (u, v) => [lerp(-1.4, .6, u), lerp(0, HCC, v), ZF], len: [.2, .6], slant: .03, w: .02, a: .05 });
+    fill3(x, [[-3, 0, ZF - .005], [3, 0, ZF - .005], [3, .13, ZF - .005], [-3, .13, ZF - .005]], warm ? 'rgba(70,46,24,.75)' : 'rgba(40,40,36,.75)');
+    // corridor floor, with the lamp's pool on it
+    const lf = P(LP.x, 0, LP.z), cf = [[-3, 0, ZB + T], [3, 0, ZB + T], [3, 0, ZF], [-3, 0, ZF]];
+    fill3(x, cf, warm ? '#6e5332' : '#5a5547');
+    x.save(); path3(x, cf); x.clip();
+    x.translate(lf[0], lf[1]); x.scale(1, .32);
+    g = x.createRadialGradient(0, 0, 0, 0, 0, 520);
+    g.addColorStop(0, warm ? 'rgba(250,215,150,.95)' : 'rgba(222,218,196,.9)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g; x.fillRect(-900, -2000, 1800, 4000); x.restore();
+    // the hidden lamp's glow, high on the left
+    x.save(); path3(x, innerOpening()); x.clip();
+    g = x.createRadialGradient(lw[0], lw[1] - 30, 0, lw[0], lw[1] - 30, 260);
+    g.addColorStop(0, warm ? 'rgba(255,230,180,.55)' : 'rgba(250,250,236,.5)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = g; x.fillRect(0, 0, W, H); x.restore();
+  });
+}
+
+// ---------------- the blood: three painted strokes (lintel, left post, right post) ----------------
+const ZS = ZB - .03;
+const STROKES = [
+  { a: [X0 - .08, DH + .066, ZS], b: [X1 + .08, DH + .054, ZS], w: .078, t: B.blood[0], seed: 501 },
+  { a: [X0 - .05, DH - .04, ZS], b: [X0 - .056, DH - .92, ZS], w: .062, t: B.blood[1], seed: 502 },
+  { a: [X1 + .052, DH - .04, ZS], b: [X1 + .046, DH - .86, ZS], w: .062, t: B.blood[2], seed: 503 },
+];
+// ---------------- the hand at the door's edge ----------------
+// finger paths in leaf-local coordinates: a = metres from the free edge toward the hinge (negative = beyond the edge,
+// in the gap), b = metres out of the room face (negative = behind the door, corridor side)
+const FING = [
+  { dy: .088, len: .9, d: 0, sp: .03 }, { dy: .03, len: 1.05, d: .1, sp: .008 }, { dy: -.026, len: .98, d: .18, sp: -.012 }, { dy: -.08, len: .78, d: .3, sp: -.035 },
+];
+const FPATH = [[-.004, -.05], [-.03, -.016], [-.016, .022], [.05, .03], [.13, .024], [.2, .01]];
+function fingerPts(th, yh, f, curl) {
+  const out = [], sc = 1.25 * f.len;
+  for (let i = 0; i < FPATH.length; i++) {
+    let [a, b] = FPATH[i];
+    if (i >= 3) { a *= sc; b = lerp(.03, b, .4 + .6 * curl); }
+    const y = yh + f.dy + (i >= 3 ? (i - 2) * f.sp * .5 : 0) - (i >= 4 ? (i - 3) * .012 * curl : 0);
+    out.push(leafPt(th, DW - a, b, y));
+  }
+  return out;
+}
+function handState(t) {
+  if (t < B.claw || t >= B.burst + .1) return null;
+  return { k: t - B.claw };
+}
+
+
+// ---------------- draw ----------------
+function zoomAt(t) { return 1 + .045 * ss(0, B.end, t); }
+function draw(ctx, t) {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const black = t >= BLACK0 && t < BACK;
+  if (!black) {
+    const th = theta(t), I = lampI(t), amb = ambK(t), wk = warmK(t), ap = aperture(th), gapW = ap.x1 - ap.x0;
+    ctx.save(); Hopper.push(ctx, zoomAt(t), P(-.3, 1.0, ZB));
+    // 1. the room in night ambient
+    ctx.drawImage(base, 0, 0);
+    Hopper.dim(ctx, amb);
+    // 2. the corridor beyond the doorway
+    if (I > .001) {
+      ctx.save(); Hopper.clip(ctx, cam, [innerOpening()]);
+      Hopper.drawLit(ctx, I, corr, corrW, wk);
+      if (I > 1) Hopper.glow(ctx, P(-.3, 1.2, ZF), 520, '255,252,240', .6 * (I - 1));
+      // the forearm reaching through the gap (silhouette against the corridor)
+      const hs = handState(t);
+      if (hs) drawForearm(ctx, th, hs);
+      ctx.restore();
+    }
+    // 3. light through the gap onto the floor
+    if (I > .001 && gapW > .002) {
+      const quad = LAMP.through({ x0: ap.x0, x1: ap.x1, y0: 0, y1: ap.h, z: ZB }, Hopper.FLOOR, T);
+      ctx.save(); Hopper.clip(ctx, cam, [floorPoly()]); Hopper.clip(ctx, cam, [quad]);
+      Hopper.drawLit(ctx, I, lit, litW, wk);
+      if (I > 1) Hopper.wash(ctx, '255,250,235', .45 * (I - 1));
+      // shadows inside the light: the horned figure (cast from the doorway plane by the lamp)
+      const fg = figure(t);
+      const sh = fg ? LAMP.cast(silhouette(fg.arm, .62), { x: fg.x, k: fg.k, sink: fg.sink, z: ZB, clip: [ap.x0 - .001, ap.x1 + .001, -.01, ap.h - .002] }) : null;
+      if (sh) Hopper.shadowIn(ctx, cam, [sh], c => { c.drawImage(base, 0, 0); Hopper.dim(c, amb); });
+      ctx.restore();
+      // bounce: the bright floor lifts the room a little
+      const bk = Math.min(1, gapW / .55) * Math.min(1.6, I) * (.55 + .45 * (1 - wk));
+      Hopper.glow(ctx, P(ap.x0 * .5 + .3, 0, 3.6), 760, wk > .5 ? '255,214,160' : '226,224,206', .13 * bk);
+    }
+    // 4a. the blood on the casing (behind the leaf, which stands in front of the frame)
+    if (t >= B.blood[0]) {
+      const lb = .78 + .22 * amb / .76 + .1 * wk;
+      STROKES.forEach((s, i) => Hopper.brushStroke(ctx, cam, s, bristles[i], eo(clamp((t - s.t) / .42)), Math.min(1.05, lb), DOOR.RED));
+    }
+    // 4. the door leaf (in the room, in front of everything at the doorway)
+    drawLeaf(ctx, th, amb, I, gapW, wk);
+    // 5. fingers curling round the edge
+    const hs = handState(t); if (hs) drawFingers(ctx, th, hs, amb, I);
+    ctx.restore();
+    // canvas tooth and vignette (fixed to the frame, not the camera)
+    Hopper.finish(ctx);
+    // end card: the room sinks back so the words can sit on it
+    Hopper.sink(ctx, ss(B.end - .2, B.end + .9, t));
+  }
+  // words
+  Hopper.captions(ctx, t, DOOR.lines);
+  Hopper.endCard(ctx, t, DOOR.endCard, B.end);
+  // fade in from black, out to black
+  Hopper.fade(ctx, t, DUR);
+}
+
+function drawLeaf(ctx, th, amb, I, gapW, wk) {
+  // the room face is backlit: ambient (moon) + bounce from the lit floor
+  const bounce = Math.min(1, gapW / .5) * Math.min(1.5, I) * .55;
+  const lv = amb * .95 + bounce * .6;
+  const C = (c, k = 1) => rgb(c.map((v, i) => Math.min(255, v * lv * k + (wk > 0 ? [10, 5, 0][i] * wk * bounce : 0))));
+  const base = [55, 61, 58], hi = [80, 86, 81], lo = [25, 29, 28];
+  const LP3 = (a, y, b = 0) => leafPt(th, a, b, y);
+  fill3(ctx, [LP3(0, .008), LP3(DW, .008), LP3(DW, DH - .008), LP3(0, DH - .008)], C(base));
+  // panels: two tall above the lock rail, two short below; each a sunk field with a lit and a shaded bevel
+  const pc = { top: C(lo), bottom: C(hi), left: C(lo, 1.25), right: C(hi, .95), field: C(base, .9) };
+  for (const r of [[.12, .43, 1.07, 1.9], [.47, .78, 1.07, 1.9], [.12, .43, .22, .88], [.47, .78, .22, .88]]) Hopper.bevelPanel(ctx, cam, LP3, r, .022, pc);
+  // dark line at the hinge edge, a thin lit line along the free edge (light wraps round it from the gap)
+  fill3(ctx, [LP3(0, .008), LP3(.012, .008), LP3(.012, DH - .008), LP3(0, DH - .008)], C(lo, .8));
+  if (I > .01) { const g = Math.min(1, I) * (wk > .5 ? 1 : 1);
+    fill3(ctx, [LP3(DW - .008, .01), LP3(DW, .01), LP3(DW, DH - .01), LP3(DW - .008, DH - .01)], wk > .5 ? `rgba(240,200,140,${.5 * g})` : `rgba(220,222,206,${.42 * g})`); }
+  // knob
+  const kn = P(...LP3(DW - .075, .96, .055)), kz = LP3(DW - .075, .96, .055)[2], kr = CAM.f * .028 / kz;
+  const pl = [LP3(DW - .095, .9, .002), LP3(DW - .055, .9, .002), LP3(DW - .055, 1.04, .002), LP3(DW - .095, 1.04, .002)];
+  fill3(ctx, pl, C([92, 84, 62]));
+  ctx.beginPath(); ctx.ellipse(kn[0], kn[1], kr * Math.max(.45, Math.cos(th * D2R)), kr, 0, 0, Math.PI * 2); ctx.fillStyle = C([110, 98, 70]); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(kn[0] - kr * .2, kn[1] + kr * .35, kr * .3, kr * .22, 0, 0, Math.PI * 2); ctx.fillStyle = C([170, 154, 116], .9); ctx.fill();
+  // light leaking under the door while it is nearly shut
+  const leak = Math.min(1, I) * (1 - ss(14, 30, th));
+  if (leak > .01) {
+    const q = [leafPt(th, .02, .002, 0), leafPt(th, DW, .002, 0), leafPt(th, DW, .05, 0), leafPt(th, .02, .05, 0)];
+    fill3(ctx, q, wk > .5 ? `rgba(240,196,128,${.55 * leak})` : `rgba(214,214,196,${.45 * leak})`);
+  }
+  // the thread: when the gap is hair-thin, it glows
+  const thr = Math.min(1, I) * (1 - ss(10, 22, th));
+  if (thr > .01) {
+    Hopper.glowLine(ctx, P(X1 - .004, DH - .02, ZB + .02), P(X1 - .004, .02, ZB + .02),
+      wk > .5 ? `rgba(255,214,150,${.5 * thr})` : `rgba(236,238,222,${.42 * thr})`, wk > .5 ? 'rgba(255,200,120,.9)' : 'rgba(230,236,220,.8)', 22, 2.2);
+  }
+}
+
+const YH = 1.36;
+function curlAt(hs, f) { return eo(clamp((hs.k - f.d) / .75)); }
+function drawForearm(ctx, th, hs) {
+  // back of the hand and the wrist, behind the door's edge, going back into the corridor
+  const app = eo(clamp(hs.k / .6));
+  const kn = leafPt(th, DW + .03, -.05, YH), wr = leafPt(th, DW + .09, -.26, YH - .1), el = leafPt(th, DW + .2, -.62, YH - .32);
+  const pts = [kn, wr, el].map(q => P(...q));
+  ctx.lineCap = 'round'; ctx.strokeStyle = '#0a0b0b';
+  for (let i = 0; i < 2; i++) { const z = ([kn, wr, el][i][2] + [kn, wr, el][i + 1][2]) / 2, r = (i ? .05 : .065) * CAM.f / z * app;
+    ctx.lineWidth = r * 2; ctx.beginPath(); ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(pts[i + 1][0], pts[i + 1][1]); ctx.stroke(); }
+  // knuckle mass
+  for (const f of FING) { const c = curlAt(hs, f); if (c <= 0) continue; const q = fingerPts(th, YH, f, c);
+    const a = P(...kn), b = P(...q[0]); ctx.lineWidth = .03 * CAM.f / q[0][2] * 2; ctx.beginPath(); ctx.moveTo(a[0], a[1] + (b[1] - a[1]) * .3); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+}
+function drawFingers(ctx, th, hs, amb, I) {
+  for (const f of FING) {
+    const c = curlAt(hs, f); if (c <= 0) continue;
+    const q = fingerPts(th, YH, f, c), sp = q.map(p => P(...p));
+    // reveal along the path: the finger slides round the edge
+    const segs = sp.length - 1, show = c * segs;
+    const tap = hs.k > 1.2 ? .006 * Math.max(0, Math.sin((hs.k - 1.2) * 9 + f.d * 7)) : 0;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let tip = null, dir = null;
+    for (let i = 0; i < segs; i++) {
+      if (i >= show) break;
+      const k = Math.min(1, show - i), a = sp[i], b0 = sp[i + 1], b = [a[0] + (b0[0] - a[0]) * k, a[1] + (b0[1] - a[1]) * k + (i === segs - 1 ? tap * CAM.f / q[i][2] : 0)];
+      const r = lerp(.019, .012, i / segs) * CAM.f / q[i][2];
+      ctx.strokeStyle = '#0b0c0c'; ctx.lineWidth = r * 2; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      // knuckle bulge at each joint
+      if (i > 1 && k === 1) { ctx.beginPath(); ctx.arc(b[0], b[1], r * 1.12, 0, Math.PI * 2); ctx.fillStyle = '#0b0c0c'; ctx.fill(); }
+      // underside catches the lit floor
+      if (i >= 3) { ctx.strokeStyle = `rgba(120,118,104,${.12 * Math.min(1, I) + .04 * amb})`; ctx.lineWidth = Math.max(1, r * .3);
+        ctx.beginPath(); ctx.moveTo(a[0], a[1] + r * .75); ctx.lineTo(b[0], b[1] + r * .75); ctx.stroke(); }
+      tip = b; dir = [b0[0] - a[0], b0[1] - a[1]];
+    }
+    // the nail: long, pointed, hooked toward the wood
+    if (tip && c > .8) {
+      const nl = (c - .8) / .2, L = Math.hypot(dir[0], dir[1]), ux = dir[0] / L, uy = dir[1] / L, z = q[q.length - 1][2];
+      const len = .085 * CAM.f / z * nl * f.len, wd = .012 * CAM.f / z;
+      const tx = tip[0] + ux * len + uy * len * .1, ty = tip[1] + uy * len + len * .22;
+      ctx.beginPath(); ctx.moveTo(tip[0] - uy * wd, tip[1] + ux * wd);
+      ctx.quadraticCurveTo(tip[0] + ux * len * .6 - uy * wd * .6, tip[1] + uy * len * .6 + ux * wd * .6, tx, ty);
+      ctx.quadraticCurveTo(tip[0] + ux * len * .5 + uy * wd * .5, tip[1] + uy * len * .5 - ux * wd * .5, tip[0] + uy * wd, tip[1] - ux * wd);
+      ctx.closePath(); const nv = .45 + .4 * Math.min(1, I) + .15 * amb;
+      ctx.fillStyle = rgb([118 * nv, 110 * nv, 96 * nv]); ctx.fill();
+    }
+  }
+}
+Pilot.run({ audio: 'soundtrack.m4a', W, H, dur: DUR,
+  fonts: Hopper.FONTS,
+  init: async () => { Hopper.init(); base = buildBase(); lit = buildLit(false); litW = buildLit(true); corr = buildCorridor(false); corrW = buildCorridor(true);
+    bristles = STROKES.map(s => Hopper.brush(s.seed)); },
+  draw });
+</script>
+<script>window.POSTER_T = 9.5;</script>
+<style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+#pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}</style>
+<button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+<script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+</body>
+</html>

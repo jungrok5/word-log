@@ -1,0 +1,33 @@
+[
+ {
+  "v": 1,
+  "date": "2026-10-18",
+  "note": "스타일 4가지 비교 (30초, 이전 전략)",
+  "scenes": [
+   {
+    "id": "door-a",
+    "label": "A · 고딕 목탄",
+    "dur": 30,
+    "poster": true
+   },
+   {
+    "id": "door-b",
+    "label": "B · 호퍼풍 사실주의",
+    "dur": 30,
+    "poster": true
+   },
+   {
+    "id": "door-c",
+    "label": "C · 솔 바스 그래픽",
+    "dur": 30,
+    "poster": true
+   },
+   {
+    "id": "door-d",
+    "label": "D · 그림자극",
+    "dur": 30,
+    "poster": true
+   }
+  ]
+ }
+]

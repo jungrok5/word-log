@@ -53,8 +53,10 @@
    3. 사운드(canvas-film `references/SOUND.md`) → `scenes/soundtrack.wav` → `python3 tools/cut-audio.py sermons/<폴더>`
       (장면별 소리 연결).
    4. 스틸로 직접 확인 → `python3 tools/check-film.py sermons/<폴더> --frames` 통과.
-   5. `python3 tools/preview.py sermons/<폴더>` → 커밋·푸시 → **미리보기 링크**
+   5. `python3 tools/preview.py sermons/<폴더> --note "무엇을 바꿨나"` → 커밋·푸시 → **미리보기 링크**
       `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(소리 포함, 인코딩 없음).
+      실행할 때마다 **새 버전(v1, v2, …)이 추가**되고 예전 버전은 지우지 않는다 — 사용자가 여러 시도를 나란히 비교한다.
+      (오타 같은 작은 수정만 `--replace`로 최신 버전을 덮어쓴다.) 전체 목록: `.../word-log/previews/`
    6. `python3 tools/upload-meta.py sermons/<폴더>` → `upload.md`의 ✍️(제목·고정 댓글 질문)를 다듬어 함께 보여 준다.
    7. **MP4는 사용자가 고른 버전만**: film 폴더에서
       `node ../../../motion-skills/canvas-film/scripts/render.mjs v --scene <id>` (`out/`은 git에 넣지 않음).
