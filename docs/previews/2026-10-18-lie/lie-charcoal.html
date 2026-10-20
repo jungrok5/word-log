@@ -30,7 +30,7 @@ const u = (t, a, b) => clamp((t - a) / (b - a));
 let wall, table;
 
 /* ------------------------------------------------------------------ the timeline */
-const PH0 = [.10, .64], PH1 = [.0, .87], PH2 = [.03, .64], PH3 = [-.13, .90], PH4 = [.23, .90];
+const PH0 = [.10, .64], PH1 = [.0, .87], PH2 = [.03, .64], PH3 = [-.03, .90], PH4 = [.24, .90];
 function phoneState(t) {     // where the phone is: on the table (x, z, angle) or held at the child's ear; buzzing amount
   const s = { on: true, x: PH0[0], z: PH0[1], a: .12, ring: 0 };
   if (t < B.back[1] - .4 || t >= B.back[0] + .4) {         // era 0 (and the return to it)
@@ -238,7 +238,8 @@ function armOnTable(x, q, hand, shoulderSide, tone, sd, phase) {
   // phase 'upper' (drawn with the body, before the table): the sleeve from the shoulder down to the elbow at the far edge
   // phase 'fore' (after the table): the forearm on the table from the elbow to the wrist, and the hand
   const g = handGeo(hand), sh = [q.cx + shoulderSide * q.sh * .86, q.shy + q.hr * .3];
-  const wr = g.wrist, back = 1.0, el = pt(hand.x + shoulderSide * .05, back), elbow = [el[0], el[1] + 6 * SC];
+  const wr = g.wrist, back = 1.0, FL = .29 * hand.s, ez = hand.z - Math.cos(hand.a) * FL, ex = hand.x - Math.sin(hand.a) * FL;
+  const elbow = P(ex, TY + .03, ez);   // forearm length FL along the hand (wrist straight), resting on the table
   const mid = [(wr[0][0] + wr[1][0]) / 2, (wr[0][1] + wr[1][1]) / 2];
   const nrm = (a, b, d) => { const an = Math.atan2(b[1] - a[1], b[0] - a[0]) + Math.PI / 2; return [Math.cos(an) * d, Math.sin(an) * d]; };
   if (phase === 'upper') {
@@ -248,7 +249,7 @@ function armOnTable(x, q, hand, shoulderSide, tone, sd, phase) {
     C.vine(x, [quad[0], quad[1]], 2.4, .8 * (q.alpha ?? 1), sd); C.vine(x, [quad[3], quad[2]], 2.4, .8 * (q.alpha ?? 1), sd + 1);
     return g;
   }
-  const aw = .055 * hand.s * pxm(back), n2 = nrm(elbow, mid, aw / 2);
+  const aw = .055 * hand.s * pxm(Math.max(.8, ez)), n2 = nrm(elbow, mid, aw / 2);
   const fq = [[elbow[0] + n2[0] * 1.3, elbow[1] + n2[1] * 1.3], [mid[0] + n2[0], mid[1] + n2[1]], [mid[0] - n2[0], mid[1] - n2[1]], [elbow[0] - n2[0] * 1.3, elbow[1] - n2[1] * 1.3]];
   C.lift(x, fq, .9 * (q.alpha ?? 1)); C.smudgeFill(x, fq, q.body * (q.alpha ?? 1), sd + 6, 3);
   C.vine(x, [fq[0], fq[1]], 2.4, .8, sd + 2); C.vine(x, [fq[3], fq[2]], 2.4, .8, sd + 3);
@@ -377,18 +378,32 @@ function draw(ctx, t) {
   const kidP = { x: .27, hy: .98, hr: .08, el: 1.06, sh: .13, shy: .825, body: .2, neck: .026, age: 0 };
   let kq = null;
   if (kidA > .01) kq = drawPerson(x, kidP, t < B.push3[0] + .6 ? { gx: -1, gy: .3 } : { gx: -.3, gy: .9 }, 400, { alpha: kidA });
-  const ARMS = [];
-  if (age < .5) {                                     // the child's hands: resting on the table, then the phone to the ear
-    ARMS.push({ k: 'l', q, h: { x: -.12, z: .96, a: Math.PI + .25, s: .62, side: -1 }, side: -1, sd: 120 });
-    if (!(ph.held > 0)) ARMS.push({ k: 'r', q, h: t >= B.down[0] && t < B.back[0] ? { x: .075, z: .87, a: Math.PI - .15, s: .62, side: 1 } : { x: .12, z: .97, a: Math.PI - .25, s: .62, side: 1 }, side: 1, sd: 140 });
-  } else if (age < 1.5) {                             // the teen: arms on the table; one hand slides the phone to me
-    const k2 = eio(u(t, B.push2[0] - .4, B.push2[0])) * (1 - eio(u(t, B.push2[1] + .1, B.push2[1] + .7)));
-    ARMS.push({ k: 'l', q, h: { x: -.17, z: .99, a: Math.PI + .3, s: .9, side: -1 }, side: -1, sd: 160 });
-    ARMS.push({ k: 'r', q, h: { x: lerp(.17, ph.x - .005, k2), z: lerp(.98, ph.z + .1, k2), a: Math.PI + lerp(-.3, .05, k2), s: .9, side: 1, curl: .1 }, side: 1, sd: 180 });
-  } else if (t < B.back[0] + .4) {                    // the father: his left hand slides the phone to his child
-    const k3 = eio(u(t, B.push3[0] - .35, B.push3[0])) * (1 - eio(u(t, B.push3[1] + .15, B.push3[1] + .8)));
-    ARMS.push({ k: 'r', q, h: { x: lerp(-.06, ph.x - .1, k3), z: lerp(.98, ph.z, k3), a: Math.PI / 2 + lerp(.9, 0, k3), s: 1, side: 1 }, side: 1, sd: 200 });
-    if (kq) { const kr = eio(u(t, B.push3[1] - .1, B.push3[1] + .6)); ARMS.push({ k: 'k', q: kq, h: { x: lerp(.36, PH4[0] + .06, kr), z: lerp(.97, PH4[1] + .02, kr), a: Math.PI - .4, s: .6, side: 1 }, side: 1, sd: 220 }); }
+  // Hands of people facing me: their RIGHT hand is on MY left (side 1 = right hand, thumb toward their middle);
+  // fingers point at me, turned a little inward (π − k on my left, π + k on my right); the forearm runs back from the
+  // wrist along the hand to the elbow (armOnTable), so the wrist always sits a forearm's length in front of the elbow.
+  const ARMS = [], PI = Math.PI;
+  if (age < .5) {                                     // the child: both hands on the table; its LEFT hand (my right) takes the phone
+    ARMS.push({ k: 'l', q, h: { x: -.11, z: .84, a: PI - .2, s: .62, side: 1 }, side: -1, sd: 120 });
+    if (!(ph.held > 0)) {
+      const rest = { x: .11, z: .84, a: PI + .2 }, onPh = { x: ph.x + .01, z: ph.z + .085, a: PI + .08 };   // fingertips on the phone
+      const k = t >= B.back[0] + .4 ? 0 : t < B.down[0] ? eio(u(t, B.pick[0] - .6, B.pick[0])) : 1;
+      ARMS.push({ k: 'r', q, h: { x: lerp(rest.x, onPh.x, k), z: lerp(rest.z, onPh.z, k), a: lerp(rest.a, onPh.a, k), s: .62, side: -1 }, side: 1, sd: 140 });
+    }
+  } else if (age < 1.5) {                             // the teen: his LEFT hand (my right) slides the phone back to me
+    const on = eio(u(t, B.push2[0] - .45, B.push2[0])), off = eio(u(t, B.push2[1] + .1, B.push2[1] + .7)), k2 = on * (1 - off);
+    const rest = { x: .19, z: .86, a: PI + .25 }, onPh = { x: ph.x + .01, z: ph.z + .12, a: PI + lerp(.12, .02, eio(u(t, ...B.push2))) };
+    ARMS.push({ k: 'l', q, h: { x: -.16, z: .8, a: PI - .25, s: .9, side: 1 }, side: -1, sd: 160 });
+    ARMS.push({ k: 'r', q, h: { x: lerp(rest.x, onPh.x, k2), z: lerp(rest.z, onPh.z, k2), a: lerp(rest.a, onPh.a, k2), s: .9, side: -1, curl: .1 * k2 }, side: 1, sd: 180 });
+  } else if (t < B.back[0] + .4) {                    // the father (x −.17): his LEFT hand sweeps the phone sideways to his child
+    const on = eio(u(t, B.push3[0] - .4, B.push3[0])), off = eio(u(t, B.push3[1] + .15, B.push3[1] + .8)), k3 = on * (1 - off);
+    const rest = { x: -.04, z: .83, a: PI + .25 }, onPh = { x: ph.x - .12, z: ph.z + .05, a: PI + .15 };   // the side of the hand behind the phone
+    ARMS.push({ k: 'l', q, h: { x: -.31, z: .83, a: PI - .25, s: 1, side: 1 }, side: -1, sd: 190 });
+    ARMS.push({ k: 'r', q, h: { x: lerp(rest.x, onPh.x, k3), z: lerp(rest.z, onPh.z, k3), a: lerp(rest.a, onPh.a, k3), s: 1, side: -1 }, side: 1, sd: 200 });
+    if (kq) {                                          // his child (x .27): its RIGHT hand (my left) reaches for the phone
+      const kr = eio(u(t, B.push3[1] - .1, B.push3[1] + .6)), rest2 = { x: .2, z: .86, a: PI - .2 }, onP = { x: PH4[0] + .005, z: PH4[1] + .095, a: PI };
+      ARMS.push({ k: 'k', q: kq, h: { x: lerp(rest2.x, onP.x, kr), z: lerp(rest2.z, onP.z, kr), a: lerp(rest2.a, onP.a, kr), s: .6, side: 1 }, side: -1, sd: 220 });
+      ARMS.push({ k: 'k2', q: kq, h: { x: .35, z: .86, a: PI + .2, s: .6, side: -1 }, side: 1, sd: 230 });
+    }
   }
   for (const A of ARMS) armOnTable(x, A.q, A.h, A.side, 0, A.sd, 'upper');
   morphSmear(x, t);
@@ -481,23 +496,36 @@ function phonePrints(ph, t) {        // red fingerprints on the phone (they move
     out.push({ pr: 1, pts }); }
   return out;
 }
-function holdAtEar(x, q, ph, t) {    // the child's arm lifts the phone to its ear (2-bone, constant lengths)
-  const k = ph.held, from = pt(PH1[0] + .03, PH1[1]), ear = [q.cx + q.hr * 1.05, q.hy + q.ry * .1];
-  const hand = [lerp(from[0], ear[0], k), lerp(from[1], ear[1], k) - Math.sin(Math.PI * k) * 40 * SC];
-  const sh = [q.cx + q.sh * .85, q.shy + q.hr * .25], L1 = q.hr * 1.9, L2 = q.hr * 1.9;
-  const dx = hand[0] - sh[0], dy = hand[1] - sh[1], d = Math.min(L1 + L2 - 1, Math.hypot(dx, dy)), a0 = Math.atan2(dy, dx), cosB = clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1);
-  const elbow = [sh[0] + Math.cos(a0 - Math.acos(cosB)) * L1, sh[1] + Math.sin(a0 - Math.acos(cosB)) * L1];
-  const el = elbow[1] < sh[1] ? elbow : [sh[0] + Math.cos(a0 + Math.acos(cosB)) * L1, sh[1] + Math.sin(a0 + Math.acos(cosB)) * L1];
-  const aw = q.hr * .55;
-  x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = `rgba(${C.TONE},.25)`; x.lineWidth = aw; x.beginPath(); x.moveTo(...sh); x.lineTo(...el); x.lineTo(...hand); x.stroke();
-  C.vine(x, [sh, el, hand], 2.4, .75, 260); C.vine(x, [[sh[0] + aw * .45, sh[1]], [el[0] + aw * .45, el[1]], [hand[0] + aw * .3, hand[1]]], 2, .6, 261);
+function holdAtEar(x, q, ph, t) {    // the child's LEFT arm (on my right) lifts the phone to its ear — a 3D two-bone arm
+  const k = ph.held, A = AGES[0];
+  const S = [A.sh * .85, A.shy - .015, SEATZ];                                   // left shoulder (world m)
+  const T0 = [PH1[0] + .03, TY + .03, PH1[1]], T1 = [A.hr * 1.02, A.hy + .005, SEATZ - .04];   // phone on the table → at the ear
+  let Hd = [lerp(T0[0], T1[0], k), lerp(T0[1], T1[1], k) + .05 * Math.sin(Math.PI * k), lerp(T0[2], T1[2], k)];
+  const L1 = .19, L2 = .18, sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], len = v => Math.hypot(...v), mul = (v, c) => v.map(e => e * c), add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  let D = sub(Hd, S), d = len(D); if (d > L1 + L2 - .005) { Hd = add(S, mul(D, (L1 + L2 - .005) / d)); D = sub(Hd, S); d = len(D); }
+  const u1 = mul(D, 1 / d), a1 = (L1 * L1 - L2 * L2 + d * d) / (2 * d), hgt = Math.sqrt(Math.max(0, L1 * L1 - a1 * a1));
+  // the elbow hangs DOWN, a little forward (toward me) and out to its side; remove the part along the shoulder→hand line
+  let pole = [.35, -1, -.55]; const dp = pole[0] * u1[0] + pole[1] * u1[1] + pole[2] * u1[2]; pole = sub(pole, mul(u1, dp)); pole = mul(pole, 1 / len(pole));
+  const E = add(add(S, mul(u1, a1)), mul(pole, hgt));
+  const sh = P(...S), el = P(...E), hand = P(...Hd), aw = .052 * pxm(SEATZ);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+  x.strokeStyle = 'rgb(240,240,255)'; x.lineWidth = aw; x.beginPath(); x.moveTo(...sh); x.lineTo(...el); x.lineTo(...hand); x.stroke();   // paper under the sleeve
+  x.strokeStyle = `rgba(${C.TONE},.24)`; x.beginPath(); x.moveTo(...sh); x.lineTo(...el); x.lineTo(...hand); x.stroke();
+  const nrm = (a, b, dd) => { const an = Math.atan2(b[1] - a[1], b[0] - a[0]) + Math.PI / 2; return [Math.cos(an) * dd, Math.sin(an) * dd]; };
+  for (const sg of [1, -1]) { const n1 = nrm(sh, el, sg * aw / 2), n2 = nrm(el, hand, sg * aw / 2);
+    C.vine(x, [[sh[0] + n1[0], sh[1] + n1[1]], [el[0] + (n1[0] + n2[0]) / 2, el[1] + (n1[1] + n2[1]) / 2], [hand[0] + n2[0], hand[1] + n2[1]]], 2.4, .8, 260 + sg); }
   // the phone, upright against the ear, and the small hand around it
   const pw = q.hr * .56, phh = q.hr * 1.1, px0 = hand[0] - pw * .2, py0 = hand[1] - phh * .78;
   const pr = [[px0, py0], [px0 + pw, py0 + 4 * SC], [px0 + pw, py0 + phh], [px0, py0 + phh - 4 * SC]];
   C.poly(x, pr); C.fillA(x, .92); C.vine(x, pr.concat([pr[0]]), 2.4, .9, 262);
-  C.poly(x, Array.from({ length: 16 }, (_, i) => [hand[0] + pw * .4 + Math.cos(i / 16 * 6.283) * pw * .5, hand[1] + pw * .25 + Math.sin(i / 16 * 6.283) * pw * .62])); C.fillA(x, .9, '255,255,255');
-  C.vine(x, Array.from({ length: 17 }, (_, i) => [hand[0] + pw * .4 + Math.cos(i / 16 * 6.283) * pw * .5, hand[1] + pw * .25 + Math.sin(i / 16 * 6.283) * pw * .62]), 2.2, .8, 263);
-  for (let i = 0; i < 3; i++) C.vine(x, [[hand[0] + pw * .1, hand[1] - pw * .35 + i * pw * .3], [hand[0] + pw * .7, hand[1] - pw * .3 + i * pw * .3]], 1.4, .5, 264 + i);
+  // the small hand: palm on the back of the phone, four fingers curled round its outer edge (on my right), thumb on the inner edge
+  const v = Math.round(255 * .78); x.fillStyle = `rgb(${v},${v},255)`;
+  const palm = [[px0 - pw * .1, py0 + phh * .45], [px0 + pw * .95, py0 + phh * .42], [px0 + pw * 1.05, py0 + phh * 1.05], [hand[0] + pw * .3, hand[1] + pw * 1.25], [px0 - pw * .05, py0 + phh * 1.0]];
+  C.poly(x, palm); x.fill(); C.vine(x, palm.concat([palm[0]]), 2.2, .8, 263);
+  for (let i = 0; i < 4; i++) { const fy = py0 + phh * (.4 + i * .15), fx = px0 + pw * 1.0;
+    C.poly(x, Array.from({ length: 12 }, (_, j) => [fx + Math.cos(j / 12 * 6.283) * pw * .2, fy + Math.sin(j / 12 * 6.283) * phh * .075])); x.fill();
+    C.vine(x, Array.from({ length: 8 }, (_, j) => { const a = -Math.PI / 2 + j / 7 * Math.PI; return [fx + Math.cos(a) * pw * .2, fy + Math.sin(a) * phh * .075]; }), 1.8, .8, 270 + i); }
+  C.vine(x, [[px0 - pw * .02, py0 + phh * .55], [px0 - pw * .12, py0 + phh * .35]], 3.4, .7, 280);   // the thumb along the inner edge
 }
 function drawPhoneHeld(x, g, ph, t) {   // the phone in my lifting hand (between thumb and fingers)
   const c = g.pr(-.005, .07), w = .075 * pxm(.5) * (1 + ph.lift * .6), h = w * 1.9;
@@ -512,7 +540,7 @@ function occlude(rc, myG, mh, G, phS, ph) {   // the red smear lies ON the table
   rc.globalCompositeOperation = 'destination-out'; rc.fillStyle = '#000'; rc.strokeStyle = '#000'; rc.lineCap = 'round'; rc.lineJoin = 'round';
   const hand = g => { C.poly(rc, g.palm); rc.fill(); for (const f of g.fingers.concat([g.thumb])) { rc.lineWidth = f.w * 1.05; rc.beginPath(); f.pts.forEach((p, i) => i ? rc.lineTo(...p) : rc.moveTo(...p)); rc.stroke(); } };
   if (myG) { hand(myG); const se = sleeveEnds(mh); C.poly(rc, [myG.wrist[0], myG.wrist[1], se[1], se[0]]); rc.fill(); }
-  for (const k of ['l', 'r', 'k']) if (G[k]) hand(G[k]);
+  for (const k of ['l', 'r', 'k', 'k2']) if (G[k]) hand(G[k]);
   if (phS) { C.poly(rc, phS); rc.fill(); }
   rc.restore();
 }
