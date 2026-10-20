@@ -5,17 +5,17 @@
    "id": "m1",
    "src": "piano",
    "at": 0.0,
-   "len": 18.5,
+   "len": 12.85,
    "db": 7,
-   "fout": 0.6,
+   "fout": 0.12,
    "prompt": "Sparse solo felt piano, slow and intimate but uneasy: single soft notes with long gaps over a very low quiet drone, a simple falling three-note motif repeated, slowly growing more tense, no drums, no melody resolution"
   },
   {
    "id": "m2",
    "src": "spread",
-   "at": 18.2,
-   "len": 5.2,
-   "db": 5,
+   "at": 17.9,
+   "len": 5.0,
+   "db": 9,
    "fin": 0.3,
    "fout": 0.5,
    "prompt": "Low strings and dark cello swelling slowly, tense and creeping, layered pulses spreading wider, unresolved, no drums"
@@ -23,8 +23,8 @@
   {
    "id": "m3",
    "src": "warm",
-   "at": 23.5,
-   "len": 5.0,
+   "at": 23.4,
+   "len": 5.1,
    "db": -3,
    "fin": 0.5,
    "fout": 1.2,
@@ -64,7 +64,7 @@
   {
    "id": "e1",
    "src": "erase",
-   "at": 10.3,
+   "at": 10.1,
    "len": 1.1,
    "db": -4,
    "fout": 0.3,
@@ -73,7 +73,7 @@
   {
    "id": "w1",
    "src": "spin",
-   "at": 10.4,
+   "at": 10.2,
    "len": 0.9,
    "db": -8,
    "fout": 0.3,
@@ -82,24 +82,44 @@
   {
    "id": "b1",
    "src": "buzz",
-   "at": 11.0,
-   "len": 1.9,
-   "db": -8,
+   "at": 10.8,
+   "len": 2.0,
+   "db": -4,
    "loop": true,
    "fout": 0.15
   },
   {
    "id": "s2",
    "src": "slide",
-   "at": 11.6,
-   "len": 1.4,
-   "db": 1,
-   "fout": 0.3
+   "at": 11.75,
+   "len": 1.1,
+   "db": 4,
+   "fout": 0.2
+  },
+  {
+   "id": "bm",
+   "src": "boom",
+   "at": 12.8,
+   "len": 3.0,
+   "db": 0,
+   "fout": 0.8,
+   "prompt": "Deep cinematic boom impact, a single heavy sub-bass hit with a long dark rumbling tail, no music"
+  },
+  {
+   "id": "d1",
+   "src": "drone",
+   "at": 12.9,
+   "len": 5.0,
+   "db": -19,
+   "fin": 0.6,
+   "fout": 0.8,
+   "loop": true,
+   "prompt": "Low ominous sub drone, dark steady tension hum, slowly pulsing, no melody"
   },
   {
    "id": "e2",
    "src": "erase",
-   "at": 18.1,
+   "at": 17.7,
    "len": 1.1,
    "db": -4,
    "fout": 0.3
@@ -107,7 +127,7 @@
   {
    "id": "w2",
    "src": "spin",
-   "at": 18.2,
+   "at": 17.8,
    "len": 0.9,
    "db": -8,
    "fout": 0.3
@@ -115,33 +135,52 @@
   {
    "id": "b2",
    "src": "buzz",
-   "at": 18.7,
-   "len": 1.9,
-   "db": -7,
+   "at": 18.9,
+   "len": 1.4,
+   "db": -1,
    "loop": true,
    "fout": 0.15
   },
   {
    "id": "b3",
    "src": "buzz",
-   "at": 19.3,
-   "len": 1.5,
-   "db": -10,
+   "at": 19.25,
+   "len": 1.4,
+   "db": -3,
+   "loop": true,
+   "fout": 0.15
+  },
+  {
+   "id": "b5",
+   "src": "buzz",
+   "at": 19.6,
+   "len": 1.0,
+   "db": -5,
    "loop": true,
    "fout": 0.15
   },
   {
    "id": "s3",
    "src": "slide",
-   "at": 19.4,
-   "len": 1.3,
+   "at": 19.2,
+   "len": 1.2,
    "db": 1,
    "fout": 0.3
   },
   {
+   "id": "d2",
+   "src": "drone",
+   "at": 19.5,
+   "len": 3.4,
+   "db": -16,
+   "fin": 0.8,
+   "fout": 0.4,
+   "loop": true
+  },
+  {
    "id": "e3",
    "src": "erase",
-   "at": 22.8,
+   "at": 22.7,
    "len": 1.0,
    "db": -2,
    "fout": 0.3
@@ -149,7 +188,7 @@
   {
    "id": "w3",
    "src": "spin",
-   "at": 22.9,
+   "at": 22.8,
    "len": 0.8,
    "db": -8,
    "fout": 0.3
@@ -158,7 +197,7 @@
    "id": "b4",
    "src": "buzz",
    "at": 23.4,
-   "len": 0.75,
+   "len": 0.6,
    "db": -10,
    "fout": 0.1
   },
