@@ -1,0 +1,19 @@
+{
+ "title": "절대로 괜찮다고 넘기면 안 되는 것",
+ "source": "ko",
+ "scenes": [
+  {
+   "id": "lie-charcoal",
+   "label": "아빠 없다고 해 · 목탄",
+   "dur": 28.5
+  }
+ ],
+ "audio": "scenes/soundtrack.wav",
+ "poster": 9.0,
+ "fonts": {
+  "local": {
+   "Gowun Batang": "GowunBatang-Bold.ttf",
+   "Noto Sans KR": "NotoSansKR[wght].ttf"
+  }
+ }
+}

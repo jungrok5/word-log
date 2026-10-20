@@ -1,0 +1,184 @@
+{
+ "duration": 28.5,
+ "music": [
+  {
+   "id": "m1",
+   "src": "piano",
+   "at": 0.0,
+   "len": 18.5,
+   "db": 7,
+   "fout": 0.6,
+   "prompt": "Sparse solo felt piano, slow and intimate but uneasy: single soft notes with long gaps over a very low quiet drone, a simple falling three-note motif repeated, slowly growing more tense, no drums, no melody resolution"
+  },
+  {
+   "id": "m2",
+   "src": "spread",
+   "at": 18.2,
+   "len": 5.2,
+   "db": 5,
+   "fin": 0.3,
+   "fout": 0.5,
+   "prompt": "Low strings and dark cello swelling slowly, tense and creeping, layered pulses spreading wider, unresolved, no drums"
+  },
+  {
+   "id": "m3",
+   "src": "warm",
+   "at": 23.5,
+   "len": 5.0,
+   "db": -3,
+   "fin": 0.5,
+   "fout": 1.2,
+   "prompt": "Warm gentle resolution: solo piano playing a soft major chord progression with light warm strings, hopeful and calm, slow"
+  }
+ ],
+ "sfx": [
+  {
+   "id": "tk",
+   "src": "tick",
+   "at": 0.0,
+   "len": 28.5,
+   "db": -16,
+   "loop": true,
+   "fout": 1.0,
+   "prompt": "Quiet wall clock ticking, steady, close and dry"
+  },
+  {
+   "id": "b0",
+   "src": "buzz",
+   "at": 0.0,
+   "len": 3.7,
+   "db": -10,
+   "loop": true,
+   "fout": 0.15,
+   "prompt": "Smartphone vibrating on a wooden table, buzzing rattle, two short pulses"
+  },
+  {
+   "id": "s1",
+   "src": "slide",
+   "at": 0.5,
+   "len": 1.4,
+   "db": -1,
+   "fout": 0.3,
+   "prompt": "A smartphone sliding across a wooden table, short soft friction scrape"
+  },
+  {
+   "id": "e1",
+   "src": "erase",
+   "at": 10.3,
+   "len": 1.1,
+   "db": -4,
+   "fout": 0.3,
+   "prompt": "Rubber eraser scrubbing fast and hard on paper"
+  },
+  {
+   "id": "w1",
+   "src": "spin",
+   "at": 10.4,
+   "len": 0.9,
+   "db": -8,
+   "fout": 0.3,
+   "prompt": "Clock hands whirring fast, small mechanical ratchet spinning"
+  },
+  {
+   "id": "b1",
+   "src": "buzz",
+   "at": 11.0,
+   "len": 1.9,
+   "db": -8,
+   "loop": true,
+   "fout": 0.15
+  },
+  {
+   "id": "s2",
+   "src": "slide",
+   "at": 11.6,
+   "len": 1.4,
+   "db": 1,
+   "fout": 0.3
+  },
+  {
+   "id": "e2",
+   "src": "erase",
+   "at": 18.1,
+   "len": 1.1,
+   "db": -4,
+   "fout": 0.3
+  },
+  {
+   "id": "w2",
+   "src": "spin",
+   "at": 18.2,
+   "len": 0.9,
+   "db": -8,
+   "fout": 0.3
+  },
+  {
+   "id": "b2",
+   "src": "buzz",
+   "at": 18.7,
+   "len": 1.9,
+   "db": -7,
+   "loop": true,
+   "fout": 0.15
+  },
+  {
+   "id": "b3",
+   "src": "buzz",
+   "at": 19.3,
+   "len": 1.5,
+   "db": -10,
+   "loop": true,
+   "fout": 0.15
+  },
+  {
+   "id": "s3",
+   "src": "slide",
+   "at": 19.4,
+   "len": 1.3,
+   "db": 1,
+   "fout": 0.3
+  },
+  {
+   "id": "e3",
+   "src": "erase",
+   "at": 22.8,
+   "len": 1.0,
+   "db": -2,
+   "fout": 0.3
+  },
+  {
+   "id": "w3",
+   "src": "spin",
+   "at": 22.9,
+   "len": 0.8,
+   "db": -8,
+   "fout": 0.3
+  },
+  {
+   "id": "b4",
+   "src": "buzz",
+   "at": 23.4,
+   "len": 0.75,
+   "db": -10,
+   "fout": 0.1
+  },
+  {
+   "id": "pk",
+   "src": "pickup",
+   "at": 24.0,
+   "len": 0.9,
+   "db": 3,
+   "fout": 0.2,
+   "prompt": "Picking up a smartphone from a wooden table, soft tap and lift"
+  },
+  {
+   "id": "e4",
+   "src": "erase",
+   "at": 26.0,
+   "len": 1.0,
+   "db": -8,
+   "fout": 0.4
+  }
+ ],
+ "ducks": []
+}

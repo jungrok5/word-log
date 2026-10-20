@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>아빠 없다고 해 · 목탄</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;600&display=swap">
+</head>
+<body>
+<script>window.FILM_SRC = 'ko'; window.FILM_FONTS = { serif: "'Gowun Batang'", sans: "'Noto Sans KR'" };</script>
+<script src="lib.js"></script>
+<script src="story.js"></script><script src="source.js"></script><script src="script.js"></script><script src="kit-charcoal.js"></script>
+<script>
+/* 아빠 없다고 해 — house style `charcoal` (styles/charcoal/STYLE.md), daylight version.
+   POV: I am the father at the near side of a dining table; the child sits across. The phone buzzes, my hand slides it
+   over ("아빠 없다고 해"), the child lies for me. The red (the one colour) is the lie: it smears from my fingers along the
+   table. The child is erased and redrawn in the same chair (Kentridge's metamorphosis) — a teenager slides the phone back
+   to me, then a father slides it to his own child; the ghosts of earlier drawings stay on the paper. The eraser takes it
+   all back to the first morning, and this time my hand picks the phone up myself.
+   World units are metres (table top y = .72, I sit at z = 0 looking down +z); C.persp projects them. Pure function of t. */
+const C = Charcoal, S = window.SCRIPT, B = S.beat;
+const { clamp, lerp, ss, eo, eio, rng, noise } = Pilot;
+const W = Pilot.W, H = Pilot.H, SC = H / 1920;
+const F = 1150 * SC, CAM = C.persp({ F, cx: W / 2, cy: 680 * SC, eye: 1.15 });
+const P = CAM.P, TY = .72;                                 // table top height
+const pt = (x, z, y = TY) => P(x, y, z);                   // a point on (or above) the table → frame px
+const pxm = z => F / z;                                    // px per metre at depth z
+const CAPY = 300 * SC;                                     // captions sit a little higher than the kit default (heads below)
+const u = (t, a, b) => clamp((t - a) / (b - a));
+let wall, table;
+
+/* ------------------------------------------------------------------ the timeline */
+const PH0 = [.10, .64], PH1 = [.0, .87], PH2 = [.03, .64], PH3 = [-.13, .90], PH4 = [.23, .90];
+function phoneState(t) {     // where the phone is: on the table (x, z, angle) or held at the child's ear; buzzing amount
+  const s = { on: true, x: PH0[0], z: PH0[1], a: .12, ring: 0 };
+  if (t < B.back[1] - .4 || t >= B.back[0] + .4) {         // era 0 (and the return to it)
+    if (t >= B.back[0]) { s.ring = t < B.answer[0] + .15 ? .85 : 0;
+      const k = eio(u(t, B.answer[0] + .1, B.answer[1])); s.lift = k; return s; }
+    const k = eio(u(t, B.push1[0], B.push1[1]));
+    s.x = lerp(PH0[0], PH1[0], k); s.z = lerp(PH0[1], PH1[1], k); s.a = lerp(.12, -.08, k);
+    s.ring = t < B.pick[0] + .5 ? .85 : 0;
+    if (t >= B.pick[0]) { const up = eio(u(t, B.pick[0], B.pick[1])) * (1 - eio(u(t, B.down[0], B.down[1])));
+      s.held = up; if (t >= B.down[0]) { s.x = lerp(PH1[0], .05, eio(u(t, B.down[0], B.down[1]))); s.z = lerp(PH1[1], .89, eio(u(t, B.down[0], B.down[1]))); } }
+    if (t >= B.down[1]) { s.x = .05; s.z = .89; s.a = -.05; }
+    if (t >= B.grow1[0]) { s.ring = t >= B.ring1 && t < B.push2[1] ? .9 : 0;
+      const k2 = eio(u(t, B.push2[0], B.push2[1])); s.x = lerp(.05, PH2[0], k2); s.z = lerp(.89, PH2[1], k2); s.a = lerp(-.05, .2, k2); }
+    if (t >= B.grow2[0] + .45) { s.x = PH3[0]; s.z = PH3[1]; s.a = 1.5; s.ring = t < B.push3[1] ? 1 : 0;
+      const k3 = eio(u(t, B.push3[0], B.push3[1])); s.x = lerp(PH3[0], PH4[0], k3); s.a = lerp(1.5, 1.7, k3); }
+  }
+  return s;
+}
+// age of whoever sits across the table: 0 child · 1 teen · 2 father (his child appears beside him) · back to 0
+const ageAt = t => t >= B.back[0] + .4 ? 0 : t < B.grow1[0] ? 0 : t < B.grow1[1] ? eio(u(t, ...B.grow1)) : t < B.grow2[0] ? 1 : t < B.grow2[1] ? 1 + eio(u(t, ...B.grow2)) : 2;
+const ERA_LIGHT = t => t >= B.back[0] + .4 ? 0 : lerp(0, 1, ss(B.grow1[0], B.grow1[1], t)) + lerp(0, 1, ss(B.grow2[0], B.grow2[1], t));
+function state(t) {
+  const s = { t, age: ageAt(t), ph: phoneState(t) };
+  s.era = ERA_LIGHT(t);                                         // 0 morning · 1 afternoon · 2 evening (light on the wall)
+  s.dim = .04 * s.era + .06 * ss(B.reach[1], B.reach[1] + 1.2, t) * (1 - ss(B.grow2[0], B.grow2[0] + .5, t));
+  s.red = 1 - ss(B.back[0], B.back[0] + .45, t);                // the eraser takes the red away at the return
+  // camera: slow creep, push in on the child's face (realising), pan down to my red fingertips, wide for the spread
+  const creep = C.push(t, 0, B.grow1[0], .04, k => k);
+  const kid = C.push(t, B.down[0], 3.2, .16) * (1 - eio(u(t, B.grow1[0] - .2, B.grow1[1])));
+  const mine = C.push(t, B.reach[1] - .3, 3.4, .12) * (1 - eio(u(t, B.grow2[0] - .3, B.grow2[1])));
+  s.zm = 1 + creep * (t < B.back[0] ? 1 : 0) + kid + mine + C.push(t, B.push3[0], 3.5, .03) * (1 - ss(B.back[0], B.back[0] + .5, t));
+  const mk = mine / .12;
+  s.zc = [lerp(W / 2, 700 * SC, mk), lerp(lerp(860 * SC, 900 * SC, kid / .16), 1480 * SC, mk)];
+  [s.ox, s.oy] = C.shake(t, C.kick(t, B.reach[1] - .05, .5, 4));
+  s.oy += 0 * mk;
+  return s;
+}
+
+/* ------------------------------------------------------------------ the room (static plates) */
+function buildWall() {
+  const c = C.sheet(1.3), x = c.getContext('2d'), R = rng(5); let sd = 10;
+  const Z = 2.2, wp = (X, Y) => P(X, Y, Z);
+  x.fillStyle = `rgba(${C.TONE},.30)`; x.fillRect(0, 0, W, H);                                   // the wall: rubbed mid-grey
+  for (let k = 0; k < 70; k++) { const xx = R() * W, y0 = R() * H * .7; C.sweep(x, C.seg([xx, y0], [xx + (R() - .5) * 30, y0 + (200 + R() * 500) * SC], 6), (26 + R() * 40) * SC, .08 + R() * .12, sd++); }
+  C.blob(x, W * .9, H * .2, 520 * SC, 700 * SC, .3); C.blob(x, W * .05, H * .05, 400 * SC, 300 * SC, .25);
+  // the window (left): lifted out, with a cross of mullions; the sill below it
+  const wl = wp(-.95, 1.92), wr = wp(-.22, 1.0);
+  const win = [[wl[0], wl[1]], [wr[0], wl[1]], [wr[0], wr[1]], [wl[0], wr[1]]];
+  C.lift(x, win, .78);
+  for (let k = 0; k < 12; k++) { const yy = lerp(wl[1], wr[1], R()); C.sweep(x, [[wl[0], yy], [wr[0], yy + (R() - .5) * 8]], 14 * SC, .05, sd++, C.stickW); }
+  C.blob(x, lerp(wl[0], wr[0], .7), lerp(wl[1], wr[1], .75), 120 * SC, 90 * SC, .16);                // a tree outside, smudged
+  C.blob(x, lerp(wl[0], wr[0], .3), lerp(wl[1], wr[1], .85), 150 * SC, 70 * SC, .14);
+  const mx = (wl[0] + wr[0]) / 2, my = lerp(wl[1], wr[1], .42);
+  for (const ln of [[[mx, wl[1]], [mx, wr[1]]], [[wl[0], my], [wr[0], my]]]) { C.sweep(x, C.seg(ln[0], ln[1], 6), 12 * SC, .55, sd++); C.vine(x, C.seg(ln[0], ln[1], 8), 2.4, .8, sd++); }
+  for (let i = 0; i < 4; i++) C.vine(x, C.seg(win[i], win[(i + 1) % 4], 10, 2, R), 3, .9, sd++);
+  const s0 = wp(-1.0, .99), s1 = wp(-.17, .95);
+  x.fillStyle = `rgba(${C.TONE},.5)`; x.fillRect(s0[0], s0[1] - 4 * SC, s1[0] - s0[0], s1[1] - s0[1] + 14 * SC);
+  C.vine(x, [[s0[0], s0[1] - 4 * SC], [s1[0], s0[1] - 4 * SC]], 2.6, .85, sd++); C.vine(x, [[s0[0], s1[1] + 10 * SC], [s1[0], s1[1] + 10 * SC]], 2, .6, sd++);
+  // the clock (right): face lifted, rim in vine, twelve ticks (the hands are drawn per frame)
+  const ck = CLOCK, rr = ck.r;
+  C.poly(x, Array.from({ length: 36 }, (_, i) => [ck.x + Math.cos(i / 36 * 6.283) * rr, ck.y + Math.sin(i / 36 * 6.283) * rr])); C.fillA(x, .85, '255,255,255');
+  for (let k = 0; k < 2; k++) C.vine(x, Array.from({ length: 37 }, (_, i) => [ck.x + Math.cos(i / 36 * 6.283) * (rr + k * 5), ck.y + Math.sin(i / 36 * 6.283) * (rr + k * 5)]), 3 - k, .85, sd++);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283; C.vine(x, [[ck.x + Math.cos(a) * rr * .8, ck.y + Math.sin(a) * rr * .8], [ck.x + Math.cos(a) * rr * .92, ck.y + Math.sin(a) * rr * .92]], 2.4, .8, sd++, '#000', 0); }
+  // the chair back behind whoever sits there (a child is small against it, a grown man fills it)
+  const rail = Array.from({ length: 13 }, (_, i) => { const k = i / 12; return P(lerp(-.2, .2, k), .9 + .02 * Math.sin(Math.PI * k), 1.28); });
+  const rail2 = rail.map(q => [q[0], q[1] + 26 * SC]);
+  C.tone(x, rail.concat(rail2.slice().reverse()), .7); C.sweep(x, rail, 22 * SC, .5, sd++);
+  C.vine(x, rail, 2.6, .9, sd++); C.vine(x, rail2, 2.2, .8, sd++); C.vine(x, rail.map(q => [q[0], q[1] + 5 * SC]), 1.4, .3, sd++, '#fff', .2);
+  for (const k of [0, 12]) { const top = rail2[k], bot = P(k ? .2 : -.2, .74, 1.28), pw = 13 * SC;
+    C.tone(x, [[top[0] - pw, top[1]], [top[0] + pw, top[1]], [bot[0] + pw, bot[1]], [bot[0] - pw, bot[1]]], .7);
+    C.vine(x, [[top[0] - pw, top[1]], [bot[0] - pw, bot[1]]], 2.4, .85, sd++); C.vine(x, [[top[0] + pw, top[1]], [bot[0] + pw, bot[1]]], 2.4, .85, sd++); }
+  return c;
+}
+const CLOCK = (() => { const [x, y] = P(.5, 1.36, 2.2); return { x, y, r: .12 * F / 2.2 }; })();
+function buildTable() {          // transparent outside the table: drawn over the bodies of whoever sits across
+  const c = C.sheet(1.3, null, W, H * 1.35), x = c.getContext('2d'), R = rng(31); let sd = 300;
+  const far = 1.0, near = .3, hx = .9;
+  const top = [pt(-hx, far), pt(hx, far), pt(hx, near), pt(-hx, near)];
+  C.smudgeFill(x, top, .42, sd++, 10);
+  for (let k = 0; k < 46; k++) { const xx = lerp(-hx, hx, R()); C.sweep(x, CAM.seg([xx, TY, far], [xx + (R() - .5) * .03, TY, near + .02], 10), (8 + R() * 18) * SC, .1 + R() * .14, sd++); }  // grain toward me
+  const e0 = pt(-hx, far), e1 = pt(hx, far);
+  C.vine(x, C.seg(e0, e1, 30, 3, R), 3, .9, sd++); C.vine(x, C.seg([e0[0], e0[1] + 6], [e1[0], e1[1] + 6], 30, 3, R), 1.6, .5, sd++, '#fff', .3);   // far edge, lifted lip
+  x.fillStyle = `rgba(${C.TONE},.62)`; x.fillRect(0, e0[1] + 8 * SC, W, 16 * SC);   // the edge's thickness (shadowed)
+  C.vine(x, C.seg([e0[0], e0[1] + 24 * SC], [e1[0], e1[1] + 24 * SC], 30, 3, R), 2, .7, sd++);
+  for (let k = 0; k < 6; k++) C.blob(x, (k % 2 ? W * 1.02 : -W * .02), lerp(H * .62, H * 1.3, k / 5), 280 * SC, 300 * SC, .3); C.blob(x, W / 2, H * 1.15, W * .8, H * .2, .25);   // vignette
+  return c;
+}
+
+/* ------------------------------------------------------------------ hands (top view, metres; palm down, fingers +z) */
+// fingers [x of base, length, width, splay]; the thumb sits on the -x side of a right hand
+const FING = [[-.031, .082, .019, -.10], [-.010, .091, .019, -.03], [.011, .086, .018, .04], [.031, .068, .016, .12]];
+function handGeo(o) {      // o: {x, z, a (rad, 0 = fingers away from me), s (scale), side (1 right, -1 left), y, curl}
+  const s = o.s || 1, sd = o.side || 1, ca = Math.cos(o.a), sa = Math.sin(o.a), y = o.y ?? TY + .012;
+  const w = (lx, lz) => { lx *= s * sd; lz *= s; return [o.x + lx * ca + lz * sa, o.z - lx * sa + lz * ca]; };
+  const pr = (lx, lz, dy = 0) => { const q = w(lx, lz); return P(q[0], y + dy, q[1]); };
+  const palm = [[-.036, 0], [.034, 0], [.043, .06], [.04, .1], [-.042, .1], [-.046, .05]].map(q => pr(q[0], q[1]));
+  const fingers = FING.map(([bx, L, fw, sp]) => { const cu = o.curl || 0, L2 = L * (1 - .35 * cu);
+    const b = [bx, .095], m = [bx + Math.sin(sp) * L2 * .5, .095 + Math.cos(sp) * L2 * .5], tp = [bx + Math.sin(sp) * L2, .095 + Math.cos(sp) * L2];
+    const zb = w(...b)[1]; return { pts: [pr(...b), pr(...m), pr(...tp)], w: fw * s * pxm(zb), tipL: [m, tp].map(q => w(...q)) }; });
+  const th = [[-.038, .03], [-.062, .06], [-.072, .088]];
+  const thumb = { pts: th.map(q => pr(...q)), w: .022 * s * pxm(w(...th[0])[1]) };
+  const wrist = [pr(-.037, -.004), pr(.035, -.004)];
+  return { palm, fingers, thumb, wrist, w, pr, s };
+}
+// a sleeve from the wrist to a far point (off frame, or the shoulder); dark for me, set per person
+function drawSleeve(x, wr, end0, end1, a, sd) {
+  const q = [wr[0], wr[1], end1, end0];
+  C.smudgeFill(x, q, a, sd, 5); C.vine(x, [wr[0], end0], 2.6, .8, sd + 1); C.vine(x, [wr[1], end1], 2.6, .8, sd + 2);
+  C.vine(x, C.seg(wr[0], wr[1], 4), 3, .85, sd + 3);   // the cuff
+}
+const handPath = (l, g) => { C.poly(l, g.palm); l.fill(); l.lineCap = 'round'; l.lineJoin = 'round';
+  for (const f of g.fingers.concat([g.thumb])) { l.lineWidth = f.w; l.beginPath(); f.pts.forEach((p, i) => i ? l.lineTo(...p) : l.moveTo(...p)); l.stroke(); } };
+// every cast shadow of the frame in ONE soft layer (hands and the phone, offset away from the window)
+function shadows(x, hands, phonePts) {
+  C.layer(x, l => { l.translate(10 * SC, 14 * SC); l.fillStyle = l.strokeStyle = `rgba(${C.TONE},1)`; for (const g of hands) handPath(l, g);
+    if (phonePts) { C.poly(l, phonePts); l.fill(); } l.translate(-10 * SC, -14 * SC); }, { blur: 5, alpha: .35 });
+}
+function drawHand(x, g, tone, sd) {
+  // skin: one opaque rubbed value (B = 255: smooth, no grain), so overlapping finger strokes never darken twice
+  const v = Math.round(255 * (1 - tone)); x.fillStyle = x.strokeStyle = `rgb(${v},${v},255)`; handPath(x, g);
+  // outlines: each finger's two edges (broken vine), the palm's sides, knuckles
+  const edge = (pts, d) => pts.map((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], an = Math.atan2(b[1] - a[1], b[0] - a[0]) + Math.PI / 2; return [p[0] + Math.cos(an) * d, p[1] + Math.sin(an) * d]; });
+  let k = sd;
+  for (const f of g.fingers.concat([g.thumb])) {
+    const tipDir = [f.pts[2][0] - f.pts[1][0], f.pts[2][1] - f.pts[1][1]], L = Math.hypot(...tipDir) || 1, tip = [f.pts[2][0] + tipDir[0] / L * f.w * .45, f.pts[2][1] + tipDir[1] / L * f.w * .45];
+    const e1 = edge(f.pts, f.w * .48), e2 = edge(f.pts, -f.w * .48);
+    C.vine(x, e1.concat([tip]), 2.2, .85, k++, '#000', .04); C.vine(x, e2.concat([tip]), 2.2, .85, k++, '#000', .04);
+    C.vine(x, edge(f.pts.slice(0, 2), f.w * .2), 1.4, .25, k++, '#fff', .1);                           // a lifted highlight along it
+  }
+  C.vine(x, [g.palm[5], g.palm[0]], 2.4, .8, k++); C.vine(x, [g.palm[1], g.palm[2], g.palm[3]], 2.4, .85, k++);
+  for (const f of g.fingers) C.vine(x, [[f.pts[0][0] - f.w * .3, f.pts[0][1] + 2], [f.pts[0][0] + f.w * .3, f.pts[0][1] - 1]], 1.6, .5, k++);   // knuckles
+  for (const f of g.fingers) { const p = f.pts[1]; C.vine(x, [[p[0] - f.w * .28, p[1]], [p[0] + f.w * .28, p[1]]], 1.2, .4, k++); }        // the middle joint crease
+}
+
+/* ------------------------------------------------------------------ the person across the table */
+// one parameter set per age; morphing = lerp between neighbours (Kentridge redraws the same figure, it does not cut)
+const AGES = [
+  { x: 0, hy: 1.00, hr: .088, el: 1.07, sh: .145, shy: .845, body: .2, neck: .028 },     // child
+  { x: 0, hy: 1.22, hr: .096, el: 1.2, sh: .205, shy: 1.06, body: .62, neck: .04 },       // teenager (dark hoodie)
+  { x: -.17, hy: 1.30, hr: .1, el: 1.24, sh: .235, shy: 1.135, body: .34, neck: .045 },   // grown up: a father now
+];
+const SEATZ = 1.1;
+function ageParams(a) { const i = Math.min(1, Math.floor(a)), k = a - i, A = AGES[i], Bq = AGES[Math.min(2, i + 1)]; const o = {}; for (const key in A) o[key] = lerp(A[key], Bq[key], k); o.age = a; return o; }
+function personScr(p) {   // world params → screen numbers
+  const s = pxm(SEATZ), c = P(p.x, p.hy, SEATZ);
+  return { cx: c[0], hy: c[1], hr: p.hr * s, ry: p.hr * s * p.el, sh: p.sh * s, shy: P(0, p.shy, SEATZ)[1], neck: p.neck * s, body: p.body, s };
+}
+function drawPerson(x, p, look, sd, opt = {}) {
+  const q = personScr(p); q.alpha = opt.alpha ?? 1; const { cx, hy, hr, ry, sh, shy } = q, w = k => Math.max(0, 1 - Math.abs(p.age - k)), R = rng(sd);
+  const alpha = opt.alpha ?? 1, ghost = opt.ghost;
+  const bot = pt(0, 1.0)[1] + 40 * SC;
+  // body: shoulders and chest down behind the table edge
+  const nb = shy - hr * .12;   // the neck meets the shoulders; the shoulder line is nearly level
+  const body = [[cx - q.neck * 1.5, nb], [cx + q.neck * 1.5, nb], [cx + sh * .78, shy - hr * .04], [cx + sh, shy + hr * .32], [cx + sh * 1.04, bot], [cx - sh * 1.04, bot], [cx - sh, shy + hr * .32], [cx - sh * .78, shy - hr * .04]];
+  if (!ghost) { const nk = [[cx - q.neck, hy + ry * .7], [cx + q.neck, hy + ry * .7], [cx + q.neck * 1.1, nb + 4], [cx - q.neck * 1.1, nb + 4]];
+    C.lift(x, nk, .9 * alpha); C.tone(x, nk, .14 * alpha); C.vine(x, [nk[0], nk[3]], 2, .7 * alpha, sd + 5); C.vine(x, [nk[1], nk[2]], 2, .7 * alpha, sd + 6); }
+  const bodyC = Pilot.catmull ? body : body;
+  if (!ghost) {
+    C.lift(x, bodyC, .95 * alpha); C.smudgeFill(x, bodyC, p.body * alpha, sd, 6);
+    if (w(0) > .05) for (let k = 0; k < 3; k++) { const yy = shy + hr * (.5 + k * .5); C.sweep(x, [[cx - sh * .95, yy], [cx + sh * .95, yy + 4]], 16 * SC, .3 * w(0) * alpha, sd + 10 + k); }   // the child's stripes
+    if (w(1) > .05) { C.vine(x, [[cx - q.neck * 2.2, hy + ry * .85], [cx - sh * .55, shy + hr * .1], [cx, shy + hr * .55], [cx + sh * .55, shy + hr * .1], [cx + q.neck * 2.2, hy + ry * .85]], 3, .7 * w(1) * alpha, sd + 20, '#fff', .1);   // the hood's rim
+      for (const sx of [-1, 1]) C.vine(x, [[cx + sx * q.neck * .9, shy + hr * .3], [cx + sx * q.neck * 1.1, shy + hr * 1.4]], 2.4, .8 * w(1) * alpha, sd + 22 + sx, '#fff', .1); }   // its strings
+    if (w(2) > .05) { C.vine(x, [[cx - q.neck * 1.6, hy + ry * .95], [cx, shy + hr * .5], [cx + q.neck * 1.6, hy + ry * .95]], 2.6, .85 * w(2) * alpha, sd + 25);   // a collar
+      C.vine(x, [[cx, shy + hr * .5], [cx, bot]], 1.6, .4 * w(2) * alpha, sd + 26); }
+  }
+  C.vine(x, body.slice(2, 5), 2.6, (ghost ? .22 : .85) * alpha, sd + 30); C.vine(x, [body[5], body[6], body[7]], 2.6, (ghost ? .22 : .85) * alpha, sd + 31);
+  C.vine(x, [body[7], body[0]], 2.2, (ghost ? .2 : .7) * alpha, sd + 32); C.vine(x, [body[1], body[2]], 2.2, (ghost ? .2 : .7) * alpha, sd + 33);
+  // head
+  const head = Array.from({ length: 40 }, (_, i) => { const a = i / 40 * 6.283; const jaw = Math.sin(a) > 0 ? 1 - .1 * Math.pow(Math.sin(a), 6) * (p.age > .5 ? 1 : 0) : 1; return [cx + Math.cos(a) * hr * jaw, hy + Math.sin(a) * ry]; });
+  if (!ghost) { C.lift(x, head, .9 * alpha); C.blob(x, cx + hr * .45, hy + ry * .15, hr * .6, ry * .8, .16 * alpha); C.blob(x, cx, hy + ry * 1.05, hr * .9, ry * .2, .25 * alpha); }   // the shaded side (window is left), under the chin
+  C.vine(x, head.concat([head[0]]), 2.4, (ghost ? .22 : .85) * alpha, sd + 40, '#000', .05);
+  for (const sx of [-1, 1]) C.vine(x, Array.from({ length: 6 }, (_, i) => [cx + sx * (hr + Math.sin(i / 5 * 3.14) * hr * .16), hy - ry * .05 + i / 5 * ry * .32]), 2, (ghost ? .2 : .75) * alpha, sd + 42 + sx);   // ears
+  // hair: one mass per age, cross-faded during a morph
+  const hairA = [w(0), w(1), w(2)];
+  const hairPts = [
+    // child: a bowl cut, fringe straight across the brow
+    Array.from({ length: 26 }, (_, i) => { const a = Math.PI + i / 25 * Math.PI; return [cx + Math.cos(a) * hr * 1.1, hy + Math.sin(a) * ry * 1.08 - ry * .02]; }).concat([[cx + hr * 1.1, hy + ry * .05], [cx + hr * .7, hy - ry * .28], [cx - hr * .7, hy - ry * .28], [cx - hr * 1.1, hy + ry * .05]]),
+    // teen: longer, messy, falling over the forehead and the ears
+    Array.from({ length: 26 }, (_, i) => { const a = Math.PI + i / 25 * Math.PI; return [cx + Math.cos(a) * hr * 1.13 + (noise(i * .7, 3) - .5) * hr * .2, hy + Math.sin(a) * ry * 1.1 - ry * .04 + (noise(i * .7, 5) - .5) * hr * .2]; }).concat([[cx + hr * 1.12, hy + ry * .25], [cx + hr * .8, hy - ry * .2], [cx + hr * .2, hy - ry * .3], [cx - hr * .3, hy - ry * .18], [cx - hr * .9, hy - ry * .25], [cx - hr * 1.12, hy + ry * .25]]),
+    // grown up: short, neat, a parting
+    Array.from({ length: 26 }, (_, i) => { const a = Math.PI + i / 25 * Math.PI; return [cx + Math.cos(a) * hr * 1.05, hy + Math.sin(a) * ry * 1.04 - ry * .03]; }).concat([[cx + hr * 1.03, hy - ry * .2], [cx + hr * .5, hy - ry * .55], [cx - hr * .4, hy - ry * .52], [cx - hr * 1.03, hy - ry * .2]]),
+  ];
+  hairPts.forEach((hp, k) => { if (hairA[k] < .03) return;
+    if (!ghost) { C.smudgeFill(x, hp, [.78, .82, .7][k] * hairA[k] * alpha, sd + 50 + k, 5);
+      for (let j = 0; j < 9; j++) { const a0 = Math.PI * (1.05 + j / 9 * .9); C.sweep(x, [[cx + Math.cos(a0) * hr * .3, hy - ry * .9], [cx + Math.cos(a0) * hr * 1.0, hy + Math.sin(a0) * ry * .6]], 10 * SC, .4 * hairA[k] * alpha, sd + 60 + j); } }
+    C.vine(x, hp.concat([hp[0]]), 2.2, (ghost ? .2 : .8) * hairA[k] * alpha, sd + 70 + k, '#000', .06); });
+  if (ghost) return q;
+  // face: brows, eyes (dots that look somewhere), nose, mouth
+  const ey = hy + ry * .12, ex = hr * .38, er = hr * (.085 + .02 * (1 - Math.min(1, p.age))), gx = look.gx * hr * .05, gy = look.gy * hr * .05;
+  for (const sx of [-1, 1]) {
+    C.poly(x, Array.from({ length: 12 }, (_, i) => [cx + sx * ex + Math.cos(i / 12 * 6.283) * er * 1.25, ey + Math.sin(i / 12 * 6.283) * er * .95])); C.fillA(x, .6 * alpha, '255,255,255');
+    C.blob(x, cx + sx * ex + gx, ey + gy, er, er * 1.05, .95 * alpha, 0, C.smudge); C.blob(x, cx + sx * ex + gx, ey + gy, er * .7, er * .75, .9 * alpha, 0, C.smudge);
+    const bt = look.brow || 0, by = ey - ry * .22;
+    C.vine(x, [[cx + sx * (ex - hr * .2), by + sx * 0 - bt * hr * .06], [cx + sx * (ex + hr * .2), by + bt * hr * .06]], 3.2, .8 * alpha, sd + 80 + sx, '#000', 0);
+    C.vine(x, [[cx + sx * (ex - er * 1.4), ey + er * 1.2], [cx + sx * (ex + er * 1.4), ey + er * 1.2]], 1.2, .3 * alpha, sd + 82 + sx);   // lower lid
+  }
+  C.vine(x, [[cx + hr * .02, ey + ry * .1], [cx + hr * .1, ey + ry * .3], [cx - hr * .04, ey + ry * .33]], 1.8, .6 * alpha, sd + 85);
+  const my = hy + ry * .55, mw = hr * (.22 + .05 * Math.min(1, p.age)), sm = look.smile || 0;
+  C.vine(x, [[cx - mw, my - sm * hr * .06], [cx, my + sm * hr * .05 + (look.open || 0) * hr * .03], [cx + mw, my - sm * hr * .06]], 2.4, .8 * alpha, sd + 86, '#000', 0);
+  if (look.open) C.blob(x, cx, my + hr * .02, mw * .55, hr * .05 * look.open, .7 * alpha);
+  return q;
+}
+// a forearm lying on the table from the person's side (world), with the hand at its end
+function armOnTable(x, q, hand, shoulderSide, tone, sd, phase) {
+  // phase 'upper' (drawn with the body, before the table): the sleeve from the shoulder down to the elbow at the far edge
+  // phase 'fore' (after the table): the forearm on the table from the elbow to the wrist, and the hand
+  const g = handGeo(hand), sh = [q.cx + shoulderSide * q.sh * .86, q.shy + q.hr * .3];
+  const wr = g.wrist, back = 1.0, el = pt(hand.x + shoulderSide * .05, back), elbow = [el[0], el[1] + 6 * SC];
+  const mid = [(wr[0][0] + wr[1][0]) / 2, (wr[0][1] + wr[1][1]) / 2];
+  const nrm = (a, b, d) => { const an = Math.atan2(b[1] - a[1], b[0] - a[0]) + Math.PI / 2; return [Math.cos(an) * d, Math.sin(an) * d]; };
+  if (phase === 'upper') {
+    const aw = q.hr * (q.body > .5 ? 1.15 : .95), n1 = nrm(sh, elbow, aw / 2);
+    const quad = [[sh[0] + n1[0], sh[1] + n1[1]], [elbow[0] + n1[0] * .85, elbow[1] + n1[1] * .85], [elbow[0] - n1[0] * .85, elbow[1] - n1[1] * .85], [sh[0] - n1[0], sh[1] - n1[1]]];
+    C.lift(x, quad, .9 * (q.alpha ?? 1)); C.smudgeFill(x, quad, q.body * 1.08 * (q.alpha ?? 1), sd + 5, 3);
+    C.vine(x, [quad[0], quad[1]], 2.4, .8 * (q.alpha ?? 1), sd); C.vine(x, [quad[3], quad[2]], 2.4, .8 * (q.alpha ?? 1), sd + 1);
+    return g;
+  }
+  const aw = .055 * hand.s * pxm(back), n2 = nrm(elbow, mid, aw / 2);
+  const fq = [[elbow[0] + n2[0] * 1.3, elbow[1] + n2[1] * 1.3], [mid[0] + n2[0], mid[1] + n2[1]], [mid[0] - n2[0], mid[1] - n2[1]], [elbow[0] - n2[0] * 1.3, elbow[1] - n2[1] * 1.3]];
+  C.lift(x, fq, .9 * (q.alpha ?? 1)); C.smudgeFill(x, fq, q.body * (q.alpha ?? 1), sd + 6, 3);
+  C.vine(x, [fq[0], fq[1]], 2.4, .8, sd + 2); C.vine(x, [fq[3], fq[2]], 2.4, .8, sd + 3);
+  drawHand(x, g, .12, sd + 10);
+  return g;
+}
+
+/* ------------------------------------------------------------------ the phone */
+const PW = .072, PL = .15;
+function phoneCorners(ph) { const ca = Math.cos(ph.a), sa = Math.sin(ph.a), c = (lx, lz) => [ph.x + lx * ca + lz * sa, ph.z - lx * sa + lz * ca];
+  return [c(-PW / 2, -PL / 2), c(PW / 2, -PL / 2), c(PW / 2, PL / 2), c(-PW / 2, PL / 2)]; }
+function drawPhoneOnTable(x, ph, t, sd) {
+  const k = phoneCorners(ph), sc = k.map(q => pt(q[0], q[1], ph.y ?? TY + .008));
+  const bz = ph.ring > 0 ? Math.sin(t * 90) * 2.2 * SC * ph.ring : 0;           // the buzz: the phone shivers on the wood
+  const s = sc.map(p => [p[0] + bz, p[1]]);
+  C.poly(x, s); C.fillA(x, .92);
+  C.vine(x, s.concat([s[0]]), 2.4, .9, sd);
+  // the screen: lit (lifted) while it rings
+  const ins = s.map(p => [lerp(p[0], (s[0][0] + s[2][0]) / 2, .14), lerp(p[1], (s[0][1] + s[2][1]) / 2, .1)]);
+  C.lift(x, ins, .06 + .26 * ph.ring * (.75 + .25 * Math.sin(t * 9)));
+  if (ph.ring > 0) {                                                             // buzz marks: short arcs that boil
+    const cxp = (s[0][0] + s[2][0]) / 2, cyp = (s[0][1] + s[2][1]) / 2, r = rng(C.boil(t) * 13 + sd);
+    for (const side of [-1, 1]) for (let j = 0; j < 3; j++) { const rr = (50 + j * 18) * SC, a0 = side < 0 ? Math.PI : 0;
+      const arc = Array.from({ length: 6 }, (_, i) => { const a = a0 + (i / 5 - .5) * .9 + (r() - .5) * .08; return [cxp + Math.cos(a) * rr * 1.3, cyp + Math.sin(a) * rr * .6]; });
+      C.vine(x, arc, 2.6, .75 * ph.ring * (1 - j * .22), sd + 10 + j * 2 + side); }
+  }
+  return s;
+}
+
+/* ------------------------------------------------------------------ the red (the lie), after develop */
+// world strokes on the table: fingertip smears along each push, then veins spreading out from them
+const RED = [];
+function buildRed() {
+  const r = rng(77);
+  const smear = (a, b, n, t0, t1, w0, w1, offs) => offs.forEach((o, i) => RED.push({ t0, t1, pts: C.pastelPath([a[0] + o, a[1]], [b[0] + o * .9, b[1]], w0, w1, n, r, .006) }));
+  // push 1 (my fingers, behind the phone's near edge): from near me to the child
+  smear([PH0[0] + .005, PH0[1]], [PH1[0], PH1[1]], 18, B.push1[0] + .1, B.push1[1], .036, .024, [0]);
+  // push 2 (the teen's fingers, behind the far edge): from the child's side back to me — wider
+  smear([.05, .89], [PH2[0], PH2[1]], 18, B.push2[0] + .1, B.push2[1], .05, .034, [0]);
+  // push 3 (sideways to his child)
+  RED.push({ t0: B.push3[0] + .1, t1: B.push3[1], pts: C.pastelPath([PH3[0], PH3[1]], [PH4[0], PH4[1]], .055, .04, 20, r, .006) });
+  // the spread: veins creeping out from the smears across the table (like yeast through dough)
+  for (let i = 0; i < 34; i++) { const tr = i % 3, k = r(), sx = tr === 0 ? lerp(PH0[0], PH1[0], k) : tr === 1 ? lerp(.05, PH2[0], k) : lerp(PH3[0], PH4[0], k),
+      sz = tr === 0 ? lerp(PH0[1], PH1[1], k) : tr === 1 ? lerp(.89, PH2[1], k) : PH3[1], an = r() * 6.283, L = .07 + r() * .2, t0 = B.push3[0] + .3 + r() * 2.4;
+    RED.push({ t0, t1: t0 + 1 + r() * .9, pts: C.pastelPath([sx, sz], [sx + Math.cos(an) * L, sz + Math.sin(an) * L * .8], .011, .003, 14, r, .012) }); }
+}
+function redStrokes(t, s) {
+  const out = [], zm = C.cam.zm;
+  const prj = q => ({ s: C.toScr(pt(q.p[0], q.p[1], TY + .004)), w: q.w * pxm(q.p[1]) * zm, j1: q.j1, j2: q.j2 });
+  for (const st of RED) { const pr = eo(u(t, st.t0, st.t1)); if (pr > 0) out.push({ pr, pts: st.pts.map(prj) }); }
+  return out;
+}
+// red fingertips of a hand geometry (world tip segments), amount 0..1 of the finger's last part
+function tipStrokes(g, amt, y = TY + .014) {
+  if (amt <= 0) return [];
+  const zm = C.cam.zm, out = [];
+  for (const f of g.fingers) { const [m, tp] = f.tipL, a = [lerp(m[0], tp[0], .55), lerp(m[1], tp[1], .55)];
+    const L = 6, pts = []; for (let i = 0; i <= L; i++) { const k = i / L, q = [lerp(a[0], tp[0], k), lerp(a[1], tp[1], k)];
+      pts.push({ s: C.toScr(P(q[0], y, q[1])), w: f.w * zm * .9 * (k > .8 ? 1 - (k - .8) * 2.5 : 1), j1: .1 * Math.sin(i * 3), j2: .1 * Math.cos(i * 2) }); }
+    out.push({ pr: amt, pts }); }
+  return out;
+}
+
+/* ------------------------------------------------------------------ per-frame */
+function drawLight(x, s, t) {    // window light: a lifted patch on the wall and a long wedge across the table
+  const sh = s.era * .08;
+  const wl = P(-.95, 1.92, 2.2), wr = P(-.22, 1.0, 2.2);
+  C.blob(x, lerp(wl[0], wr[0], .5), lerp(wl[1], wr[1], .5), 300 * SC, 330 * SC, (.3 - .1 * s.era) , 0, C.smudgeW);
+  const q = [pt(-.9 + sh, .98), pt(-.15 + sh, .98), pt(.25 + sh * 2, .4), pt(-.9, .4)];
+  C.wedge(x, q, pt(-.5, .98), pt(-.2, .4), .4 - .1 * s.era, { reach: 1, falloff: [[0, .9], [.6, .55], [1, .2]] });
+}
+function drawClockHands(x, s, t) {   // the hands drift; they spin through the years on each morph
+  const spin = 9 * eio(u(t, ...B.grow1)) + 11 * eio(u(t, ...B.grow2)) - 20 * eio(u(t, B.back[0], B.back[0] + .8));
+  const mh = (t * .02 + spin) * 6.283, hh = (.3 + t * .002 + spin / 12) * 6.283, { x: cx, y: cy, r } = CLOCK;
+  C.vine(x, [[cx, cy], [cx + Math.sin(mh) * r * .78, cy - Math.cos(mh) * r * .78]], 3, .9, 600, '#000', 0);
+  C.vine(x, [[cx, cy], [cx + Math.sin(hh) * r * .5, cy - Math.cos(hh) * r * .5]], 4.4, .9, 601, '#000', 0);
+  const blur = Math.abs(Math.sin(Math.PI * u(t, ...B.grow1))) + Math.abs(Math.sin(Math.PI * u(t, ...B.grow2)));
+  if (blur > .05) C.blob(x, cx, cy, r * .85, r * .85, .35 * blur);                    // a smear where the hands whirl
+}
+function drawPlant(x, s, t) {        // on the sill: a sprout, then a plant, then a tall one — it keeps time
+  const g = clamp(s.age / 2), base = P(-.62, .99, 2.2), hpx = (40 + 220 * g) * SC, pw = 44 * SC;
+  C.tone(x, [[base[0] - pw / 2, base[1] - 46 * SC], [base[0] + pw / 2, base[1] - 46 * SC], [base[0] + pw * .4, base[1] - 4 * SC], [base[0] - pw * .4, base[1] - 4 * SC]], .6);
+  C.vine(x, [[base[0] - pw / 2, base[1] - 46 * SC], [base[0] + pw / 2, base[1] - 46 * SC], [base[0] + pw * .4, base[1] - 4 * SC], [base[0] - pw * .4, base[1] - 4 * SC], [base[0] - pw / 2, base[1] - 46 * SC]], 2.2, .85, 620);
+  const r = rng(9), top = base[1] - 46 * SC;
+  for (let i = 0; i < 4 + Math.round(6 * g); i++) { const an = -Math.PI / 2 + (r() - .5) * 1.4, L = hpx * (.5 + .5 * r());
+    const tip = [base[0] + Math.cos(an) * L * .5, top + Math.sin(an) * L];
+    C.vine(x, [[base[0], top], [lerp(base[0], tip[0], .5) + (r() - .5) * 10, lerp(top, tip[1], .5)], tip], 2, .8, 630 + i);
+    C.blob(x, tip[0], tip[1], (10 + 14 * g) * SC, (6 + 8 * g) * SC, .6, an, C.smudge); }
+}
+function morphSmear(x, t) {          // the eraser working over the figure while it is redrawn
+  let k = 0, cy = 0;
+  for (const [a, b] of [B.grow1, B.grow2]) { const v = Math.sin(Math.PI * u(t, a - .15, b + .15)); if (v > k) k = v; }
+  if (k <= .01) return;
+  const r = rng(C.boil(t) * 5 + 1);
+  C.layer(x, l => { for (let i = 0; i < 14; i++) { const yy = lerp(420, 1180, r()) * SC, xx = lerp(200, 880, r()) * SC;
+    C.blob(l, xx, yy, (140 + r() * 120) * SC, (36 + r() * 30) * SC, .8, (r() - .5) * .5, C.smudgeW); } }, { alpha: .85 * k });
+  for (let i = 0; i < 6; i++) { const yy = lerp(450, 1150, r()) * SC; C.sweep(x, [[200 * SC, yy], [880 * SC, yy + (r() - .5) * 40]], 22 * SC, .12 * k, 700 + i + C.boil(t)); }   // and grey drag left behind
+}
+function returnWipe(x, t) {          // the eraser takes everything back to the first morning
+  const k = Math.sin(Math.PI * u(t, ...B.back)); if (k <= .01) return;
+  const r = rng(C.boil(t) * 3 + 2);
+  C.layer(x, l => { l.setTransform(1, 0, 0, 1, 0, 0); for (let i = 0; i < 26; i++) C.blob(l, r() * W / 2, r() * H / 2, (140 + 120 * r()) * .5 * SC * 2, (50 + 40 * r()) * SC * .5 * 2, .9, (r() - .5) * .4, C.smudgeW); }, { cam: false, alpha: k });
+  x.setTransform(1, 0, 0, 1, 0, 0); x.fillStyle = `rgba(255,255,255,${.75 * k})`; x.fillRect(0, 0, W, H);
+}
+
+function draw(ctx, t) {
+  const s = state(t), x = C.begin(), ph = s.ph, age = s.age;
+  C.setCam({ zm: s.zm, ox: s.ox, oy: s.oy, zc: s.zc });
+  C.applyCam(x); C.drawSheet(x, wall);
+  C.applyCam(x); drawLight(x, s, t); drawPlant(x, s, t); drawClockHands(x, s, t);
+  // ghosts of who sat here before (the drawing remembers)
+  C.applyCam(x);
+  const gA = t < B.back[0] + .4 ? 1 : 0;
+  if (age > .3 && gA) drawPerson(x, ageParams(0), {}, 900, { ghost: true, alpha: ss(.3, 1, age) * .9 });
+  if (age > 1.3 && gA) drawPerson(x, ageParams(1), {}, 950, { ghost: true, alpha: ss(1.3, 2, age) * .8 });
+  // who sits across the table now
+  const p = ageParams(age);
+  let look = { gx: 0, gy: .9 };                                                     // looking down at the phone
+  if (t >= B.pick[0] + .3 && t < B.down[0]) look = { gx: 0, gy: 0, brow: -.3, open: win3(t, 4.0, 5.2) };   // at me, saying it
+  if (t >= B.down[0] && t < B.grow1[0]) look = { gx: .1, gy: 1, brow: .5 };            // at its own fingertips
+  if (age > .5 && t < B.grow2[0]) look = t < B.push2[0] ? { gx: -.6, gy: .6, brow: .4 } : { gx: 0, gy: .1, brow: .6, open: win3(t, 11.7, 12.6) };   // the teen: annoyed, then at me
+  if (age > 1.5 && t < B.back[0] + .4) look = t < B.push3[0] ? { gx: .3, gy: .8 } : { gx: 1, gy: .3, open: win3(t, 19.5, 20.3) };   // the father: to his child
+  if (t >= B.back[0] + .4) look = t < B.answer[0] + .3 ? { gx: 0, gy: .9 } : { gx: 0, gy: 0, smile: ss(B.answer[0] + .5, B.answer[1] + .3, t) };   // the morning again: at me
+  const q = drawPerson(x, p, look, 100);
+  const kidA = ss(B.grow2[0] + .3, B.grow2[1], t) * (t < B.back[0] + .4 ? 1 : 0);   // his child, beside him
+  const kidP = { x: .27, hy: .98, hr: .08, el: 1.06, sh: .13, shy: .825, body: .2, neck: .026, age: 0 };
+  let kq = null;
+  if (kidA > .01) kq = drawPerson(x, kidP, t < B.push3[0] + .6 ? { gx: -1, gy: .3 } : { gx: -.3, gy: .9 }, 400, { alpha: kidA });
+  const ARMS = [];
+  if (age < .5) {                                     // the child's hands: resting on the table, then the phone to the ear
+    ARMS.push({ k: 'l', q, h: { x: -.12, z: .96, a: Math.PI + .25, s: .62, side: -1 }, side: -1, sd: 120 });
+    if (!(ph.held > 0)) ARMS.push({ k: 'r', q, h: t >= B.down[0] && t < B.back[0] ? { x: .075, z: .87, a: Math.PI - .15, s: .62, side: 1 } : { x: .12, z: .97, a: Math.PI - .25, s: .62, side: 1 }, side: 1, sd: 140 });
+  } else if (age < 1.5) {                             // the teen: arms on the table; one hand slides the phone to me
+    const k2 = eio(u(t, B.push2[0] - .4, B.push2[0])) * (1 - eio(u(t, B.push2[1] + .1, B.push2[1] + .7)));
+    ARMS.push({ k: 'l', q, h: { x: -.17, z: .99, a: Math.PI + .3, s: .9, side: -1 }, side: -1, sd: 160 });
+    ARMS.push({ k: 'r', q, h: { x: lerp(.17, ph.x - .005, k2), z: lerp(.98, ph.z + .1, k2), a: Math.PI + lerp(-.3, .05, k2), s: .9, side: 1, curl: .1 }, side: 1, sd: 180 });
+  } else if (t < B.back[0] + .4) {                    // the father: his left hand slides the phone to his child
+    const k3 = eio(u(t, B.push3[0] - .35, B.push3[0])) * (1 - eio(u(t, B.push3[1] + .15, B.push3[1] + .8)));
+    ARMS.push({ k: 'r', q, h: { x: lerp(-.06, ph.x - .1, k3), z: lerp(.98, ph.z, k3), a: Math.PI / 2 + lerp(.9, 0, k3), s: 1, side: 1 }, side: 1, sd: 200 });
+    if (kq) { const kr = eio(u(t, B.push3[1] - .1, B.push3[1] + .6)); ARMS.push({ k: 'k', q: kq, h: { x: lerp(.36, PH4[0] + .06, kr), z: lerp(.97, PH4[1] + .02, kr), a: Math.PI - .4, s: .6, side: 1 }, side: 1, sd: 220 }); }
+  }
+  for (const A of ARMS) armOnTable(x, A.q, A.h, A.side, 0, A.sd, 'upper');
+  morphSmear(x, t);
+  C.applyCam(x); C.drawSheet(x, table); C.applyCam(x);
+  C.wedge(x, [pt(-.9, .98), pt(-.2, .98), pt(.35, .4), pt(-.9, .4)], pt(-.5, .98), pt(0, .4), .3 - .08 * s.era, { reach: 1, falloff: [[0, .7], [.7, .4], [1, .1]] });
+  // the phone on the table
+  const mh = myHand(t, ph), onTable = !ph.held && !ph.lift;
+  shadows(x, ARMS.map(A => handGeo(A.h)).concat(mh && !(mh.y > TY + .03) ? [handGeo(mh)] : []), onTable ? phoneCorners(ph).map(q => pt(q[0], q[1], TY)) : null);
+  let phS = null; if (onTable) phS = drawPhoneOnTable(x, ph, t, 500);
+  // arms and hands of the person across: collected here, the sleeves were drawn with the body (before the table)
+  const G = {};
+  for (const A of ARMS) if (A) G[A.k] = armOnTable(x, A.q, A.h, A.side, 0, A.sd, 'fore');
+  if (age < .5 && ph.held > 0) holdAtEar(x, q, ph, t);
+  // MY hand (near side, from the bottom right)
+  let myG = null;
+  if (mh) { myG = handGeo(mh); const [e0, e1] = sleeveEnds(mh);
+    drawSleeve(x, myG.wrist, e0, e1, .72, 800);
+    if (ph.lift) { const hc = { x: PH0[0] + .07, z: PH0[1] - .06 }; phS = drawPhoneOnTable(x, { ...ph, x: PH0[0] + mh.x - hc.x, z: PH0[1] + mh.z - hc.z, y: mh.y - .006, ring: 0 }, t, 510); }
+    drawHand(x, myG, .32, 820); }
+  // tone of the hour, the return wipe, the end card's eraser, the smudge behind captions
+  C.toneAll(x, s.dim);
+  returnWipe(x, t);
+  const endK = C.eraseWipe(x, t, B.end);
+  C.captionSmudge(x, t, S.lines, { y: CAPY + 60 * SC, ry: 190 * SC });
+  C.develop(ctx);
+  // ---- the red: smears on the table, prints on the phone, fingertips
+  const fade = (1 - .9 * endK) * s.red;
+  if (fade > 0.01) {
+    redCtx.setTransform(1, 0, 0, 1, 0, 0); redCtx.clearRect(0, 0, W, H);
+    C.pastel(redCtx, redStrokes(t, s), 1, { color: S.accent || C.RED });
+    occlude(redCtx, myG, mh, G, phS, ph);
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = .82 * fade; ctx.drawImage(redCv, 0, 0); ctx.restore();
+    let st = [];
+    if (myG) st = st.concat(tipStrokes(myG, mh.y > TY + .03 ? 1 : ss(B.push1[0] + .2, B.push1[0] + .8, t), mh.y));
+    if (G.r && age < .5 && t >= B.down[0]) st = st.concat(tipStrokes(G.r, ss(B.down[1], B.down[1] + 1.6, t)));
+    if (G.r && age >= .5) st = st.concat(tipStrokes(G.r, 1));
+    if (G.k) st = st.concat(tipStrokes(G.k, ss(B.push3[1] + .3, B.push3[1] + 1.4, t)));
+    if (phS && t >= B.push1[0] + .3) st = st.concat(phonePrints(ph, t));
+    C.pastel(ctx, st, fade, { color: S.accent || C.RED });
+  }
+  // ---- warm light when I pick it up myself
+  const wa = ss(B.answer[0] + .4, B.answer[1] + .4, t) * (1 - .8 * endK);
+  if (wa > 0) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); const wl = C.toScr(P(-.95, 1.0, 2.2)), wr = C.toScr(P(-.22, 1.0, 2.2));
+    C.glowLine(ctx, C.seg(wl, wr, 12), wa * .9, 960, { w: [16, 6, 2.4], al: [.12, .32, .95], col: C.WARM, off: [0, 1, 2] });
+    ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .18 * wa; ctx.fillStyle = C.WARM[0]; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  C.captions(ctx, t, S.lines, { y: CAPY });
+  C.endCard(ctx, t, S.endCard, B.end);
+}
+const win3 = (t, a, b) => clamp(Math.sin(Math.PI * u(t, a, b)) * 1.4) * (.6 + .4 * Math.abs(Math.sin(t * 13)));   // a mouth that moves while talking
+
+function myHand(t, ph) {             // where my hand is (or null when it is out of frame)
+  const rest = { x: .2, z: .52, a: -.3, s: 1, side: 1 };
+  const atPhone = (p, dz = -.105) => ({ x: p.x + .005, z: p.z + dz - .095, a: p.a * .5, s: 1, side: 1, curl: .15 });
+  if (t < B.back[1] - .4 || t >= B.back[0] + .4) {
+    if (t >= B.back[0] + .4) {        // the return: resting, then I take the phone and lift it to my ear
+      const k = eio(u(t, B.answer[0] - .5, B.answer[0] + .1)), L = eio(u(t, B.answer[0] + .1, B.answer[1]));
+      const h = { ...rest, x: lerp(rest.x, PH0[0] + .07, k), z: lerp(rest.z, PH0[1] - .06, k), a: lerp(rest.a, -.2, k), curl: .5 * k };
+      const L2 = eio(u(t, B.answer[1] + .4, B.end + .3)); if (L > 0) { h.y = TY + .012 + L * .1 + L2 * .25; h.z -= L * .04 + L2 * .2; h.x += L * .03 + L2 * .12; }
+      return h;
+    }
+    if (t < B.grow1[0]) {             // era 0: rest → to the phone → push → back
+      if (t < B.push1[0]) return { ...rest, x: lerp(rest.x, PH0[0] + .02, eio(u(t, 0, B.push1[0]))), z: lerp(rest.z, PH0[1] - .2, eio(u(t, 0, B.push1[0]))), a: lerp(rest.a, .06, eio(u(t, 0, B.push1[0]))) };
+      if (t < B.back1[0]) return atPhone(ph);
+      const k = eio(u(t, ...B.back1)), a = atPhone({ x: PH1[0], z: PH1[1], a: -.08 });
+      return { x: lerp(a.x, rest.x, k), z: lerp(a.z, rest.z, k), a: lerp(a.a, rest.a, k), s: 1, side: 1, curl: .15 * (1 - k) };
+    }
+    if (t < B.grow2[0]) {             // era 1: resting; then I reach for the phone the teen pushed back — and stop above it
+      const k = eio(u(t, ...B.reach)), tr = .0015 * Math.sin(t * 31) * ss(B.reach[1], B.reach[1] + .5, t);
+      const out = eio(u(t, B.grow2[0] - .6, B.grow2[0]));
+      return { x: lerp(rest.x, PH2[0] + .015, k) + tr + out * .1, z: lerp(rest.z, PH2[1] - .135, k) - out * .2, a: lerp(rest.a, .15, k), s: 1, side: 1, y: TY + .012 + .05 * k, curl: .25 * k };
+    }
+    return null;                      // era 2: I only watch
+  }
+  return { ...rest };
+}
+function sleeveEnds(h) {             // my forearm runs back from the wrist along the hand, toward my right shoulder (off frame)
+  const dx = -Math.sin(h.a) + .45, dz = -Math.cos(h.a), L = Math.hypot(dx, dz), y = (h.y ?? TY + .012) - .002;
+  const k = Math.max(.1, (h.z - .26) / (-dz / L)), cx = h.x + dx / L * k, cz = h.z + dz / L * k, nx = -dz / L, nz = dx / L;
+  const a = P(cx - nx * .055, y, Math.max(.24, cz - nz * .055)), b = P(cx + nx * .055, y, Math.max(.24, cz + nz * .055));
+  const g = handGeo(h), d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);   // order them so the sleeve never twists
+  return d(g.wrist[0], a) + d(g.wrist[1], b) <= d(g.wrist[0], b) + d(g.wrist[1], a) ? [a, b] : [b, a];
+}
+function phonePrints(ph, t) {        // red fingerprints on the phone (they move with it)
+  const zm = C.cam.zm, ca = Math.cos(ph.a), sa = Math.sin(ph.a), out = [];
+  const marks = [[-.02, -.06, 1], [0, -.065, 1], [.02, -.06, 1]];
+  if (t >= B.push2[0]) marks.push([-.025, .06, 1], [.0, .065, 1], [.022, .058, 1]);
+  if (t >= B.grow2[0] + .45) marks.push([-.03, .0, 1], [.03, .02, 1]);
+  for (const [lx, lz] of marks) { const c = (dx, dz) => { const X = lx + dx, Z = lz + dz; return [ph.x + X * ca + Z * sa, ph.z - X * sa + Z * ca]; };
+    const pts = [0, 1, 2, 3].map(i => { const q = c(0, -.01 + i * .007); return { s: C.toScr(pt(q[0], q[1], TY + .01)), w: .011 * pxm(q[1]) * zm * (i === 3 ? .5 : 1), j1: .15, j2: -.1 }; });
+    out.push({ pr: 1, pts }); }
+  return out;
+}
+function holdAtEar(x, q, ph, t) {    // the child's arm lifts the phone to its ear (2-bone, constant lengths)
+  const k = ph.held, from = pt(PH1[0] + .03, PH1[1]), ear = [q.cx + q.hr * 1.05, q.hy + q.ry * .1];
+  const hand = [lerp(from[0], ear[0], k), lerp(from[1], ear[1], k) - Math.sin(Math.PI * k) * 40 * SC];
+  const sh = [q.cx + q.sh * .85, q.shy + q.hr * .25], L1 = q.hr * 1.9, L2 = q.hr * 1.9;
+  const dx = hand[0] - sh[0], dy = hand[1] - sh[1], d = Math.min(L1 + L2 - 1, Math.hypot(dx, dy)), a0 = Math.atan2(dy, dx), cosB = clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1);
+  const elbow = [sh[0] + Math.cos(a0 - Math.acos(cosB)) * L1, sh[1] + Math.sin(a0 - Math.acos(cosB)) * L1];
+  const el = elbow[1] < sh[1] ? elbow : [sh[0] + Math.cos(a0 + Math.acos(cosB)) * L1, sh[1] + Math.sin(a0 + Math.acos(cosB)) * L1];
+  const aw = q.hr * .55;
+  x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = `rgba(${C.TONE},.25)`; x.lineWidth = aw; x.beginPath(); x.moveTo(...sh); x.lineTo(...el); x.lineTo(...hand); x.stroke();
+  C.vine(x, [sh, el, hand], 2.4, .75, 260); C.vine(x, [[sh[0] + aw * .45, sh[1]], [el[0] + aw * .45, el[1]], [hand[0] + aw * .3, hand[1]]], 2, .6, 261);
+  // the phone, upright against the ear, and the small hand around it
+  const pw = q.hr * .56, phh = q.hr * 1.1, px0 = hand[0] - pw * .2, py0 = hand[1] - phh * .78;
+  const pr = [[px0, py0], [px0 + pw, py0 + 4 * SC], [px0 + pw, py0 + phh], [px0, py0 + phh - 4 * SC]];
+  C.poly(x, pr); C.fillA(x, .92); C.vine(x, pr.concat([pr[0]]), 2.4, .9, 262);
+  C.poly(x, Array.from({ length: 16 }, (_, i) => [hand[0] + pw * .4 + Math.cos(i / 16 * 6.283) * pw * .5, hand[1] + pw * .25 + Math.sin(i / 16 * 6.283) * pw * .62])); C.fillA(x, .9, '255,255,255');
+  C.vine(x, Array.from({ length: 17 }, (_, i) => [hand[0] + pw * .4 + Math.cos(i / 16 * 6.283) * pw * .5, hand[1] + pw * .25 + Math.sin(i / 16 * 6.283) * pw * .62]), 2.2, .8, 263);
+  for (let i = 0; i < 3; i++) C.vine(x, [[hand[0] + pw * .1, hand[1] - pw * .35 + i * pw * .3], [hand[0] + pw * .7, hand[1] - pw * .3 + i * pw * .3]], 1.4, .5, 264 + i);
+}
+function drawPhoneHeld(x, g, ph, t) {   // the phone in my lifting hand (between thumb and fingers)
+  const c = g.pr(-.005, .07), w = .075 * pxm(.5) * (1 + ph.lift * .6), h = w * 1.9;
+  const r = [[c[0] - w / 2, c[1] - h * .55], [c[0] + w / 2, c[1] - h * .55], [c[0] + w / 2, c[1] + h * .45], [c[0] - w / 2, c[1] + h * .45]];
+  C.poly(x, r); C.fillA(x, .92); C.vine(x, r.concat([r[0]]), 2.4, .9, 850);
+  drawHand(x, g, .32, 860);
+}
+
+let redCv, redCtx;
+function occlude(rc, myG, mh, G, phS, ph) {   // the red smear lies ON the table: hands, sleeves and the phone cover it
+  const c = C.cam; rc.save(); rc.setTransform(c.zm, 0, 0, c.zm, c.zc[0] * (1 - c.zm) + c.ox, c.zc[1] * (1 - c.zm) + c.oy);
+  rc.globalCompositeOperation = 'destination-out'; rc.fillStyle = '#000'; rc.strokeStyle = '#000'; rc.lineCap = 'round'; rc.lineJoin = 'round';
+  const hand = g => { C.poly(rc, g.palm); rc.fill(); for (const f of g.fingers.concat([g.thumb])) { rc.lineWidth = f.w * 1.05; rc.beginPath(); f.pts.forEach((p, i) => i ? rc.lineTo(...p) : rc.moveTo(...p)); rc.stroke(); } };
+  if (myG) { hand(myG); const se = sleeveEnds(mh); C.poly(rc, [myG.wrist[0], myG.wrist[1], se[1], se[0]]); rc.fill(); }
+  for (const k of ['l', 'r', 'k']) if (G[k]) hand(G[k]);
+  if (phS) { C.poly(rc, phS); rc.fill(); }
+  rc.restore();
+}
+async function init() {
+  C.init(); redCv = Pilot.canvas(W, H); redCtx = redCv.getContext('2d');
+  wall = buildWall(); table = buildTable(); buildRed();
+}
+
+Pilot.run({ audio: (Pilot.cut ? 'lie-charcoal-' + Pilot.cut + '.m4a' : 'soundtrack.m4a'), W, H, dur: S.DUR, fonts: C.FONTS, init, draw });
+</script>
+<script>window.POSTER_T = 9.0;</script>
+<style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+#pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}</style>
+<button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+<script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+</body>
+</html>
