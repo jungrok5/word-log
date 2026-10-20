@@ -97,3 +97,39 @@ small{{color:var(--muted)}}
 </main></body></html>
 ''')
 print('→', out, f'({len(cfg["scenes"])} scenes)')
+
+# The list of every preview (docs/previews/index.html), newest first — rebuilt on each run so no film drops off the site.
+rows = []
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+pv = os.path.join(root, 'docs', 'previews')
+for d in sorted((x for x in os.listdir(pv) if os.path.exists(os.path.join(pv, x, 'index.html'))), reverse=True):
+    m, fc = {}, {}
+    for mp in ('source.json', 'sermon.json'):
+        q = os.path.join(root, 'sermons', d, mp)
+        if os.path.exists(q): m = json.load(open(q, encoding='utf-8')); break
+    q = os.path.join(root, 'sermons', d, 'film', 'film.json')
+    if os.path.exists(q): fc = json.load(open(q, encoding='utf-8'))
+    labels = ' · '.join(s.get('label', s['id']) for s in fc.get('scenes', []))
+    sb = os.path.join(root, 'sermons', d, 'storyboard.md')   # the film's name: the storyboard's title (before the source)
+    if os.path.exists(sb):
+        h = open(sb, encoding='utf-8').readline().split('—', 1)[-1].split('(')[0].strip().strip('#').strip()
+        if h: labels = h + (f' — {len(fc.get("scenes", []))}가지 스타일' if len(fc.get('scenes', [])) > 1 else '')
+    rows.append(f'<a class="card" href="{d}/"><span><span class="k">{html.escape(labels or d)}</span><br>'
+                f'<span class="d">{html.escape(" · ".join(filter(None, [m.get("date", "").replace("-", "."), m.get("title"), m.get("passage")])))}</span></span>'
+                f'<span class="d">{len(fc.get("scenes", []))}편 →</span></a>')
+open(os.path.join(pv, 'index.html'), 'w', encoding='utf-8').write(f'''<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>미리보기 목록 · word-log</title>
+<style>
+:root{{--bg:#faf9f6;--fg:#1d1c1a;--muted:#6b675f;--card:#fff;--line:#e4e0d8}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#141311;--fg:#ecebe7;--muted:#a19c92;--card:#1e1c19;--line:#2e2b27}}}}
+body{{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}}
+main{{max-width:640px;margin:0 auto;padding:32px 16px 48px}} h1{{font-size:1.35rem;margin:0 0 16px}}
+.card{{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px;margin:0 0 10px;border:1px solid var(--line);
+border-radius:12px;background:var(--card);color:inherit;text-decoration:none}} .k{{font-weight:600}} .d{{color:var(--muted);font-size:.9rem}}
+</style></head><body><main>
+<h1>미리보기 목록</h1>
+{"".join(rows)}
+</main></body></html>
+''')
+print('→ docs/previews/index.html', f'({len(rows)} films)')
