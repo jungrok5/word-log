@@ -42,7 +42,7 @@ if not a.index_only:
         rec = versions[-1]
     else:
         rec = {'v': (versions[-1]['v'] + 1) if versions else 1}; versions.append(rec)
-    rec.update({'date': datetime.date.today().isoformat(), 'note': a.note or rec.get('note', ''), 'scenes': []})
+    rec.update({'date': datetime.date.today().isoformat(), 'note': a.note or rec.get('note', ''), 'scenes': [], 'stamp': datetime.datetime.now().strftime('%Y%m%d%H%M%S')})
     out = os.path.join(base, f"v{rec['v']}")
     shutil.rmtree(out, ignore_errors=True); os.makedirs(out)
     sc = os.path.join(film, 'scenes')
@@ -63,7 +63,7 @@ if not a.index_only:
     <style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
     border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
     #pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%%;background:rgba(0,0,0,.6);
-    border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}</style>
+    border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}#pv-play[hidden]{display:none}</style>
     <button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
     <script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
     if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
@@ -136,8 +136,9 @@ secs = []
 for i, v in enumerate(reversed(versions)):
     cards = []
     for s in v['scenes']:
-        img = f'<img src="v{v["v"]}/{s["id"]}.jpg" alt="" loading="lazy">' if s.get('poster') else ''
-        cards.append(f'<a class="card" href="v{v["v"]}/{s["id"]}.html?o=v">{img}<span><span class="k">{html.escape(s["label"])}</span><br>'
+        img = f'<img src="v{v["v"]}/{s["id"]}.jpg?r={v.get("stamp", "")}" alt="" loading="lazy">' if s.get('poster') else ''
+        bust = f'&r={v["stamp"]}' if v.get('stamp') else ''
+        cards.append(f'<a class="card" href="v{v["v"]}/{s["id"]}.html?o=v{bust}">{img}<span><span class="k">{html.escape(s["label"])}</span><br>'
                      f'<span class="d">{s.get("dur", "")}초 · 탭해서 재생</span></span></a>')
         for cn in s.get('cuts', []):
             cards.append(f'<a class="card" href="v{v["v"]}/{s["id"]}.html?o=v&cut={cn}">{img}<span><span class="k">{html.escape(s["label"])} · {cn}</span></span></a>')
