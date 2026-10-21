@@ -50,7 +50,8 @@ md = f"""# 업로드 문구 — {src.get('title', '')}
   {verse_block.splitlines()[0] if verse_block else ''}
   {credit}
   {ht}
-- 커버: 미리보기의 포스터 장면(첫 화면과 같은 그림) — 프로필 격자에서 잘리지 않게 가운데 정렬 확인
+- 파일: film/out/<장면>-upload.mp4 (tools/export.py, H.264) · 앱 설정에서 \"최고 화질로 업로드\" 켜기
+- 커버: film/out/<장면>-cover.jpg — 얼굴·제목이 가운데 3:4(y 240–1680) 안에 있는지 확인(프로필 격자는 그만큼만 보임)
 
 ## 틱톡
 - 캡션: {hook} {ht}

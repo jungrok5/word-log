@@ -150,7 +150,7 @@ const handPath = (l, g) => { C.poly(l, g.palm); l.fill(); l.lineCap = 'round'; l
 // every cast shadow of the frame in ONE soft layer (hands and the phone, offset away from the window)
 function shadows(x, hands, phonePts) {
   C.layer(x, l => { l.translate(10 * SC, 14 * SC); l.fillStyle = l.strokeStyle = `rgba(${C.TONE},1)`; for (const g of hands) handPath(l, g);
-    if (phonePts) { C.poly(l, phonePts); l.fill(); } l.translate(-10 * SC, -14 * SC); }, { blur: 5, alpha: .35 });
+    if (phonePts) { C.poly(l, phonePts); l.fill(); } l.translate(-10 * SC, -14 * SC); }, { blur: 2.5, alpha: .35, q: true });
 }
 function drawHand(x, g, tone, sd) {
   // skin: one opaque rubbed value (B = 255: smooth, no grain), so overlapping finger strokes never darken twice
