@@ -53,7 +53,8 @@
    3. 사운드(canvas-film `references/SOUND.md`) → `scenes/soundtrack.wav` → `python3 tools/cut-audio.py sermons/<폴더>`
       (장면별 소리 연결).
    4. 스틸로 직접 확인 → `python3 tools/check-film.py sermons/<폴더> --frames` 통과.
-   5. `python3 tools/preview.py sermons/<폴더> --note "무엇을 바꿨나"` → 커밋·푸시 → **미리보기 링크**
+   5. `python3 tools/preview.py sermons/<폴더> --note "무엇을 바꿨나"` → 커밋 → **main에 바로 푸시**(사이트는 main의 `/docs`에서
+      배포된다 — 미리보기를 만들 때는 작업 브랜치와 함께 main에도 바로 합쳐도 된다, 사용자 허락) → **미리보기 링크**
       `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(소리 포함, 인코딩 없음).
       실행할 때마다 **새 버전(v1, v2, …)이 추가**되고 예전 버전은 지우지 않는다 — 사용자가 여러 시도를 나란히 비교한다.
       (오타 같은 작은 수정만 `--replace`로 최신 버전을 덮어쓴다.) 전체 목록: `.../word-log/previews/`
