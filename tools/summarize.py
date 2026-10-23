@@ -13,7 +13,7 @@ API = "https://generativelanguage.googleapis.com/v1beta"
 MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]  # first that works wins; cheapest first
 if os.environ.get("GEMINI_MODEL"):   # workflow_dispatch input: use exactly this model (e.g. gemini-3.8-flash for accuracy)
     MODELS = [os.environ["GEMINI_MODEL"]]
-ONLY = os.environ.get("ONLY", "").strip()          # a sermons/<folder> name: only that one
+ONLY = os.path.basename(os.environ.get("ONLY", "").strip().rstrip("/"))   # sermons/<folder> or <folder>: only that one
 FORCE = os.environ.get("FORCE", "") in ("1", "true")  # redo even if material.md exists (the old one is kept as material.prev.md)
 
 PROMPT = """이 영상은 한국 교회의 예배 실황입니다. 설교 제목: "{title}" (본문: {passage}, 설교: {preacher}).
