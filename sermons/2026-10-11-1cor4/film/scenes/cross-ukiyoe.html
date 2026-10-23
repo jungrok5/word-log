@@ -61,19 +61,18 @@ const BR_FOOT = XN + 15, BR_HEAD = BR_FOOT - L0;
 PIECES[0].ta = BR_FOOT - CUTL[0]; PIECES[0].tb = BR_FOOT;
 PIECES[1].ta = PIECES[0].ta - CUTL[1]; PIECES[1].tb = PIECES[0].ta;
 PIECES[2].ta = PIECES[1].ta - CUTL[2]; PIECES[2].tb = PIECES[1].ta;
-const GLIDE = [[23.25, 24.75], [23.5, 24.85], [23.65, 24.95]];
+const GLIDE = [[B.fill[0], 23.4], [22.75, 23.9], [23.25, B.fill[1]]];   // one by one into the outline
 
 // ---- the others ----
 const STOPX = XN + 42;
 const OTH = [
-  { id: 'A', d: 235, x0: 1720, fo: 0, beat: B.bridges[0], robe: '#a5784a', robeD: '#7b5432', legs: '#4a3a2c', s: .94 },
-  { id: 'B', d: 180, x0: 1900, fo: 22, beat: B.bridges[1], robe: '#8b8a80', robeD: '#5f5e58', legs: '#3d3c38', s: .95 },
-  { id: 'C', d: 130, x0: 2060, fo: -12, beat: B.bridges[2], robe: '#7f9fb8', robeD: '#4d6f98', legs: '#2a3448', s: .93 },
-  { id: 'D', d: 210, x0: 2600, v: 58, robe: '#6f7f58', robeD: '#4a5a3a', legs: '#33402a', s: .92 },
+  { id: 'A', d: 235, x0: 1700, fo: 0, beat: B.bridges[0], robe: '#a5784a', robeD: '#7b5432', legs: '#4a3a2c', s: .94 },
+  { id: 'B', d: 180, x0: 1850, fo: 22, beat: B.bridges[1], robe: '#8b8a80', robeD: '#5f5e58', legs: '#3d3c38', s: .95 },
+  { id: 'C', d: 130, x0: 1990, fo: -12, beat: B.bridges[2], robe: '#7f9fb8', robeD: '#4d6f98', legs: '#2a3448', s: .93 },
 ];
-for (const o of OTH) if (o.beat) { o.tStop = o.beat - .55; o.v = (o.x0 - STOPX) / o.tStop; o.cd = o.d - 20; }
+for (const o of OTH) if (o.beat) { o.tStop = o.beat - .6; o.v = (o.x0 - STOPX) / o.tStop; o.cd = o.d - 20; }
 const ME_C = { robe: '#3f5878', robeD: '#2c4a70', legs: '#25304a', s: 1 };
-const GATE_X = 360, GATE_D = 120;
+const GATE_X = 400, GATE_D = 120;
 const WALK_V = 150;                      // crossing speed
 
 // ================================================================ helpers
@@ -273,7 +272,7 @@ function meState(t) {
   m.L = Lc;
   if (t < SAW[0]) {                                             // heavy: staggering under the whole cross
     const x = X0 - V0 * t, wob = Math.sin(ta * 2.3) * .05 + .12 * Math.exp(-Math.pow((ta - 1.7) / .35, 2));
-    return { ...m, x, f: -1, mode: 'walk', ph: walkPhase(X0 - x, 20), stride: 20, lean: .4 + wob, hipH: 118 - 10 * Math.exp(-Math.pow((ta - 1.7) / .3, 2)), carry: { drag: true }, bow: .15 };
+    return { ...m, sawHold: true, x, f: -1, mode: 'walk', ph: walkPhase(X0 - x, 20), stride: 20, lean: .5 + wob, hipH: 112 - 10 * Math.exp(-Math.pow((ta - 1.7) / .3, 2)), carry: { drag: true }, bow: .15 };
   }
   for (let k = 0; k < 3; k++) {                                 // the three cuts
     const b = SAW[k], xc = [XC1, XC2, XC3][k], foot = [FOOT1, FOOT2, XC2][k], kx = [K1, K2, K3][k];
@@ -295,16 +294,16 @@ function meState(t) {
         // shouldered again, walking off (k = 2: to the edge)
         if (k === 2) {
           const u = seg(t, b + 1.15, 12.0), xw = lerp(K3 + 20, EDGE_ME, eo(u));
-          return { ...m, x: xw, f: -1, mode: u < 1 ? 'walk' : 'stand', ph: walkPhase(K3 - xw, 36), stride: 36, lean: .1, hipH: 134, carry: {} };
+          return { ...m, sawHold: true, x: xw, f: -1, mode: u < 1 ? 'walk' : 'stand', ph: walkPhase(K3 - xw, 36), stride: 36, lean: .1, hipH: 134, carry: {} };
         }
-        return { ...m, x: x - 20, f: -1, mode: 'stand', lean: .14, hipH: 134, carry: {} };
+        return { ...m, sawHold: true, x: x - 20, f: -1, mode: 'stand', lean: .14, hipH: 134, carry: {} };
       }
       return { ...m, x, f: 1, mode: 'squat', lean: .6, lying, saw: { on: sawOn, xc, prog: k === 1 && t >= b + .85 ? 0 : prog, ta }, bow: .35 };
     }
   }
   if (t < RUN1 + .1 && t >= RUN0) {                            // light: striding ahead
     const x = meRunX(t);
-    return { ...m, x, f: -1, mode: 'walk', ph: walkPhase(K1 - x, 46), stride: 46, lean: .12, hipH: 136, carry: {} };
+    return { ...m, sawHold: true, x, f: -1, mode: 'walk', ph: walkPhase(K1 - x, 64), stride: 64, lean: .24, hipH: 136, carry: {}, run: true };
   }
   if (t < SAW[1]) return { ...m, x: X2, f: -1, mode: 'stand', lean: .1, hipH: 134, carry: {} };
   // at the edge
@@ -315,13 +314,13 @@ function meState(t) {
     else if (t >= 13.2 && t < 18.0) { x = lerp(EDGE_ME + 50, EDGE_ME + 120, ss(13.2, 13.7, ta)); }            // step aside for them
     else if (t >= 18.0) { x = lerp(EDGE_ME + 120, EDGE_ME, ss(18.0, 18.38, t)); mode = t < 18.38 ? 'walk' : 'stand'; ph = walkPhase(EDGE_ME + 120 - x, 30); }
     if (t >= 13.2 && t < 13.7) { mode = 'walk'; ph = walkPhase(x - EDGE_ME, 22); }
-    return { ...m, x, f: -1, mode, ph, stride: 30, lean, hipH: 134, carry: {}, bow: t > 14 && t < 18 ? .05 : -.08 };
+    return { ...m, sawHold: true, x, f: -1, mode, ph, stride: 30, lean, hipH: 134, carry: {}, bow: t > 14 && t < 18 ? .05 : -.08 };
   }
-  // mine: raise, let it fall forward, hang, tip, drop
-  if (t < 19.2) return { ...m, x: EDGE_ME - 4, f: -1, mode: 'squat', lean: .55, hipH: 120, lay: true, bow: .2 };
-  if (t < 21.0) return { ...m, x: EDGE_ME - 4, f: -1, mode: 'stand', lean: .22, hipH: 130, bow: .55, hands: 'limp' };
-  if (t < 24.4) return { ...m, x: EDGE_ME, f: ta < 21.25 ? -1 : 1, mode: 'stand', lean: .04, hipH: 134, bow: ta < 21.25 ? .5 : .1, hands: 'limp' };
-  return { ...m, x: EDGE_ME, f: ta < 24.65 ? 1 : -1, mode: 'stand', lean: .06, hipH: 134, bow: .25, hands: 'limp' };
+  // mine: raise, let it fall forward, hang short (held down at the foot), tip, drop
+  if (t < B.fall) return { ...m, x: EDGE_ME - 4, f: -1, mode: 'squat', lean: t > B.tip ? .7 : .55, hipH: 120, lay: true, bow: .2 };
+  if (t < B.back) return { ...m, x: EDGE_ME - 4, f: -1, mode: 'stand', lean: .22, hipH: 130, bow: .55, hands: 'limp' };
+  if (t < 24.3) return { ...m, x: EDGE_ME, f: ta < B.back + .1 ? -1 : 1, mode: 'stand', lean: .04, hipH: 134, bow: .1, hands: 'limp' };
+  return { ...m, x: EDGE_ME, f: ta < 24.45 ? 1 : -1, mode: 'stand', lean: .06, hipH: 134, bow: .25, hands: 'limp' };
 }
 
 // my laid cross (18.4 → fall): returns cross pose {F, ang, L, fl} (lane 0, world coords) or null
@@ -330,57 +329,62 @@ function myLay(t) {
   const L = L0 * LEFT[3], ta = st8(t);
   const F0 = LN(MY_CROSS_D, BR_FOOT, GY - 7);
   if (t < B.mine) return null;
-  if (ta < 18.55) { const u = seg(ta, 18.4, 18.55); return { F: lp2(LN(MY_CROSS_D, EDGE_ME + 10, GY - 120), F0, u), ang: lerp(Math.PI * 1.25, Math.PI * 1.5, u), L, fl: 0 }; }
-  if (ta < 18.85) { const u = seg(ta, 18.55, 18.85); return { F: F0, ang: Math.PI * 1.5 - Math.PI * .5 * u * u, L, fl: ss(.5, 1, u) }; }
-  if (ta < 18.95) return { F: F0, ang: Math.PI + .02 * Math.sin(ta * 40), L, fl: 1 };
-  if (t < 19.2) {                                                // tips about the edge: the head drops, the foot lifts
-    const u = seg(ta, 18.95, 19.2), b = .62 * u * u, ang = Math.PI - b, c = Math.cos(-b), s = Math.sin(-b);
+  if (ta < 18.5) { const u = seg(ta, 18.4, 18.5); return { F: lp2(LN(MY_CROSS_D, EDGE_ME + 10, GY - 120), F0, u), ang: lerp(Math.PI * 1.25, Math.PI * 1.5, u), L, fl: 0 }; }
+  if (ta < 18.7) { const u = seg(ta, 18.5, 18.7); return { F: F0, ang: Math.PI * 1.5 - Math.PI * .5 * u * u, L, fl: ss(.5, 1, u) }; }
+  if (ta < B.tip) return { F: F0, ang: Math.PI + .012 * Math.sin(ta * 23), L, fl: 1 };          // hangs short — held down at the foot
+  if (t < B.fall) {                                              // tips about the edge: the head drops, the foot lifts out of my hands
+    const u = seg(ta, B.tip, B.fall), b = .62 * u * u, ang = Math.PI - b, c = Math.cos(-b), s = Math.sin(-b);
     const r = sub(F0, PIV), F = [PIV[0] + r[0] * c - r[1] * s - 14 * u, PIV[1] + r[0] * s + r[1] * c];
     return { F, ang, L, fl: 1 };
   }
   return fallState(t);
 }
-// free fall after 19.2 (deterministic ballistic + spin)
+// free fall after the fall beat (deterministic ballistic + spin)
 const FALL = (() => {
   const L = L0 * LEFT[3], b = .62, ang = Math.PI - b, c = Math.cos(-b), s = Math.sin(-b), F0 = LN(MY_CROSS_D, BR_FOOT, GY - 7), r = sub(F0, PIV);
   const F = [PIV[0] + r[0] * c - r[1] * s - 14, PIV[1] + r[0] * s + r[1] * c], u = [Math.cos(ang), Math.sin(ang)], C = add(F, u, L / 2);
   const g = 5200, v0 = [-70, 160], w = -2.6;
   const tHit = (-v0[1] + Math.sqrt(v0[1] * v0[1] + 2 * g * (SEA - 30 - C[1]))) / g;
-  return { L, ang, C, g, v0, w, tHit, hitX: C[0] + v0[0] * tHit };
+  return { L, ang, C, g, v0, w, tHit, hitX: C[0] + v0[0] * tHit, t0: B.fall };
 })();
 function fallState(t) {
-  const tau = Math.max(0, t - 19.2), sink = Math.max(0, tau - FALL.tHit);
+  const tau = Math.max(0, t - FALL.t0), sink = Math.max(0, tau - FALL.tHit);
   const tf = Math.min(tau, FALL.tHit), C = [FALL.C[0] + FALL.v0[0] * tf + -20 * sink, FALL.C[1] + FALL.v0[1] * tf + .5 * FALL.g * tf * tf + 120 * sink];
   const ang = FALL.ang + FALL.w * tf + .4 * sink, u = [Math.cos(ang), Math.sin(ang)];
   return { F: add(C, u, -FALL.L / 2), ang, L: FALL.L, fl: 1, falling: true, sink };
 }
 
 // ================================================================ timeline: the others
+// each one: lays the cross across (b) → runs over (b+.3…b+.9) → from the far side hauls it back by the head end and
+// shoulders it (b+.9…b+1.4) → carries it into the light (gone by b+1.8). Only one bridge at a time.
+const FAR_X = XF - 45;
 function othState(o, t) {
-  const ta = st8(t), base = { d: o.d, s: o.s, robe: o.robe, robeD: o.robeD, legs: o.legs, L: L0 };
-  if (!o.beat) { const x = o.x0 - o.v * t; return { ...base, x, f: -1, mode: 'walk', ph: walkPhase(o.x0 - x, 24), stride: 24, lean: .26, hipH: 128, carry: { drag: true }, bow: .12 }; }
-  const b = o.beat;
+  const ta = st8(t), base = { d: o.d, s: o.s, robe: o.robe, robeD: o.robeD, legs: o.legs, L: L0 }, b = o.beat;
   if (t < o.tStop) { const x = o.x0 - o.v * t; return { ...base, x, f: -1, mode: 'walk', ph: walkPhase(o.x0 - x, 26), stride: 26, lean: .17, hipH: 130, carry: { drag: true }, bow: .12 }; }
-  if (t < b) return { ...base, x: STOPX, f: -1, mode: 'stand', lean: .2, hipH: 130, carry: { drag: true }, bow: -.1 };
-  if (t < b + 1.1) return { ...base, x: STOPX, f: -1, mode: 'stand', lean: t < b + .45 ? -.05 : .18, hipH: 132, raise: true, bow: -.15 };
-  // crossing: near ground → beam → far ground → the gate
-  const dist = (t - b - 1.1) * WALK_V, x = STOPX - dist;
-  let d = o.d, y = 0;
-  if (x < BR_FOOT + 5) d = lerp(o.cd, o.d, clamp((x - (BR_FOOT - 20)) / 25));
-  if (x < BR_FOOT + 5 && x > BR_HEAD - 5) y = -14;
-  if (x < XF - 30) d = lerp(o.cd, GATE_D, clamp((XF - 30 - x) / 120));
-  const fade = clamp((x - GATE_X) / 70);
-  if (fade <= 0) return null;
-  return { ...base, x: Math.max(x, GATE_X), dy: y, d, f: -1, mode: 'walk', ph: walkPhase(dist, 24), stride: 24, lean: .02, hipH: 134, bow: -.05, alpha: fade, arms: 'balance' };
+  if (t < b - .35) return { ...base, x: STOPX, f: -1, mode: 'stand', lean: .2, hipH: 130, carry: { drag: true }, bow: -.1 };
+  if (t < b + .3) return { ...base, x: STOPX, f: -1, mode: 'stand', lean: t < b - .1 ? -.05 : .18, hipH: 132, raise: true, bow: -.15 };
+  if (t < b + .9) {                                              // over the bridge, quick strides
+    const u = seg(t, b + .3, b + .9), x = lerp(STOPX, FAR_X, u), on = x < BR_FOOT + o.fo + 5 && x > BR_FOOT + o.fo - L0 - 5;
+    return { ...base, x, d: lerp(o.d, o.cd + 4, clamp((STOPX - x) / 30)), dy: on ? -14 : 0, f: -1, mode: 'walk', ph: walkPhase(STOPX - x, 46), stride: 46, lean: .16, hipH: 134, bow: -.05, arms: 'balance' };
+  }
+  if (t < b + 1.15) return { ...base, x: FAR_X, d: o.cd + 10, f: 1, mode: 'stand', lean: -.28, hipH: 128, pull: true, bow: -.1 };
+  if (t < b + 1.8) {                                             // shouldered, into the light
+    const u = seg(t, b + 1.15, b + 1.75), x = lerp(FAR_X, GATE_X + 8, u), fade = 1 - seg(t, b + 1.5, b + 1.78);
+    if (fade <= 0) return null;
+    return { ...base, x, d: lerp(o.cd + 10, GATE_D, u), f: -1, mode: 'walk', ph: walkPhase(FAR_X - x, 30), stride: 30, lean: .1, hipH: 134, carry: {}, bow: 0, alpha: fade };
+  }
+  return null;
 }
-function othCross(o, t) {    // their cross when not on the shoulder (raised / falling forward / lying across)
-  if (!o.beat || t < o.beat) return null;
-  const ta = st8(t), b = o.beat, F0 = LN(o.cd, BR_FOOT + o.fo, GY - 7);
-  if (ta < b + .35) { const u = seg(ta, b, b + .35); return { F: lp2(LN(o.cd, STOPX + 200, GY - 7), F0, eo(u)), ang: lerp(Math.PI * 1.24, Math.PI * 1.5, eo(u)), L: L0, fl: 0 }; }
-  if (ta < b + .45) return { F: F0, ang: Math.PI * 1.5, L: L0, fl: 0 };
-  if (ta < b + .85) { const u = seg(ta, b + .45, b + .85); return { F: F0, ang: Math.PI * 1.5 - Math.PI * .5 * u * u, L: L0, fl: ss(.55, 1, u) }; }
-  const bounce = ta < b + 1.0 ? -6 * Math.sin(seg(ta, b + .85, b + 1.0) * Math.PI) : 0;
-  return { F: [F0[0], F0[1]], ang: Math.PI + bounce * .004, L: L0, fl: 1 };
+function othCross(o, t) {    // their cross when not on the shoulder: raised / falling forward / lying across / hauled back
+  const b = o.beat, ta = st8(t), F0 = LN(o.cd, BR_FOOT + o.fo, GY - 7);
+  if (t < b - .35 || t >= b + 1.15) return null;
+  if (ta < b - .1) { const u = seg(ta, b - .35, b - .1); return { F: lp2(LN(o.cd, STOPX + 200, GY - 7), F0, eo(u)), ang: lerp(Math.PI * 1.24, Math.PI * 1.5, eo(u)), L: L0, fl: 0 }; }
+  if (ta < b + .15) { const u = seg(ta, b - .1, b + .15); return { F: F0, ang: Math.PI * 1.5 - Math.PI * .5 * u * u, L: L0, fl: ss(.55, 1, u) }; }
+  if (ta < b + .9) { const bounce = ta < b + .3 ? -6 * Math.sin(seg(ta, b + .15, b + .3) * Math.PI) : 0; return { F: F0, ang: Math.PI + bounce * .004, L: L0, fl: 1 }; }
+  // hauled back by the head end: the head rises to his hands, the foot slips off the near lip and swings below it
+  const u = eo(seg(ta, b + .9, b + 1.15)), head0 = add(F0, [-1, 0], L0), head1 = LN(o.cd + 10, FAR_X + 24, GY - 118);
+  const ang = Math.PI + .45 * u, hd = lp2(head0, head1, u), uv = [Math.cos(ang), Math.sin(ang)];
+  return { F: add(hd, uv, -L0), ang, L: L0, fl: 1 - u };
 }
 
 // ================================================================ the cross
@@ -401,7 +405,7 @@ function drawCross(c, mine, o = {}) {
   const top = poly([fT, hT, add(hT, Dt), add(fT, Dt)]);
   const beam = poly([add(F, n, hw), add(Hd, n, hw), add(Hd, n, -hw), add(F, n, -hw)]);
   const bw = lerp(9, 11, fl), bar = poly([add(add(J, v), u, bw), add(add(J, v), u, -bw), add(add(J, v, -1), u, -bw), add(add(J, v, -1), u, bw)]);
-  if (ghost) { const ga = o.alpha ?? 1; fill(top, PAL.beniC, ga * .3); fill(beam, PAL.beniC, ga * .3); fill(bar, PAL.beniC, ga * .3); key(top, w * .8, PAL.sumi, ga * .9); key(beam, w, PAL.sumi, ga); key(bar, w, PAL.sumi, ga); return g; }
+  if (ghost) { const ga = o.alpha ?? 1, fa = ga * .3 * (o.fillA ?? 1); if (fa > 0) { fill(top, PAL.beniC, fa); fill(beam, PAL.beniC, fa); fill(bar, PAL.beniC, fa); } ix.setLineDash([13, 9]); key(top, w * .8, PAL.sumi, ga * .9); key(beam, w, PAL.sumi, ga); key(bar, w, PAL.sumi, ga); ix.setLineDash([]); return g; }
   if (fl > .3) both(top, colT, w * .8);
   both(beam, col, w);
   // grain lines on the beam
@@ -517,7 +521,11 @@ function drawFigure(st, t, hooks = {}) {
   let cross = null, cg = null;
   if (st.carry) { cross = carryCross(R, st); cg = crossGeo(cross); let vd = cg.pv[1] > 0 ? cg.pv : [-cg.pv[0], -cg.pv[1]];
     hF = add(cg.J, vd, ARM * .42); hN = add(cg.J, vd, ARM * .8); }
-  if (st.hands === 'limp' || (!hN && !st.saw && !st.raise && !st.lay && st.hands !== 'lift')) {
+  if (st.sawHold) {   // the saw already in my (near) hand, hanging at my side — pumping when I run
+    const sw = st.mode === 'walk' ? Math.sin((st.ph || 0) * TAU) * (st.run ? .75 : .25) : 0;
+    hN = hangArm(R, -sw + .12)[1];
+  }
+  if (st.hands === 'limp' || (!hN && !st.saw && !st.raise && !st.lay && !st.pull && st.hands !== 'lift')) {
     const sw = st.mode === 'walk' ? Math.sin((st.ph || 0) * TAU) * .5 : 0;
     const bal = st.arms === 'balance' ? .45 : 0;
     hN = hangArm(R, (bal ? -bal : -sw * .6 + .08))[1]; hF = hangArm(R, bal ? bal : sw * .6 + .08)[1];
@@ -532,10 +540,10 @@ function drawFigure(st, t, hooks = {}) {
     sawP = { dir, grip, xc, top };
   }
   let ext = null;
-  if (st.raise || st.lay) { ext = st.raise ? hooks.cross : hooks.cross; }
+  if (st.raise || st.lay || st.pull) ext = hooks.cross;
   if (ext) {
     const g = crossGeo(ext), u = g.u;
-    const pts = st.lay ? [add(ext.F, u, 22), add(ext.F, u, 48)] : [add(ext.F, u, 170 * s), add(ext.F, u, 128 * s)];
+    const pts = st.pull ? [add(g.Hd, u, -14), add(g.Hd, u, -44)] : st.lay ? [add(ext.F, u, 22), add(ext.F, u, 48)] : [add(ext.F, u, 170 * s), add(ext.F, u, 128 * s)];
     const reach = (R.UA + R.FA) * 1.02;
     hF = pts[0]; hN = pts[1];
     if (len(sub(hF, R.sh)) > reach) hF = add(R.sh, nrm(sub(hF, R.sh)), reach * .97);
@@ -577,6 +585,16 @@ function drawFigure(st, t, hooks = {}) {
     const kn = new Path2D(); for (let q = -1; q <= 2; q++) { const p0 = add(add(g, d, q * 4.6 * s - 2 * s), nb, -7 * s), p1 = add(p0, nb, 5 * s); kn.moveTo(p0[0], p0[1]); kn.lineTo(p1[0], p1[1]); }
     key(kn, KW * s * .45);
     const th = new Path2D(), t0 = add(add(g, d, -8 * s), nb, 6.5 * s), t1 = add(add(g, d, -18 * s), nb, 3 * s); th.moveTo(t0[0], t0[1]); th.quadraticCurveTo(t1[0] + nb[0] * 4 * s, t1[1] + nb[1] * 4 * s, t1[0], t1[1]); key(th, KW * s * .8);
+  } else if (st.sawHold) {
+    const bd = nrm([f * .72, .7]), h0 = add(hN, bd, -46 * s), b0 = add(hN, bd, 9 * s), b1 = add(hN, bd, 128 * s), nb = [-bd[1], bd[0]];
+    const blade = poly([add(b0, nb, -4.5 * s), add(b1, nb, -9 * s), add(b1, nb, 7 * s), add(b0, nb, 4.5 * s)]);
+    both(blade, PAL.steel, KW * s * .7);
+    const teeth = new Path2D(); for (let q = 0; q < 14; q++) { const p0 = add(add(b0, bd, q * 8.4 * s), nb, (4.5 + q * .2) * s); teeth.moveTo(p0[0], p0[1]); const p1 = add(add(p0, bd, 3 * s), nb, 2.6 * s); teeth.lineTo(p1[0], p1[1]); const p2 = add(p0, bd, 6 * s); teeth.lineTo(p2[0], p2[1]); }
+    key(teeth, KW * s * .4);
+    both(capsule(hN, h0, 4.5 * s, 4 * s), PAL.woodT, KW * s * .7);
+    const wr = new Path2D(); for (let q = 1; q < 5; q++) { const p0 = add(add(hN, bd, -q * 9 * s), nb, -4.5 * s), p1 = add(add(p0, nb, 9 * s), bd, 3 * s); wr.moveTo(p0[0], p0[1]); wr.lineTo(p1[0], p1[1]); }
+    key(wr, KW * s * .4, PAL.woodD);
+    drawArm(R, R.sh, eN, hN, C, false);
   } else drawArm(R, R.sh, eN, hN, C, false);
   if (alpha < 1) ix.restore();
   return R;
@@ -649,27 +667,28 @@ function drawSplash(t) {
     if (y > SEA + 10) continue; sp.moveTo(x + r, y); sp.arc(x, y, r, 0, TAU); }
   erase(sp, 1); key(sp, 1.2, PAL.prusD, .8);
 }
-function drawGate(t) {
-  const [bx, by] = LN(GATE_D, GATE_X, GY), w = 92, hpost = 300;
-  // light inside the doorway: unprinted paper + rays down the road
-  const door = poly([[bx - w + 12, by], [bx - w + 12, by - hpost + 30], [bx + w - 12, by - hpost + 30], [bx + w - 12, by]]);
-  both(door, PAL.ochreL, 0); erase(door, .92);
-  // rays (paper) spilling onto the ground and up
-  const rays = new Path2D(); for (const [a, b] of [[-.5, -.22], [-.08, .08], [.22, .5]]) { rays.moveTo(bx - w * .2, by - 120); rays.lineTo(bx + Math.cos(Math.PI + a) * 460, by - 120 + Math.sin(Math.PI + a) * 460); rays.lineTo(bx + Math.cos(Math.PI + b) * 460, by - 120 + Math.sin(Math.PI + b) * 460); rays.closePath(); }
-  ix.setTransform(MF); const rg = ix.createRadialGradient(bx, by - 120, 30, bx, by - 120, 470); rg.addColorStop(0, 'rgba(0,0,0,.5)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
-  erase(rays, 1, rg);
-  // a fan of light above the gate (bare paper through the mountains)
-  const fan = new Path2D(); for (let i = 0; i < 11; i++) { const a = -Math.PI * (.12 + .76 * i / 10), l = 330 + (i % 3) * 70, w = .035; fan.moveTo(bx, by - 170); fan.lineTo(bx + Math.cos(a - w) * l, by - 170 + Math.sin(a - w) * l); fan.lineTo(bx + Math.cos(a + w) * l, by - 170 + Math.sin(a + w) * l); fan.closePath(); }
-  ix.setTransform(MF); const fg = ix.createRadialGradient(bx, by - 170, 60, bx, by - 170, 420); fg.addColorStop(0, 'rgba(0,0,0,.6)'); fg.addColorStop(1, 'rgba(0,0,0,0)'); erase(fan, 1, fg);
-  // doors ajar (dark wood), posts, tie beam, roof
+function drawGate(t) {   // a plain stone arch; the doorway is bare paper (light)
+  const [bx, by] = LN(GATE_D, GATE_X, GY), w = 78, hp = 210, th = 40, cy = by - hp;
+  const fan = new Path2D(); for (let i = 0; i < 11; i++) { const a = -Math.PI * (.12 + .76 * i / 10), l = 330 + (i % 3) * 70, aw = .035; fan.moveTo(bx, cy); fan.lineTo(bx + Math.cos(a - aw) * l, cy + Math.sin(a - aw) * l); fan.lineTo(bx + Math.cos(a + aw) * l, cy + Math.sin(a + aw) * l); fan.closePath(); }
+  ix.setTransform(MF); const fg = ix.createRadialGradient(bx, cy, 60, bx, cy, 430); fg.addColorStop(0, 'rgba(0,0,0,.6)'); fg.addColorStop(1, 'rgba(0,0,0,0)'); erase(fan, 1, fg);
+  // rays down the road
+  const rays = new Path2D(); for (const [a, b] of [[-.5, -.22], [-.08, .08], [.22, .5]]) { rays.moveTo(bx, by - 100); rays.lineTo(bx + Math.cos(Math.PI + a) * 460, by - 100 + Math.sin(Math.PI + a) * 460); rays.lineTo(bx + Math.cos(Math.PI + b) * 460, by - 100 + Math.sin(Math.PI + b) * 460); rays.closePath(); }
+  ix.setTransform(MF); const rg = ix.createRadialGradient(bx, by - 100, 30, bx, by - 100, 470); rg.addColorStop(0, 'rgba(0,0,0,.45)'); rg.addColorStop(1, 'rgba(0,0,0,0)'); erase(rays, 1, rg);
+  // the doorway: warm edge, bare paper inside
+  const door = new Path2D(); door.moveTo(bx - w, by); door.lineTo(bx - w, cy); door.arc(bx, cy, w, Math.PI, 0); door.lineTo(bx + w, by); door.closePath();
+  fill(door, PAL.ochreL); ix.setTransform(MF); const dg = ix.createRadialGradient(bx, by - hp * .55, 10, bx, by - hp * .55, w * 2.1); dg.addColorStop(0, 'rgba(0,0,0,1)'); dg.addColorStop(.7, 'rgba(0,0,0,.9)'); dg.addColorStop(1, 'rgba(0,0,0,.2)'); erase(door, 1, dg);
+  key(door, KW);
+  // stone piers with block joints, and the arch ring of wedge stones
+  const stone = '#aaa692', joints = new Path2D();
   for (const sd of [-1, 1]) {
-    const d = poly([[bx + sd * (w - 12), by], [bx + sd * (w - 40), by + 10], [bx + sd * (w - 40), by - hpost + 38], [bx + sd * (w - 12), by - hpost + 30]]); both(d, PAL.woodD, KW);
-    const post = poly([[bx + sd * (w - 14), by + 4], [bx + sd * (w + 8), by + 4], [bx + sd * (w + 8), by - hpost], [bx + sd * (w - 14), by - hpost]]); both(post, PAL.wood, KW);
+    const x0 = bx + sd * w, x1 = bx + sd * (w + th);
+    both(poly([[x0, by + 2], [x1, by + 2], [x1, cy], [x0, cy]]), stone, KW);
+    for (let y = by - 44, k = 0; y > cy + 10; y -= 44, k++) { joints.moveTo(x0, y); joints.lineTo(x1, y); const xm = lerp(x0, x1, k % 2 ? .35 : .65); joints.moveTo(xm, y); joints.lineTo(xm, y + 44); }
   }
-  both(poly([[bx - w - 26, by - hpost + 30], [bx + w + 26, by - hpost + 30], [bx + w + 26, by - hpost + 4], [bx - w - 26, by - hpost + 4]]), PAL.woodD, KW);
-  const roof = smooth([[bx - w - 82, by - hpost - 6], [bx - w - 40, by - hpost - 14], [bx, by - hpost - 64], [bx + w + 40, by - hpost - 14], [bx + w + 82, by - hpost - 6], [bx + w + 50, by - hpost + 10], [bx - w - 50, by - hpost + 10]], true);
-  both(roof, PAL.greyD, KW);
-  const tl = new Path2D(); for (let i = -6; i <= 6; i++) { tl.moveTo(bx + i * 18, by - hpost - 52 + Math.abs(i) * 6); tl.lineTo(bx + i * 24, by - hpost + 4); } key(tl, 1.4, PAL.sumi, .8);
+  const ring = new Path2D(); ring.arc(bx, cy, w + th, Math.PI, 0); ring.lineTo(bx + w, cy); ring.arc(bx, cy, w, 0, Math.PI, true); ring.closePath();
+  both(ring, stone, KW);
+  for (let k = 1; k < 9; k++) { const a = Math.PI + Math.PI * k / 9; joints.moveTo(bx + Math.cos(a) * w, cy + Math.sin(a) * w); joints.lineTo(bx + Math.cos(a) * (w + th), cy + Math.sin(a) * (w + th)); }
+  key(joints, 1.5, PAL.greyD);
 }
 
 // ================================================================ camera (moves on ones)
@@ -677,31 +696,35 @@ function camFollow(z, x, gyScreen) { return { z, x, y: GY - (gyScreen - 960) / z
 function mix(a, b, k) { return { z: Math.exp(lerp(Math.log(a.z), Math.log(b.z), k)), x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k) }; }
 function camera(t) {
   const meX = x => x + DX * ME_D;
-  const s0 = camFollow(1.08, meX(X0 - V0 * Math.min(t, SAW[0])) - 90, 1250);
+  const mx0 = meX(X0 - V0 * Math.min(t, SAW[0]));
+  const c0 = camFollow(2.4, mx0 - 10, 1500);                     // frame 0: close on me, the saw already in my hand
+  const s0 = camFollow(1.08, mx0 - 90, 1250);                    // …widening to the procession by ~2.6 s
   const s1 = camFollow(1.7, K1 + DX * ME_D + 10, 1100);
-  const s2 = camFollow(1.0, Math.max(XN + 600, meX(meRunX(clamp(t, RUN0, RUN1))) - 170), 1240);   // the gap stays out of frame until 12 s
+  const s2 = camFollow(1.0, Math.max(XN + 600, meX(meRunX(clamp(t, RUN0, RUN1))) - 150), 1240);   // the gap stays out of frame until 12 s
   const s3 = camFollow(1.6, XC2 + DX * LY_D + 60, 1100);
   const s4 = camFollow(lerp(.98, 1.04, ss(12.2, 18.4, t)), lerp(700, 690, ss(12, 18.4, t)), 1180);
-  if (t < 3.05) return s0;
-  if (t < 4.35) return mix(s0, s1, eio(seg(t, 3.05, 3.45)));
+  if (t < 3.1) return mix(c0, s0, eio(seg(t, 1.5, 2.6)));
+  if (t < 4.35) return mix(s0, s1, eio(seg(t, 3.1, 3.45)));
   if (t < 8.7) return mix(s1, s2, eio(seg(t, 4.35, 4.9)));
   if (t < 11.3) return mix(s2, s3, eio(seg(t, 8.7, 9.1)));
-  if (t < 19.2) return mix(mix(s3, s4, eio(seg(t, 11.3, 12.05))), camFollow(1.42, 790, 1120), eio(seg(t, 18.05, 18.55)));
-  if (t < 20.3) {                                                 // the hit: hard cut to a tight print following the drop
-    const u = seg(t, 19.2, 20.3), shake = t > 19.2 + FALL.tHit && t < 19.55 + FALL.tHit ? Math.sin(t * 90) * 6 * (1 - seg(t, 19.2 + FALL.tHit, 19.55 + FALL.tHit)) : 0;
+  if (t < B.fall) return mix(mix(s3, s4, eio(seg(t, 11.3, 12.05))), camFollow(1.42, 790, 1120), eio(seg(t, 18.05, 18.55)));
+  const T1 = B.fall + 1.1;
+  if (t < T1) {                                                  // the hit: hard cut to a tight print following the drop
+    const u = seg(t, B.fall, T1), th = B.fall + FALL.tHit, shake = t > th && t < th + .35 ? Math.sin(t * 90) * 6 * (1 - seg(t, th, th + .35)) : 0;
     return { z: 1.9, x: FALL.hitX + 40 + shake, y: lerp(1400, 1470, eo(u)) };
   }
-  const s6 = camFollow(1.0, 700, 1180);
-  if (t < 21.0) return s6;
-  const s7 = camFollow(.59, 1400, 1100);
-  const s8 = camFollow(1.15, 690, 1120);
-  if (t < 23.4) return mix(s6, s7, eio(seg(t, 21.0, 22.4)));
-  return mix(s7, s8, eio(seg(t, 23.45, 25.1)));
+  const s6 = camFollow(1.1, 760, 1150);                          // back at the edge: me, empty-handed
+  const sP = camFollow(1.25, 1230, 1150);                         // the road behind me: the three pieces, glowing
+  const s8 = camFollow(1.15, 690, 1120);                         // the gap: they fill the outline
+  if (t < 21.6) return s6;
+  if (t < B.fill[0] + .1) return mix(s6, sP, eio(seg(t, 21.6, 22.25)));
+  return mix(sP, s8, eio(seg(t, B.fill[0] + .1, B.fill[1] - .1)));
 }
 
 // ================================================================ frame
+let GLOWS = [];
 function lanesDraw(t) {
-  const items = [];
+  const items = []; GLOWS = [];
   const me = meState(t);
   const lay = myLay(t);
   // others (+ their crosses as separate items when off the shoulder)
@@ -713,10 +736,11 @@ function lanesDraw(t) {
   // pieces on the road / flying to the gap
   for (let k = 0; k < 3; k++) {
     const P = PIECES[k]; if (t < P.at) continue;
-    const [g0, g1] = GLIDE[k], u = seg(t, g0, g1), e = eio(u), lift = Math.sin(u * Math.PI) * 70;
+    const [g0, g1] = GLIDE[k], u = seg(t, g0, g1), e = eio(u), lift = Math.sin(u * Math.PI) * 110;
     const a = lerp(P.a, P.ta, e), b = lerp(P.b, P.tb, e), rot = lerp(P.rot, 0, e);
     const drop = t < P.at + .25 ? (1 - eo(seg(t, P.at, P.at + .25))) * 10 : 0;
-    const pd = lerp(LY_D, MY_CROSS_D, e), gl = Pilot.win(t, 21.7, 23.6, .5, .5);
+    const pd = lerp(LY_D, MY_CROSS_D, e), gl = Pilot.win(t, B.back + .2, g1 + .5, .4, .5);
+    if (gl > 0) GLOWS.push([LN(pd, (a + b) / 2, GY - 12 - lift), gl]);
     if (gl > 0) items.push({ d: pd + .1, z: 1.9, fn: () => { const [cx, cy] = LN(pd, (a + b) / 2, GY - 10); ix.setTransform(MF); const rg = ix.createRadialGradient(cx, cy, 4, cx, cy, 90); rg.addColorStop(0, `rgba(0,0,0,${.75 * gl})`); rg.addColorStop(1, 'rgba(0,0,0,0)'); erase(circ([cx, cy], 90), 1, rg); } });
     items.push({ d: pd, z: 2, fn: () => drawPiece(a, b, GY - drop, rot, lift, pd) });
   }
@@ -725,8 +749,9 @@ function lanesDraw(t) {
   if (me.lying) { const L = me.lying.L, F = LN(LY_D, me.lying.foot, GY - 7); mid = () => { drawCross({ F, ang: Math.PI, L, fl: 1 }, true); if (me.saw) drawKerf(me.saw.xc, me.saw.prog, me.saw.ta); }; }
   if (lay && !lay.falling) items.push({ d: MY_CROSS_D, z: 3, fn: () => drawCross(lay, true) });
   // the ghost of my whole cross across the gap (key block only), from 23.0
-  const ga = ss(23.0, 23.6, t);
-  if (ga > 0) items.push({ d: MY_CROSS_D, z: 1.5, fn: () => drawCross({ F: LN(MY_CROSS_D, BR_FOOT, GY - 7), ang: Math.PI, L: L0, fl: 1 }, true, { ghost: true, alpha: ga, kw: 2.2 }) });
+  // the dashed outline of my whole cross: while mine hangs short, and again when the pieces come
+  const ga = Math.max(.85 * Pilot.win(t, 18.75, B.fall - .05, .3, .2), ss(B.fill[0] - .3, B.fill[0] + .2, t));
+  if (ga > 0) items.push({ d: MY_CROSS_D, z: 1.5, fn: () => drawCross({ F: LN(MY_CROSS_D, BR_FOOT, GY - 7), ang: Math.PI, L: L0, fl: 1 }, true, { ghost: true, alpha: ga, kw: 2.4, fillA: t > B.fill[0] - .3 ? 1 : 0 }) });
   const meSt = { ...me, mineCross: true };
   items.push({ d: me.d, z: 1, fn: () => drawFigure(meSt, t, { mid, cross: lay }) });
   items.sort((a, b) => (b.d - a.d) || (a.z - b.z));
@@ -810,6 +835,9 @@ function draw(ctx, t) {
   const scr = MK.transformPoint(new DOMPoint(gx, gy)), R0 = 260 * c.z;
   ctx.save(); ctx.globalCompositeOperation = 'screen'; const lg = ctx.createRadialGradient(scr.x, scr.y, 0, scr.x, scr.y, R0 * 1.6);
   lg.addColorStop(0, `rgba(255,236,190,${(.32 + .2 * pulse) * (1 - wash)})`); lg.addColorStop(1, 'rgba(255,236,190,0)'); ctx.fillStyle = lg; ctx.fillRect(scr.x - R0 * 1.6, scr.y - R0 * 1.6, R0 * 3.2, R0 * 3.2); ctx.restore();
+  // the cut pieces glow (warm light, screen) from the turn until they land
+  for (const [p, g] of GLOWS) { const q = MK.transformPoint(new DOMPoint(p[0], p[1])), r = 120 * c.z;
+    ctx.save(); ctx.globalCompositeOperation = 'screen'; const gg = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, r); gg.addColorStop(0, `rgba(255,226,170,${.55 * g})`); gg.addColorStop(1, 'rgba(255,226,170,0)'); ctx.fillStyle = gg; ctx.fillRect(q.x - r, q.y - r, 2 * r, 2 * r); ctx.restore(); }
   captions(ctx, t);
   if (wash > 0) { plate(ctx, 110, 600, 970, 1150, wash); Story.endCard(ctx, t, S.endCard, B.end, { font: "'Noto Serif KR',serif", color: '#231f1c', srcColor: '#3a3430', titleShadow: '' }); }
 }
