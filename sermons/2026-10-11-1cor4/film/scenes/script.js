@@ -5,14 +5,22 @@
    the pieces I cut lie on the road behind me — together, exactly a bridge. Loop → frame 0 (my whole cross, before cutting). */
 window.SCRIPT = {
   DUR: 30.5,
+  /* v2 (viewer reviews, reviews/2026-10-23-1cor4-v1.md): the others TAKE THEIR CROSS BACK after crossing (each bridge is
+     only its owner's), so the chasm is empty when I arrive; frame 0 is a close-up of me with the saw already in my hand;
+     my short cross hangs short for a full second before it tips; the cut pieces glow and fly into the missing span. */
   beat: {
-    hook: 0,                // frame 0: the procession on the road; me in front, staggering under my cross (the marked one)
-    saw: [3.2, 9.0, 10.4],  // I put the cross down and saw the foot off (each cut: saw 0.4 s… piece drops at +0.8)
-    run: [4.6, 8.6],        // lighter: I stride ahead and overtake the others (they keep their pace)
+    hook: 0,                // frame 0: CLOSE on me — bent under my cross, a saw already in my hand (→ "뭐 하려고?"); by ~2.6 the view widens to the procession
+    saw: [3.2, 9.0, 10.4],  // I put the cross down and saw the foot off (sawing ≈0.4 s; the piece drops ≈0.8 s after the beat start and stays on the road)
+    run: [4.6, 8.6],        // lighter: I stride ahead and overtake the others (exaggerate it — big strides, they fall behind)
     gap: 12.0,              // the road ends: a chasm; across it a gate with light leaking through
-    bridges: [14.2, 15.4, 16.6], // the others, one by one, lay their crosses across — each spans the gap exactly — and walk into the light
-    mine: 18.4,             // THE moment: I lay mine across — it's short (18.9 it tips) and falls into the chasm (19.2 crash)
-    back: 21.0,             // I turn: on the road behind me lie the pieces I cut — together exactly a bridge's length
+    bridges: [14.2, 15.4, 16.6], // each other pilgrim, one at a time: lays the cross across (t) → walks over (t+.3…t+.9) → from the far
+                            //   side pulls it back and shoulders it (t+.9…t+1.4) → carries it into the light (by t+1.8). Only one bridge at a time;
+                            //   when the last one has gone (≈18.2) the chasm is EMPTY again.
+    mine: 18.4,             // THE moment: I lay mine across the empty chasm — short: it hangs off the near lip, clearly short of the far side
+    tip: 19.3,              // …held short for ~1 s, then it tips
+    fall: 19.6,             // it falls into the chasm (the hit). I do NOT fall.
+    back: 21.2,             // I turn: the pieces I cut lie on the road behind me
+    fill: [22.2, 24.4],     // they glow, lift and fly into the missing span one by one (a dashed outline of my whole cross shows the gap) — exactly filling it
     end: 26.5,              // end card (4 s), then the loop into frame 0
   },
   /* how much of my cross is left after each cut (1 = the full length the gap needs) */
