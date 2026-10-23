@@ -4,7 +4,7 @@
    hit shot keeps the teen's face (the red creeps up my fingers instead of a still), the grandchild gets more time,
    and the return is a real REWIND of the whole drawing (clock backwards, the red drawn back in) before I answer. */
 window.SCRIPT = {
-  DUR: 29.5,
+  DUR: 31.0,
   beat: {
     ring0: 0,                // frame 0: the phone buzzing on the table near my hand, the child across the table
     push1: [0.5, 1.9],       // MY hand slides the phone across to the child (it leaves a red smear)
@@ -23,7 +23,7 @@ window.SCRIPT = {
     flood: [19.0, 21.8],     // the red floods the table toward me and swallows my hand
     back: [21.9, 23.9],      // REWIND: the whole drawing runs backwards to the first morning (clock backwards, red drawn back in)
     answer: [24.0, 25.2],    // this time my hand picks the phone up myself
-    end: 27.0,               // end card (2.5 s), loops into frame 0
+    end: 27.0,               // end card (4 s — long enough to read the source), loops into frame 0
   },
   lines: [
     [0.3, 2.9, '“아빠 없다고 해”'],

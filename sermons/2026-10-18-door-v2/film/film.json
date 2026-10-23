@@ -4,8 +4,8 @@
  "scenes": [
   {
    "id": "door-hopper",
-   "label": "문틈 · 호퍼 (27.5초)",
-   "dur": 27.5
+   "label": "문틈 · 호퍼 (29초)",
+   "dur": 29.0
   }
  ],
  "audio": "scenes/soundtrack.wav",

@@ -1,5 +1,5 @@
 {
- "duration": 29.5,
+ "duration": 31.0,
  "music": [
   {
    "id": "m1",
@@ -24,10 +24,10 @@
    "id": "m3",
    "src": "warm",
    "at": 24.0,
-   "len": 5.5,
+   "len": 7.0,
    "db": -3,
    "fin": 0.5,
-   "fout": 1.2,
+   "fout": 1.8,
    "prompt": "Warm gentle resolution: solo piano playing a soft major chord progression with light warm strings, hopeful and calm, slow"
   }
  ],
@@ -36,7 +36,7 @@
    "id": "tk",
    "src": "tick",
    "at": 0.0,
-   "len": 29.5,
+   "len": 31.0,
    "db": -16,
    "loop": true,
    "fout": 1.0,

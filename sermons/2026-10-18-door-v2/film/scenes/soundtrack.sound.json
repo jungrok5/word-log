@@ -1,5 +1,5 @@
 {
- "duration": 27.5,
+ "duration": 29.0,
  "music": [
   {
    "id": "m1",
@@ -13,10 +13,10 @@
    "id": "m2",
    "src": "resolve",
    "at": 17.8,
-   "len": 9.7,
+   "len": 11.04,
    "db": 1,
    "fin": 0.6,
-   "fout": 1.2
+   "fout": 1.8
   }
  ],
  "sfx": [

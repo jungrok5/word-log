@@ -3,7 +3,7 @@
    push that opens it the last time; I can't shut it again (the other side pulls, my hand slips); then a man's hand from
    the OTHER side of the door — where the claws were — pushes it shut, and leaves red fingermarks on my side of the door. */
 window.SCRIPT = {
-  DUR: 27.5,
+  DUR: 29.0,
   beat: {
     hookIn: 0,               // frame 0: my hand on the lever, the door a hair open, a thread of light
     shadow: 1.2,             // something crosses the light under the door (→ "뭐지?")
@@ -20,7 +20,7 @@ window.SCRIPT = {
     close: 18.6,             // that hand pushes the door shut (done by 19.8); the shape is pushed out of the light
     marks: 19.9,             // the fingers let go: four red fingermarks stay on my side of the door, a warm thread under it
     rest: 22.2,              // my hand comes to the shut door and lies flat beside the marks (I won't open it)
-    end: 25.0,               // end card (2.5 s), loops into frame 0
+    end: 25.0,               // end card (4 s — long enough to read the source), loops into frame 0
   },
   lines: [
     [0.3, 3.2, '이 정도는… 괜찮겠지?'],

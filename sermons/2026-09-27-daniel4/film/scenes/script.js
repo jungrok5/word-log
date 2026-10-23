@@ -41,5 +41,5 @@ window.SCRIPT = {
 };
 
 /* — added by new-film.py: strategy defaults (see CLAUDE.md 영상 전략) — */
-if (window.SOURCE && window.Story) window.SCRIPT.endCard = Story.card(window.SOURCE);   // ≤ 2.5 s on screen; details go in the description
+if (window.SOURCE && window.Story) window.SCRIPT.endCard = Story.card(window.SOURCE);   // ~4 s on screen (beat.end = DUR − 4); links/CTA go in the description
 if (window.SCRIPT.loop == null) window.SCRIPT.loop = 0.6;                             // cross-fade the last 0.6 s into frame 0 (replays seamlessly)
