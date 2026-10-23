@@ -37,7 +37,7 @@ open(os.path.join(sc, 'source.js'), 'w', encoding='utf-8').write(
 # every script: end card from the source, loop seam on, a default short cut slot (edit to the film's beats)
 TAIL = """
 /* — added by new-film.py: strategy defaults (see CLAUDE.md 영상 전략) — */
-if (window.SOURCE && window.Story) window.SCRIPT.endCard = Story.card(window.SOURCE);   // ≤ 2.5 s on screen; details go in the description
+if (window.SOURCE && window.Story) window.SCRIPT.endCard = Story.card(window.SOURCE);   // ~4 s on screen (beat.end = DUR − 4); links/CTA go in the description
 if (window.SCRIPT.loop == null) window.SCRIPT.loop = 0.6;                             // cross-fade the last 0.6 s into frame 0 (replays seamlessly)
 """
 # One style: scenes/script.js. Several styles: each template keeps its own placeholder (script-<slug>.js) because the

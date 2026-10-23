@@ -27,7 +27,7 @@ for name, S in d['scripts'].items():
     print(f'— {name}: {D} s, {len(lines)} lines')
     say(25 <= D <= 35, f'main length {D} s (target 25–35)', not (20 <= D <= 40))
     end = (S.get('beat') or {}).get('end')
-    if end is not None: say(D - end <= 2.6, f'end card {D - end:.1f} s on screen (≤ 2.5)')
+    if end is not None: say(3.5 <= D - end <= 4.6, f'end card {D - end:.1f} s on screen (3.5–4.5 — long enough to read the source)')
     say(bool(ec.get('title')), 'end card built from source' if ec.get('title') else 'end card has no title', True)
     say(not ec.get('cta'), 'no CTA on screen (link/CTA belong in the description)')
     if lines: say(lines[0][0] <= 0.5, f'first words at {lines[0][0]} s (≤ 0.5 — the hook must speak at once)')

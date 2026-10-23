@@ -1,0 +1,19 @@
+/* The film's source (from source.json): the end card and the upload text are built from it. */
+window.SOURCE = {
+ "type": "sermon",
+ "url": "https://www.youtube.com/watch?v=cOFSr1WPfwQ",
+ "date": "2026-09-27",
+ "service": "2부예배",
+ "title": "광야의 시간을 어떻게 견뎌내야 할까?",
+ "passage": "다니엘 4:28-37",
+ "preacher": "민성기 목사",
+ "church": "더라이프지구촌교회",
+ "tags": [
+  "다니엘",
+  "광야",
+  "말씀",
+  "설교",
+  "묵상",
+  "쇼츠"
+ ]
+};

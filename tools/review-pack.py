@@ -45,7 +45,7 @@ L = [f'# 보는 것 · 듣는 것 — {D} s (세로 1080×1920, 끝나면 처음
 for ln in S.get('lines', []):
     L.append(f"- {ln[0]:.1f}–{ln[1]:.1f}s: “{ln[2].replace(chr(10), ' / ')}”" + (f'  ({ln[3]})' if len(ln) > 3 and ln[3] else ''))
 ec = S.get('endCard') or {}
-L += [f"- {S['beat'].get('end', D - 2.5):.1f}s–끝: 엔딩 카드 — {' / '.join(x.replace(chr(10), ' ') for x in [ec.get('kicker'), ec.get('title'), ec.get('passage'), ec.get('by')] if x)}", '', '## 소리']
+L += [f"- {S['beat'].get('end', D - 4):.1f}s–끝: 엔딩 카드 — {' / '.join(x.replace(chr(10), ' ') for x in [ec.get('kicker'), ec.get('title'), ec.get('passage'), ec.get('by')] if x)}", '', '## 소리']
 snd = os.path.join(film, 'scenes', 'soundtrack.sound.json')
 if os.path.exists(snd) and os.path.exists(os.path.join(film, cfg.get('audio', 'scenes/soundtrack.wav'))):
     sp = json.load(open(snd, encoding='utf-8'))

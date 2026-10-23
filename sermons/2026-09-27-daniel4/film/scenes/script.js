@@ -4,7 +4,7 @@
    out through the narrow neck, light fills its wing veins push by push, the wings open (the one colour: eyespots) and it
    flies into the lamp. The empty cocoon sways; the end card; the loop returns to the straining cocoon. */
 window.SCRIPT = {
-  DUR: 29,
+  DUR: 30.5,
   /* v2 (viewer reviews, reviews/2026-10-23-daniel4-v1.md): my hand's shadow is there from frame 0; the failure is quicker;
      no blackout — the film REWINDS to before the snip ("다시, 그 시간 앞에서"); the squeeze is long, with stalls; the climax
      line is mine, the verse goes small beneath it; no theatre/audience pull-back. */
@@ -25,7 +25,7 @@ window.SCRIPT = {
     free: 20.0,             // out, clinging on the twig
     open: 20.4,             // the wings open (to 21.9); the eyespots bloom red (the one colour)
     fly: 23.0,              // it lifts off the cloth toward the lamp (to 24.5); the empty cocoon sways
-    end: 26.5,              // end card (2.5 s) over the dimmed screen, loops into frame 0
+    end: 26.5,              // end card (4 s — long enough to read the source) over the dimmed screen, loops into frame 0
   },
   rewindTo: 2.6,
   lines: [

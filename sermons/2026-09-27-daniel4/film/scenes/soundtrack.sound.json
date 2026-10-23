@@ -1,5 +1,5 @@
 {
- "duration": 29,
+ "duration": 30.5,
  "music": [
   {
    "id": "m1",
@@ -26,10 +26,10 @@
    "id": "m3",
    "src": "warm",
    "at": 20.1,
-   "len": 8.9,
+   "len": 10.03,
    "db": -1,
    "fin": 0.4,
-   "fout": 1.6,
+   "fout": 2.4,
    "note": "take 2 of 4, C major; its swell lands ~23.4 (fly), decays from ~26.9 so the end is quiet for the loop",
    "prompt": "Warm hopeful resolution: soft piano playing gentle major chords with warm strings, opening like a breath of light, lifting a little, then settling calmly and fading to quiet, slow, no drums, no vocals"
   }
@@ -39,7 +39,7 @@
    "id": "bed",
    "src": "lamp",
    "at": 0.0,
-   "len": 29.0,
+   "len": 30.5,
    "db": -8,
    "loop": true,
    "note": "take 4 of 4 (seamless loop), +24 dB then limited at -24 dBFS so the crackle pops stay small",
@@ -267,7 +267,7 @@
    "at": 24.5,
    "len": 4.5,
    "db": 4,
-   "fout": 0.8,
+   "fout": 1.2,
    "note": "take 4 of 4 + a 4-tap echo (230-1100 ms) for the reverb tail",
    "prompt": "Faint soft creak of an empty dry cocoon swaying on a twig, delicate, with a long gentle reverb tail"
   },
