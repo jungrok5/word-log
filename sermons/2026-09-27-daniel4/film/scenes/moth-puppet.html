@@ -27,7 +27,7 @@ const LAMP = [540, 840];
 const GY = 1330;                                   // ground line (top of the carved ground strip)
 const COC = [530, 884], RC = -.05;                 // cocoon: its neck (top) on the cloth, and its lean
 const SNIP_Y = 36;                                 // where take 1 cuts the neck (cocoon local y); take 2's exit hole is at y 0
-const PERCH = -150;                                // the moth's thorax on the twig above the cocoon (cocoon local y)
+const PERCH = -125;                                // the moth's thorax on the twig above the cocoon (cocoon local y)
 const HS = 1.15;                                   // hand rig scale
 let HILLS, GROUND, STEM, LEAF, CBODY, CCAP, BODY, FAT, FW, HW, FWS, HWS, CRF, CRH, BLA, BLB, FIST, THUMB1, THUMB2, ARM;
 
@@ -60,7 +60,7 @@ function build() {
       g.fillStyle = P.DYE.floor;                                         // grass tufts standing on the line
       for (let x = 12, i = 0; x < 1080; x += 26 + (i * 37) % 23, i++) { const h = 14 + (i * 53) % 22; g.beginPath(); g.moveTo(x - 5, GY + 2); g.quadraticCurveTo(x - 2, GY - h * .6, x + (i % 2 ? 6 : -6), GY - h); g.quadraticCurveTo(x + 1, GY - h * .5, x + 5, GY + 2); g.fill(); }
     } });
-  const stem = [[456, GY + 6], [464, 1230], [476, 1130], [490, 1030], [504, 930], [512, 820], [516, 730], [522, 676]];
+  const stem = [[456, GY + 6], [464, 1230], [476, 1130], [490, 1030], [504, 930], [512, 830], [516, 760], [520, 718]];
   const twigL = [[490, 1036], [450, 990], [400, 958], [352, 946]], twigR = [[514, 790], [556, 752], [604, 728], [648, 720]];
   STEM = P.carve({ box: [330, 530, 690, GY + 20], res: 1.5, seed: 6, dye: P.DYE.deep, rim: 3,
     shape: g => { P.smooth(g, limb(stem, 22, 7)); P.smooth(g, limb(twigL, 10, 4)); P.smooth(g, limb(twigR, 10, 4)); },
@@ -324,7 +324,7 @@ function draw(ctx, t) {
   P.drawP(g, HILLS);
   P.drawP(g, GROUND);
   P.drawP(g, STEM);
-  for (const [x, y, a, i] of [[352, 946, Math.PI + .25, 0], [648, 720, -.2, 1], [522, 676, -1.3, 2]]) P.place(g, LEAF, { x, y, rot: a + .06 * Math.sin(t * 1.2 + i * 2) });
+  for (const [x, y, a, i] of [[352, 946, Math.PI + .25, 0], [648, 720, -.2, 1], [520, 718, -.65, 2]]) P.place(g, LEAF, { x, y, rot: a + .06 * Math.sin(t * 1.2 + i * 2) });
   // the cocoon on the twig (silk threads tie it on)
   const sw = cocoonSway(t), whole = t >= B.relight || t < B.snip;
   g.save(); g.setTransform(M.multiply(new DOMMatrix().translate(COC[0], COC[1]).rotate((RC + sw) * 180 / Math.PI)));

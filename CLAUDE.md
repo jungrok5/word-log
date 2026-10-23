@@ -50,14 +50,18 @@
       `scenes/script.js`(beats·lines; 엔딩 카드·loop 기본값이 붙어 있음), 키트 템플릿 장면.
    2. script.js를 콘티대로 쓰고(DUR 25–35, `beat.end = DUR − 2.5` 안팎), 템플릿의 자리 표시 대상을 이번 그림으로 바꾼다.
       템플릿의 검은 페이드인·4초 엔딩은 예전 타이밍이니 위 전략대로 고친다.
-   3. 사운드(canvas-film `references/SOUND.md`) → `scenes/soundtrack.wav` → `python3 tools/cut-audio.py sermons/<폴더>`
-      (장면별 소리 연결).
-   4. 스틸로 직접 확인 → `python3 tools/check-film.py sermons/<폴더> --frames` 통과.
-   5. `python3 tools/preview.py sermons/<폴더> --note "무엇을 바꿨나"` → 커밋 → **main에 바로 푸시**(사이트는 main의 `/docs`에서
+   3. **그림 먼저, 소리는 마지막**: 그림이 바뀌면 소리를 다시 만들어야 하니(크레딧·시간) 그림이 확정될 때까지 소리 없이 간다.
+      스틸로 직접 확인 → `python3 tools/check-film.py sermons/<폴더> --frames` 통과.
+   4. **시청자 에이전트 리뷰**(`tools/REVIEW.md`): `python3 tools/review-pack.py sermons/<폴더>` → 크리스천 2·비크리스천 2
+      에이전트가 블라인드로 보고 → 의도를 읽고 차이를 적는다 → 공통 지적을 고친 뒤 `reviews/<날짜>-<폴더>-vN.md`에 기록.
+      사용자에게 보여 주기 전에 한 번은 거친다(점수·공통 지적·고친 것을 함께 알린다).
+   5. `python3 tools/preview.py sermons/<폴더> --note "무엇을 바꿨나"` (소리 전에는 `--mute`) → 커밋 → **main에 바로 푸시**(사이트는 main의 `/docs`에서
       배포된다 — 미리보기를 만들 때는 작업 브랜치와 함께 main에도 바로 합쳐도 된다, 사용자 허락) → **미리보기 링크**
-      `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(소리 포함, 인코딩 없음).
+      `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(인코딩 없음).
       실행할 때마다 **새 버전(v1, v2, …)이 추가**되고 예전 버전은 지우지 않는다 — 사용자가 여러 시도를 나란히 비교한다.
       (오타 같은 작은 수정만 `--replace`로 최신 버전을 덮어쓴다.) 전체 목록: `.../word-log/previews/`
+      사용자가 그림을 확정하면 → **사운드**(canvas-film `references/SOUND.md`) → `scenes/soundtrack.wav` →
+      `python3 tools/cut-audio.py sermons/<폴더>` → `check-film.py --frames`(죽은 구간은 소리까지 본다) → 소리 넣은 새 버전 미리보기.
    6. `python3 tools/upload-meta.py sermons/<폴더>` → `upload.md`의 ✍️(제목·고정 댓글 질문)를 다듬어 함께 보여 준다.
    7. **MP4는 사용자가 고른 버전만**: `python3 tools/export.py sermons/<폴더>` (몇 분 — 백그라운드 작업으로) →
       `film/out/<id>-upload.mp4`(올릴 파일: H.264, 닫힌 GOP, 2초마다 키프레임, B프레임 없음 — 플랫폼 재인코딩 때

@@ -20,6 +20,7 @@ import argparse, datetime, html, json, os, shutil, subprocess
 ap = argparse.ArgumentParser(usage=__doc__)
 ap.add_argument('folder'); ap.add_argument('--note', default=''); ap.add_argument('--replace', action='store_true')
 ap.add_argument('--no-poster', action='store_true', help='skip the thumbnail stills (they need Playwright)')
+ap.add_argument('--mute', action='store_true', help='picture only (before the sound is made — CLAUDE.md: sound comes last)')
 ap.add_argument('--index-only', action='store_true', help='only (re)build the list pages (and move an old flat preview into v1)')
 a = ap.parse_args()
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -70,6 +71,7 @@ if not a.index_only:
     """
 
     audio = cfg.get('audio')           # e.g. "scenes/soundtrack.wav" (relative to film/)
+    if a.mute: audio = None
     if audio and not os.path.exists(os.path.join(film, audio)):
         print('(no soundtrack yet — preview without sound)'); audio = None
     if audio:
