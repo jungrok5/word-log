@@ -494,9 +494,10 @@ function meState(t) {
   else if (t < B.mine) {                     // lift it off the shoulder upright by its head, then swing the cut foot out over the gap
     st.front = true; f.x = P.plant;
     const c0 = carry(f, len), H0 = along(c0, len * L), Hup = [f.x + 34, MEY - 300];
-    if (t < 18.15) { const q = Math.floor(clamp((t - 17.9) / .22) * 3) / 3; st.cross = byHead([lerp(H0[0], Hup[0], q), lerp(H0[1], Hup[1], q)], lerp(c0.ang, -Math.PI / 2, q), len, 1); }
-    else { const q = Math.floor(clamp((t - 18.15) / .25) * 3) / 3; st.cross = byHead([lerp(Hup[0], MY_H[0], q), lerp(Hup[1], MY_H[1], q)], lerp(-Math.PI / 2, -Math.PI, q), len, lerp(1, .32, q)); f.crouch = .4 * q; f.lean = .1 + .2 * q; }
-    f.hand = along(st.cross, len * L - 8); f.elbowUp = t < 18.15;
+    if (t < 18.26) { const q = Math.floor(clamp((t - 17.9) / .2) * 3) / 3; st.cross = byHead([lerp(H0[0], Hup[0], q), lerp(H0[1], Hup[1], q)], lerp(c0.ang, -Math.PI / 2, q), len, 1); }
+    else { const q = t < 18.33 ? .5 : 1, a = q < 1 ? -Math.PI * .86 : -Math.PI;    // one quick swing: upright → almost flat → laid
+      st.cross = byHead([lerp(Hup[0], MY_H[0], q), lerp(Hup[1], MY_H[1], q)], a, len, lerp(1, .32, q)); f.crouch = .4 * q; f.lean = .1 + .2 * q; }
+    f.hand = along(st.cross, len * L - 8); f.elbowUp = t < 18.26;
   }
   else if (t < B.tip) {                      // it lies across the empty gap — short. I hold its head end down on the lip.
     st.front = true; f.x = P.plant; f.crouch = .4; f.lean = .3;
