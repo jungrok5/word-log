@@ -23,7 +23,7 @@
 const S = window.SCRIPT, B = S.beat, W = Pilot.W, H = Pilot.H;
 const { clamp, lerp, ss, eo, eio } = Pilot;
 const SANS = "'Noto Sans KR',sans-serif", SERIF = "'Noto Serif KR',serif";
-const FONTS = ["600 54px 'Noto Sans KR'", "500 28px 'Noto Sans KR'", "700 30px 'Noto Sans KR'", "400 30px 'Noto Sans KR'", "700 72px 'Noto Serif KR'"];
+const FONTS = ["800 64px 'Noto Sans KR'", "600 54px 'Noto Sans KR'", "500 28px 'Noto Sans KR'", "700 30px 'Noto Sans KR'", "400 30px 'Noto Sans KR'", "700 72px 'Noto Serif KR'"];
 const INK = '#e8f1fb', RED = '#ff5d4d';
 const KX = .14, KY = .4, Z0 = 150;                       // oblique: 1 m of depth = .2 m right, .4 m up on the sheet
 const OUT = 3.4, DET = 2.3, THIN = 1.4, HAIR = 1.0;      // line weights (px at zoom Z0; screen = w · (z/Z0)^.65)
@@ -135,12 +135,12 @@ function dim(g, a, b, off, label, o = {}) {
     const L = LW(13), Wd = LW(4.2); g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0] + ux * s * L + nx * Wd, p[1] + uy * s * L + ny * Wd); g.lineTo(p[0] + ux * s * L - nx * Wd, p[1] + uy * s * L - ny * Wd); g.closePath(); g.fillStyle = col; g.fill();
   }
   const la = ss(.55, 1, k); if (label && la > 0) {
-    let ang = Math.atan2(uy, ux); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI;
+    let ang = Math.atan2(uy, ux); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI; if (o.red) ang -= .045;
     const size = o.size || Math.round(26 * Math.pow(CAM.z / Z0, .4)), s = Pilot.tr(label);
     g.save(); g.translate(m[0], m[1]); g.rotate(ang); g.font = `${o.weight || 600} ${size}px ${SANS}`;
     const tw = g.measureText(s).width; g.globalAlpha *= la;
     g.fillStyle = PAT; g.fillRect(-tw / 2 - 10, -size * .72, tw + 20, size * 1.3);
-    if (o.strike) { g.fillStyle = 'rgba(0,0,0,0)'; }
+    if (o.red) Pilot.text(g, label, 1.6, size * .36 - 1.2, { size, font: SANS, weight: o.weight || 600, color: col, alpha: .45 });
     Pilot.text(g, label, 0, size * .36, { size, font: SANS, weight: o.weight || 600, color: col });
     if (o.strike) { const sk = clamp(o.strike); g.strokeStyle = col; g.lineWidth = LW(2.4); g.beginPath(); g.moveTo(-tw / 2 - 6, size * .05); g.lineTo(-tw / 2 - 6 + (tw + 12) * sk, -size * .12); g.stroke(); }
     g.restore();
@@ -199,7 +199,7 @@ function drawFigure(g, F, o = {}) {
     g.beginPath(); g.ellipse(c[0], c[1], .06 * z, .043 * z, Math.atan2(dy, dx), 0, 7); g.fillStyle = PAT; g.fill(); g.strokeStyle = col; g.lineWidth = lw; g.stroke();
     if (o.thumb && i === 0) { const t2 = P3(o.thumb); PL(g, [c, t2]); g.strokeStyle = col; g.lineWidth = .035 * z + 2 * lw; g.stroke(); g.strokeStyle = PAT; g.lineWidth = .035 * z; g.stroke(); }
   };
-  leg(1); arm(1);
+  leg(1); if (!o.farOver) arm(1);
   // tunic
   const Sx = P3(F.sh), Hx = P3(F.hip), ax = Hx[0] - Sx[0], ay = Hx[1] - Sx[1], al = Math.hypot(ax, ay) || 1, an = [ax / al, ay / al], pn = [-an[1], an[0]];
   const Hd = P3(add(F.hip, [.02 * f, -.26, 0])), hem = [Hd[0], Hd[1]], ws = .13 * z, wh = .2 * z, hn = [1, 0];
@@ -209,6 +209,7 @@ function drawFigure(g, F, o = {}) {
   g.fillStyle = PAT; g.fill(); g.strokeStyle = col; g.lineWidth = lw; g.stroke();
   g.beginPath(); g.moveTo(Hx[0] + pn[0] * .17 * z, Hx[1] + pn[1] * .17 * z); g.lineTo(Hx[0] - pn[0] * .17 * z, Hx[1] - pn[1] * .17 * z); g.lineWidth = LW(1.2); g.stroke();   // rope belt
   if (o.mid) o.mid();
+  if (o.farOver) arm(1);
   // neck, hood, face (drawn over the load so the face always reads)
   const Hc = P3(F.head); tube([Sx, [lerp(Sx[0], Hc[0], .7), lerp(Sx[1], Hc[1], .7)]], .07);
   g.beginPath(); g.arc(Hc[0] - .035 * f * z, Hc[1] - .005 * z, .128 * z, 0, 7); g.fillStyle = PAT; g.fill(); g.lineWidth = lw; g.strokeStyle = col; g.stroke();
@@ -275,124 +276,167 @@ function drawSaw(g, sw, d) {
 
 // ---------------------------------------------------------------- the story in space and time
 const SAW = B.saw, TD = SAW.map(s => s + .8);            // piece drops .8 s after each saw beat
-const ME0 = -6.75, K1 = -5.6, K2 = -2.0, MEE = -.6, DC = -.75, DK = -.55;   // kneel spots; the cut lies at depth DC
-const XC = [K1 + .75, K2 + .75, K2 + .75], ROLL = [.16, .22, -.2];
-const V0 = .25, XL = -.45;
-const OTH = [{ d: 3.2, x0: -5.8, T: B.bridges[0] }, { d: 2.2, x0: -6.9, T: B.bridges[1] }, { d: 1.2, x0: -8.3, T: B.bridges[2] }];
+const ME0 = -5.5, K1 = -4.4, K2 = -1.6, MEE = -.6, DC = -.75, DK = -.55;   // kneel spots; the cut lies at depth DC
+const XC = [K1 + .75, K2 + .75, K2 + .75], ROLL = [.16, .3, -.28];
+const V0 = .1, XL = -.45, WALK2 = .9;
+const OTH = [{ d: 2.6, x0: -4.9, T: B.bridges[0] }, { d: 1.8, x0: -4.6, T: B.bridges[1] }, { d: 1.0, x0: -7.6, T: B.bridges[2] }];
+const T_UP = 17.9, T_LOW = 18.1;                          // my cross: upright, then lowered to lie short by B.mine
 
 function meX(t) {
-  if (t < SAW[0]) return ME0 + (K1 - ME0) * t / SAW[0] + .05 * Math.sin(t * Math.PI * 2 / 1.6);   // stagger
+  if (t < SAW[0]) return ME0 + (K1 - ME0) * t / SAW[0] + .04 * Math.sin(t * Math.PI * 2 / 1.6);   // stagger
   if (t < B.run[0]) return K1;
-  if (t < B.run[1]) { const u = (t - B.run[0]) / (B.run[1] - B.run[0]); return lerp(K1, K2 - .25, .7 * u + .3 * u * u * (3 - 2 * u)); }
+  if (t < B.run[1]) { const u = (t - B.run[0]) / (B.run[1] - B.run[0]); return lerp(K1, K2 - .25, 1 - Math.pow(1 - u, 1.7)); }
   if (t < SAW[1]) return lerp(K2 - .25, K2, (t - B.run[1]) / (SAW[1] - B.run[1]));
   if (t < 11.65) return K2;
   return lerp(K2, MEE, ss(11.65, 12.75, t));
 }
 function mePhase(t) {
   const a = meX(Math.min(t, SAW[0])) - ME0, b = t > B.run[0] ? meX(Math.min(t, SAW[1])) - K1 : 0, c = t > 11.65 ? meX(Math.min(t, 12.75)) - K2 : 0;
-  return Math.PI * 2 * (a / .95 + b / 1.2 + c / 1.2) + .5;
+  return Math.PI * 2 * (a / .9 + b / 1.05 + c / 1.2) + .5;
 }
-const AMP_ME = [[0, .24], [3.1, .24], [3.3, 0], [4.42, 0], [4.75, .42], [8.4, .42], [8.75, .3], [8.98, 0], [11.6, 0], [11.85, .38], [12.45, .38], [12.75, 0]];
+const AMP_ME = [[0, .24], [3.1, .24], [3.3, 0], [4.42, 0], [4.7, .6], [8.3, .6], [8.7, .3], [8.98, 0], [11.6, 0], [11.85, .4], [12.45, .4], [12.75, 0]];
 const kwSaw = t => ss(SAW[0], SAW[0] + .25, t) - ss(4.4, 4.62, t) + ss(SAW[1], SAW[1] + .25, t) - ss(11.4, 11.65, t);
-const kwMe = t => kwSaw(t) + ss(18.22, 18.45, t) - ss(21.0, 21.35, t);
+const kwMe = t => kwSaw(t) + ss(17.7, 17.95, t) - ss(B.back, B.back + .3, t);
 const nCut = t => (t >= TD[0]) + (t >= TD[1]) + (t >= TD[2]);
+const meFace = t => t < B.back + .05 ? 1 : t < B.fill[0] - .1 ? lerp(1, -1, ss(B.back + .05, B.back + .3, t)) : lerp(-1, 1, ss(B.fill[0] - .1, B.fill[0] + .15, t));
 
-function groundCross(k, cut, d = 0) {
+function groundCross(k, cut) {
   const L = cut ? LEN[k + 1] : LEN[k], foot = cut ? DC : DC - PIECE[k];
   return { foot: [XC[k], .065, foot], top: [XC[k], .065, foot + L], bar: [1, 0, 0], L };
 }
-function sawState(t) {
-  let k = -1; if (t >= SAW[0] && t < 4.45) k = 0; else if (t >= SAW[1] && t < 11.45) k = t < 10.2 ? 1 : 2;
-  if (k < 0) return null;
-  const tb = SAW[k], alpha = k === 0 ? ss(3.22, 3.4, t) * (1 - ss(4.3, 4.45, t)) : ss(9.02, 9.2, t) * (1 - ss(11.3, 11.45, t));
-  const act = ss(tb + .3, tb + .36, t) * (1 - ss(tb + .78, tb + .95, t));
+// the saw as a frame: grip point G (3D), blade angle a; L(u, v) in blade coordinates (grip at u −.165, v .075)
+const sawFrame = (G, a) => { const b = [Math.cos(a), Math.sin(a)], n = [-Math.sin(a), Math.cos(a)];
+  return (u, v) => [G[0] + b[0] * (u + .165) + n[0] * (v - .075), G[1] + b[1] * (u + .165) + n[1] * (v - .075)]; };
+const A_CUT = Math.atan2(SB[1], SB[0]), A_HANG = -1.2;
+function cutSaw(t, k) {   // the saw at work on cut k
+  const tb = SAW[k], act = ss(tb + .3, tb + .36, t) * (1 - ss(tb + .78, tb + .95, t));
   const stroke = .085 * Math.sin((t - tb - .3) * Math.PI * 2 * 4.6) * ss(tb + .3, tb + .36, t) * (1 - ss(tb + .76, tb + .8, t));
-  const sink = .1 * ss(tb + .32, tb + .78, t) * (1 - ss(tb + .78, tb + .95, t));
-  const y0 = .13 - sink + .1 * (1 - act);
-  return { k, xc: XC[k], sw: sawAt(XC[k], y0, stroke), alpha, act, tb };
+  const sink = .1 * ss(tb + .32, tb + .78, t) * (1 - ss(tb + .78, tb + .95, t)), y0 = .13 - sink + .1 * (1 - act);
+  const g = sawAt(XC[k], y0, stroke)(-.165, .075);
+  return { G: [g[0], g[1], DC], a: A_CUT, act, k, xc: XC[k], tb };
+}
+const hangHand = (F, sw) => add(F.sh, [(-.02 + .1 + .14 * Math.sin(F.ph) * sw) * F.f, -.6, -.14]);
+function sawState(t, F) {     // where the saw is: hanging in my right hand, at work, or put down at the edge
+  let k = -1; if (t >= SAW[0] && t < 4.62) k = 0; else if (t >= SAW[1] && t < 11.65) k = t < 10.2 ? 1 : 2;
+  const swing = keys(AMP_ME, t) > .3 ? .9 : .3, hang = { G: hangHand(F, swing), a: A_HANG + .25 * Math.sin(F.ph) * swing, act: 0 };
+  let s;
+  if (k < 0) s = hang;
+  else { const c = cutSaw(t, k), w = k === 0 ? ss(SAW[0], SAW[0] + .3, t) * (1 - ss(4.4, 4.62, t)) : ss(SAW[1], SAW[1] + .3, t) * (1 - ss(11.4, 11.65, t));
+    s = w >= 1 ? c : { ...c, G: mix3(hang.G, c.G, w), a: lerp(hang.a, c.a, w), act: c.act * w }; }
+  const put = ss(17.35, 17.7, t);                         // laid down beside me before I kneel at the edge
+  if (put > 0) { const Gd = [MEE + .05, .03, -.45]; s = { G: mix3(s.G, Gd, put), a: lerp(s.a, -.05, put), act: 0, down: put >= 1 }; }
+  s.sw = sawFrame(s.G, s.a); s.d = s.G[2];
+  return s;
 }
 // me: pose, cross, hands
 function meState(t) {
-  const f = t < 21.05 ? 1 : lerp(1, -1, ss(21.05, 21.35, t)), x = meX(t), kw = clamp(kwMe(t)), ksaw = clamp(kwSaw(t));
-  const d = DK * ksaw, heavy = t < 4.5 ? 1 : .25;
+  const f = meFace(t), x = meX(t), kw = clamp(kwMe(t)), ksaw = clamp(kwSaw(t));
+  const d = DK * ksaw, run = t > B.run[0] && t < B.run[1] + .2, heavy = t < 4.5 ? 1 : run ? .55 : .2;
   const Wp = walkPose(x, d, f, mePhase(t), keys(AMP_ME, t), heavy);
+  if (run) { const b = .05 * Math.abs(Math.sin(mePhase(t))) * ss(4.6, 4.9, t); for (const q of [Wp.hip, Wp.sh, Wp.head]) q[1] += b; }   // bounding stride
   if (t < 3.6) { const s = 1 - ss(3.1, 3.3, t);            // stagger: the load sways me
     Wp.sh[0] += .05 * Math.sin(t * 3.9) * s; Wp.sh[1] -= .035 * Math.abs(Math.sin(t * 2.1)) * s; Wp.head[0] += .06 * Math.sin(t * 3.9 - .4) * s; Wp.head[1] -= .04 * Math.abs(Math.sin(t * 2.1)) * s; }
   const F = mixPose(Wp, kneelPose(x, d, f), kw);
-  if (t > 19.2 && t < 21.2) { const k = ss(19.2, 19.5, t) * (1 - ss(20.9, 21.2, t)); F.head = add(F.head, [.05 * k, -.06 * k, 0]); }   // looks down
-  let X = null, hands = null, saw = sawState(t), thumb = null;
-  const sawHands = s => { const w = s.sw(-.165, .075), gpt = s.sw(-.165, .075); return { hands: [[w[0], w[1], DC], [s.xc, .13, DC + .24]], grip: gpt }; };
-  if (t < SAW[0]) { X = carryCross(F, 3, true); hands = carryHands(X); }
-  else if (t < SAW[0] + .3) { const C = carryCross(F, 3, true), k = ss(SAW[0], SAW[0] + .3, t); X = mixX(C, groundCross(0, false), k); hands = carryHands(C).map((h, i) => mix3(h, sawHands(saw).hands[i], k)); }
-  else if (t < 4.4) { X = groundCross(0, t >= TD[0]); hands = sawHands(saw).hands; }
-  else if (t < 4.62) { const C = carryCross(F, LEN[1], false), k = ss(4.4, 4.62, t); X = mixX(groundCross(0, true), C, k); hands = sawHands(sawState(4.4)).hands.map((h, i) => mix3(h, carryHands(C)[i], k)); }
-  else if (t < SAW[1]) { X = carryCross(F, LEN[1], false); hands = carryHands(X); }
-  else if (t < SAW[1] + .3) { const C = carryCross(F, LEN[1], false), k = ss(SAW[1], SAW[1] + .3, t); X = mixX(C, groundCross(1, false), k); hands = carryHands(C).map((h, i) => mix3(h, sawHands(saw).hands[i], k)); }
-  else if (t < 10.0) { X = groundCross(1, t >= TD[1]); hands = sawHands(saw).hands; }
-  else if (t < 10.35) { X = mixX(groundCross(1, true), groundCross(2, false), ss(10.0, 10.35, t)); hands = sawHands(saw).hands; }
-  else if (t < 11.4) { X = groundCross(2, t >= TD[2]); hands = sawHands(saw).hands; }
-  else if (t < 11.65) { const C = carryCross(F, LEN[3], false), k = ss(11.4, 11.65, t); X = mixX(groundCross(2, true), C, k); hands = sawHands(sawState(11.4)).hands.map((h, i) => mix3(h, carryHands(C)[i], k)); }
-  else if (t < 18.22) { X = carryCross(F, LEN[3], false); hands = carryHands(X); }
+  if (t > B.fall && t < B.back + .1) { const k = ss(B.fall, B.fall + .3, t) * (1 - ss(B.back - .2, B.back + .1, t)); F.head = add(F.head, [.05 * k, -.06 * k, 0]); }   // looks down
+  const saw = t < B.back + 6 ? sawState(t, F) : null;
+  let X = null, hands = [null, null], thumb = null, farOver = false;
+  const cutHands = k => [saw.G, [XC[k], .13, DC + .24]];
+  const carryH = C => [saw && !saw.down ? saw.G : null, add(C.C, mul(C.bar, -.36))];
+  const blend = (A, Bh, k) => A.map((h, i) => h && Bh[i] ? mix3(h, Bh[i], k) : (k < .5 ? h : Bh[i]));
+  if (t < SAW[0]) { X = carryCross(F, 3, true); hands = carryH(X); farOver = true; }
+  else if (t < SAW[0] + .3) { const C = carryCross(F, 3, true), k = ss(SAW[0], SAW[0] + .3, t); X = mixX(C, groundCross(0, false), k); hands = blend(carryH(C), cutHands(0), k); farOver = k < .5; }
+  else if (t < 4.4) { X = groundCross(0, t >= TD[0]); hands = cutHands(0); }
+  else if (t < 4.62) { const C = carryCross(F, LEN[1], false), k = ss(4.4, 4.62, t); X = mixX(groundCross(0, true), C, k); hands = blend(cutHands(0), carryH(C), k); farOver = k > .5; }
+  else if (t < SAW[1]) { X = carryCross(F, LEN[1], false); hands = carryH(X); farOver = true; }
+  else if (t < SAW[1] + .3) { const C = carryCross(F, LEN[1], false), k = ss(SAW[1], SAW[1] + .3, t); X = mixX(C, groundCross(1, false), k); hands = blend(carryH(C), cutHands(1), k); farOver = k < .5; }
+  else if (t < 10.0) { X = groundCross(1, t >= TD[1]); hands = cutHands(1); }
+  else if (t < 10.35) { X = mixX(groundCross(1, true), groundCross(2, false), ss(10.0, 10.35, t)); hands = cutHands(2); }
+  else if (t < 11.4) { X = groundCross(2, t >= TD[2]); hands = cutHands(2); }
+  else if (t < 11.65) { const C = carryCross(F, LEN[3], false), k = ss(11.4, 11.65, t); X = mixX(groundCross(2, true), C, k); hands = blend(cutHands(2), carryH(C), k); farOver = k > .5; }
+  else if (t < T_UP) { X = carryCross(F, LEN[3], false); hands = carryH(X); farOver = true; }
   else {
     const L = LEN[3], foot = [FOOT, .065, 0], up = { foot, top: [FOOT, .065 + L, 0], bar: [-1, 0, 0], L };
     const grip = Xx => { const u = nrm(sub(Xx.top, Xx.foot)); return [add(Xx.foot, mul(u, .08)), add(Xx.foot, mul(u, .24))]; };
-    if (t < 18.45) { const C = carryCross(F, L, false), k = ss(18.22, 18.45, t); X = mixX(C, up, k); hands = carryHands(C).map((h, i) => mix3(h, grip(up)[i], k)); }
-    else if (t < 18.9) { const a = Math.PI / 2 * (1 - eio(clamp((t - 18.45) / .27))); X = { foot, top: [FOOT + L * Math.cos(a), .065 + L * Math.sin(a), 0], bar: [-Math.sin(a), Math.cos(a), 0], L }; hands = grip(X); }
+    if (t < T_LOW) { const C = carryCross(F, L, false), k = ss(T_UP, T_LOW, t); X = mixX(C, up, k); hands = blend(carryH(C), grip(up), k); }
+    else if (t < B.tip) { const a = Math.PI / 2 * (1 - eio(clamp((t - T_LOW) / (B.mine - T_LOW)))); X = { foot, top: [FOOT + L * Math.cos(a), .065 + L * Math.sin(a), 0], bar: [-Math.sin(a), Math.cos(a), 0], L }; hands = grip(X); }
     else {
-      let phi, piv; const T1 = 18.9, T2 = 19.2;
-      if (t < T2) { phi = -6 * (t - T1) ** 2; piv = [0, .065]; } else { const q = t - T2; phi = -.54 - 3.2 * q - 2 * q * q; piv = [.35 * q, .065 - .6 * q - 4.9 * q * q]; }
+      let phi, piv; const T1 = B.tip, T2 = B.fall;
+      if (t < T2) { phi = -6 * (t - T1) ** 2; piv = [0, .065]; } else { const q = t - T2, p0 = -6 * (T2 - T1) ** 2; phi = p0 - 3.2 * q - 2 * q * q; piv = [.35 * q, .065 - .6 * q - 4.9 * q * q]; }
       const c = Math.cos(phi), s = Math.sin(phi);
       X = { foot: [piv[0] + FOOT * c, piv[1] + FOOT * s, 0], top: [piv[0] + (FOOT + L) * c, piv[1] + (FOOT + L) * s, 0], bar: [-s, c, 0], L, falling: true };
-      if (X.top[1] < DEEP) X = null;
-      const h0 = [[FOOT + .08, .1, 0], [FOOT + .24, .1, 0]], k = ss(19.35, 19.9, t);
-      hands = k < 1 ? h0.map((h, i) => mix3(h, [F.sh[0] + .1 * f, .36, F.sh[2] + (i ? .14 : -.14)], k)) : null;   // empty hands sink back to the knees
-      if (t > 21.0) hands = null;
+      if (X.top[1] < DEEP && X.foot[1] < DEEP) X = null;
+      const h0 = [[FOOT + .08, .1, 0], [FOOT + .24, .1, 0]], k = ss(B.fall + .15, B.fall + .7, t);
+      hands = k < 1 ? h0.map((h, i) => mix3(h, [F.sh[0] + .1 * f, .36, F.sh[2] + (i ? .14 : -.14)], k)) : [null, null];   // empty hands sink back to the knees
+      if (t > B.back) hands = [null, null];
     }
   }
-  const sh = saw ? sawHands(saw) : null;
-  if (sh && t >= SAW[0] + .3 && t < 11.4 && !(t >= 4.4 && t < SAW[1] + .3)) { const q = saw.sw(-.06, .15); thumb = [q[0], q[1], DC]; }
-  return { F, X, hands, saw, thumb, f };
+  if (saw && saw.k != null && saw.k >= 0 && saw.act > .05) { const q = saw.sw(-.06, .15); thumb = [q[0], q[1], saw.d]; }
+  return { F, X, hands, saw, thumb, f, farOver };
 }
+// a cut piece: drops, rolls a quarter turn and lies across the road (so its whole length reads); then, at `fill`, flies into the gap
+function pieceRest(k) { const c = [XC[k] + ROLL[k], .065, DC - PIECE[k] / 2 - .3]; return { a: add(c, [-PIECE[k] / 2, 0, 0]), b: add(c, [PIECE[k] / 2, 0, 0]) }; }
+const SLOT = (() => { let s = FOOT; return PIECE.map(p => { const r = { a: [s, .065, 0], b: [s + p, .065, 0] }; s += p; return r; }); })();   // the foot end of the whole cross, piece 1 first
+const flyT = k => [B.fill[0] + .62 * k, B.fill[0] + .62 * k + .9];
 function pieceGeom(k, t) {
   if (t < TD[k]) return null;
-  const u = eo(clamp((t - TD[k]) / .4)), xc = XC[k] + ROLL[k] * u, hop = .09 * Math.sin(Math.PI * clamp((t - TD[k]) / .3)), d0 = DC - PIECE[k] - .12 * u;
-  return { a: [xc, .065 + hop, d0], b: [xc, .065 + hop, d0 + PIECE[k]] };
+  const u = eo(clamp((t - TD[k]) / .45)), hop = .1 * Math.sin(Math.PI * clamp((t - TD[k]) / .3)), xc = XC[k];
+  const a0 = [xc, .065, DC - PIECE[k]], b0 = [xc, .065, DC], R = pieceRest(k);
+  let a = add(mix3(a0, R.a, u), [0, hop, 0]), b = add(mix3(b0, R.b, u), [0, hop, 0]);
+  const [f0, f1] = flyT(k), v = eio(clamp((t - f0) / (f1 - f0)));
+  if (v > 0) { const lift = 1.3 * Math.sin(Math.PI * v); a = add(mix3(a, SLOT[k].a, v), [0, lift, 0]); b = add(mix3(b, SLOT[k].b, v), [0, lift, 0]); }
+  return { a, b, flying: v > 0 && v < 1, landed: v >= 1 };
 }
-// the others
+// the others: walk, lay the cross across, cross over, haul it back onto the shoulder on the far side, go into the light
 function othState(o, t) {
-  const p12 = o.x0 + V0 * 12, v2 = (XL - p12) / (o.T - 12);
-  let x; if (t < 12) x = o.x0 + V0 * t; else if (t < o.T) x = p12 + v2 * (t - 12); else if (t < o.T + 1.0) x = XL; else x = XL + 2.2 * (t - o.T - 1.0);
-  const ph = Math.PI * 2 * (x - o.x0) / .85 + o.d * 1.7;
-  const amp = t < o.T ? .26 * (1 - ss(o.T - .2, o.T, t)) : .38 * ss(o.T + .9, o.T + 1.15, t);
-  const heavy = t < o.T ? 1 : 1 - ss(o.T + .4, o.T + 1.0, t), yb = .13 * ss(-.3, -.05, x) * (1 - ss(GAP + .1, END + .1, x));
-  const F = walkPose(x, o.d, 1, ph, amp, heavy, yb);
-  const alpha = 1 - ss(GX - .55, GX + .05, x);
-  let X, hands = null; const foot = [FOOT, .065, o.d], up = { foot, top: [FOOT, 3.065, o.d], bar: [-1, 0, 0], L: 3 };
+  const T = o.T, tUp = T - .7, foot = [FOOT, .065, o.d], up = { foot, top: [FOOT, 3.065, o.d], bar: [-1, 0, 0], L: 3 };
+  let x, mode;
+  if (t < 12) x = o.x0 + V0 * t;
+  else if (t < tUp) x = XL - WALK2 * (tUp - t);
+  else if (t < T + .15) x = XL;
+  else if (t < T + .9) x = lerp(XL, 3.05, (t - T - .15) / .75);
+  else if (t < T + 1.4) x = lerp(3.05, 3.2, ss(T + .9, T + 1.4, t));
+  else x = lerp(3.2, 3.9, (t - T - 1.4) / .4);
+  const ph = Math.PI * 2 * (x - o.x0) / (t > T + .1 && t < T + .9 ? 1.6 : .85) + o.d * 1.7;
+  let amp = t < tUp ? .26 * (1 - ss(tUp - .2, tUp, t)) : t < T + .1 ? 0 : t < T + .9 ? .55 * ss(T + .1, T + .25, t) * (1 - ss(T + .8, T + .9, t)) : t < T + 1.4 ? 0 : .3;
+  const heavy = t < T ? 1 : t < T + .9 ? .2 : .5, yb = .13 * ss(-.3, -.05, x) * (1 - ss(GAP + .05, END + .1, x));
+  let F = walkPose(x, o.d, 1, ph, amp, heavy, yb);
+  const bend = t > T + .85 && t < T + 1.45 ? Math.sin(Math.PI * clamp((t - T - .85) / .6)) * .55 : 0;   // stoops to grab the end
+  if (bend > 0) F = mixPose(F, kneelPose(x, o.d, 1), bend);
+  const alpha = 1 - ss(GX - .1, GX + .35, x);
+  let X, hands = [null, null];
   const grip = Xx => { const u = nrm(sub(Xx.top, Xx.foot)); return [add(Xx.foot, mul(u, 1.12)), add(Xx.foot, mul(u, 1.36))]; };
-  if (t < o.T) { X = carryCross(F, 3, true); hands = carryHands(X); }
-  else if (t < o.T + .35) { const C = carryCross(F, 3, true), k = ss(o.T, o.T + .35, t); X = mixX(C, up, k); hands = carryHands(C).map((h, i) => mix3(h, grip(up)[i], k)); }
-  else if (t < o.T + .8) { const u = clamp((t - o.T - .35) / .45), a = Math.PI / 2 * (1 - u * u); X = { foot, top: [FOOT + 3 * Math.cos(a), .065 + 3 * Math.sin(a), o.d], bar: [-Math.sin(a), Math.cos(a), 0], L: 3 };
+  const bridge = { foot: [FOOT, .065, o.d], top: [END, .065, o.d], bar: [0, 1, 0], L: 3 };
+  if (t < tUp) { X = carryCross(F, 3, true); hands = carryHands(X); }
+  else if (t < T - .35) { const C = carryCross(F, 3, true), k = ss(tUp, T - .35, t); X = mixX(C, up, k); hands = carryHands(C).map((h, i) => mix3(h, grip(up)[i], k)); }
+  else if (t < T) { const u = clamp((t - T + .35) / .35), a = Math.PI / 2 * (1 - u * u); X = { foot, top: [FOOT + 3 * Math.cos(a), .065 + 3 * Math.sin(a), o.d], bar: [-Math.sin(a), Math.cos(a), 0], L: 3 };
     const k = ss(.15, .45, u); hands = grip(X).map((h, i) => mix3(h, add(F.sh, [.08, -.56, i ? .14 : -.14]), k)); }
-  else { const q = t - o.T - .8, b = .03 * Math.exp(-q * 9) * Math.abs(Math.sin(q * 26)); X = { foot: [FOOT, .065 + b * .3, o.d], top: [END, .065 + b, o.d], bar: [0, 1, 0], L: 3, laid: true }; }
-  return { F, X, hands, alpha, x, swing: t > o.T + .9 ? 1 : 0 };
+  else if (t < T + .9) { const q = t - T, b = .03 * Math.exp(-q * 9) * Math.abs(Math.sin(q * 26)); X = { ...bridge, foot: [FOOT, .065 + b * .3, o.d], top: [END, .065 + b, o.d], laid: true }; }
+  else {   // hauled back: the near end lifts off the lip as he raises the far end onto his shoulder
+    const C = carryCross(F, 3, false), k = eio(clamp((t - T - 1.0) / .4));
+    X = mixX(bridge, C, k); X.laid = k < .05;
+    const endP = [END, .13, o.d]; hands = k <= 0 ? [endP, add(endP, [-.15, 0, 0])] : carryHands(C).map((h, i) => mix3(i ? add(endP, [-.15, 0, 0]) : endP, h, k));
+  }
+  return { F, X, hands, alpha, x, swing: amp > .2 ? 1 : 0 };
 }
 
 // ---------------------------------------------------------------- camera (hard cuts on the beats, like turning to the next figure)
+function camGap(t) {
+  if (t < 18.0) return { cx: 1.4, cy: 1.3, z: 165 + 8 * ss(B.gap, 18, t) };
+  const k = eio(clamp((t - 18.0) / .5)); let c = { cx: lerp(1.4, .95, k), cy: lerp(1.3, .55, k), z: lerp(173, 205, k) };
+  if (t >= B.fall) { const q = eo(clamp((t - B.fall) / .14)), sh = Math.exp(-(t - B.fall) * 9) * Math.sin((t - B.fall) * 70) * .03;
+    c = { cx: lerp(c.cx, 1.0, q) + sh, cy: lerp(c.cy, -.3, q) - sh, z: c.z * (1 + .22 * q) + 5 * (t - B.fall) }; }
+  return c;
+}
 function cam(t) {
-  const close = k => { const xc = XC[k], t0 = SAW[k === 2 ? 1 : k]; return { cx: xc - .3 + KX * DC, cy: .42 + KY * DC, z: 250 + 9 * (t - t0) }; };
-  if (t < SAW[0]) return { cx: meX(t) + .8, cy: 1.3, z: 172 };
+  const close = k => { const xc = XC[k], t0 = SAW[k === 2 ? 1 : k]; return { cx: xc - .3 + KX * DC, cy: .42 + KY * DC, z: 265 + 9 * (t - t0) }; };
+  if (t < SAW[0]) { const k = eio(clamp((t - 1.5) / 1.2)), x = meX(t);   // close on me, the saw in my hand → the procession
+    return { cx: lerp(x + .2, x + .9, k), cy: lerp(.95, 1.3, k), z: lerp(330, 182, k) }; }
   if (t < B.run[0]) return close(0);
-  if (t < SAW[1]) return { cx: meX(t) + 1.05 + .25 * ss(B.run[0], 6, t), cy: 1.2, z: 140 };
+  if (t < SAW[1]) return { cx: meX(t) + .2 + .2 * ss(B.run[0], 5.6, t), cy: 1.15, z: 178 };
   if (t < B.gap) return close(1);
-  if (t < B.mine) return { cx: 1.75, cy: 1.25, z: 116 + 10 * ss(B.gap, B.mine, t) };
-  if (t < B.back) {
-    const k = eio(clamp((t - B.mine) / .7)); let c = { cx: lerp(1.75, 1.0, k), cy: lerp(1.25, .55, k), z: lerp(126, 150, k) };
-    if (t >= 19.2) { const q = eo(clamp((t - 19.2) / .14)), sh = Math.exp(-(t - 19.2) * 9) * Math.sin((t - 19.2) * 70) * .03;
-      c = { cx: lerp(c.cx, 1.05, q) + sh, cy: lerp(c.cy, -.35, q) - sh, z: c.z * (1 + .38 * q) + 6 * (t - 19.2) }; }
-    return c;
-  }
-  const k = eio(clamp((t - B.back) / 1.1)), k2 = eio(clamp((t - 22.6) / 1.5));
-  const c0 = { cx: 1.05, cy: -.35, z: 150 * 1.38 + 6 * 1.8 }, c1 = { cx: -2.2, cy: .85, z: 175 }, c2 = { cx: 1.3, cy: -.15, z: 205 };
+  if (t < B.back) return camGap(t);
+  const c0 = camGap(B.back), c1 = { cx: -1.75, cy: .45, z: 215 }, c2 = { cx: .95, cy: .05, z: 215 };
+  const k = eio(clamp((t - B.back) / .9)), k2 = eio(clamp((t - B.fill[0]) / 1.4));
   const a = { cx: lerp(c0.cx, c1.cx, k), cy: lerp(c0.cy, c1.cy, k), z: lerp(c0.z, c1.z, k) };
   return { cx: lerp(a.cx, c2.cx, k2), cy: lerp(a.cy, c2.cy, k2), z: lerp(a.z, c2.z, k2) };
 }
@@ -428,7 +472,7 @@ function chasm(g, t) {
   line(g, [P(0, 0, ROAD1), P(0, -3, ROAD1)], THIN, INK, { alpha: .45, k });
   label(g, '단면 B–B', P(GAP + .9, -1.1, ROAD0)[0], P(GAP + .9, -1.1, ROAD0)[1], { alpha: .75 * ss(B.gap + .4, B.gap + .8, t), size: Math.round(22 * Math.pow(CAM.z / Z0, .4)), patch: true });
 }
-function doorGap(t) { let b = 0; for (const o of OTH) { const ta = o.T + 1.0 + (GX - .4 - XL) / 2.2; b = Math.max(b, ss(ta - .4, ta, t) * (1 - ss(ta + .4, ta + .9, t))); } return .1 + .5 * b; }
+function doorGap(t) { let b = 0; for (const o of OTH) { const ta = o.T + 1.65; b = Math.max(b, ss(ta - .4, ta, t) * (1 - ss(ta + .4, ta + .9, t))); } return .1 + .5 * b; }
 function gate(g, t) {
   const k = ss(B.gap + .15, B.gap + .9, t); if (k <= 0) return;
   const d0 = -1.0, d1 = 3.4, hh = 2.7, mid = 1.2, gp = doorGap(t);
@@ -439,8 +483,8 @@ function gate(g, t) {
   gs.addColorStop(0, 'rgba(235,246,255,.42)'); gs.addColorStop(1, 'rgba(235,246,255,0)'); g.fillStyle = gs; PL(g, sp, true); g.fill();
   PL(g, [P(GX, 0, mid - gp), P(GX, 0, mid + gp), P(GX, hh - .05, mid + gp), P(GX, hh - .05, mid - gp)], true); g.fillStyle = 'rgba(244,250,255,.95)'; g.fill();
   g.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 6; i++) { const y = .3 + i * .42, dd = (i - 2.5) * .5, a = P(GX, y, mid - gp * .5), b = P(GX, y + .1, mid + gp * .5), c = P(GX - 2.6, y + .35 + dd * .2, mid + 1.6 + dd), e = P(GX - 2.6, y - .05 + dd * .2, mid - 1.2 + dd);
-    const gr = g.createLinearGradient(a[0], a[1], (c[0] + e[0]) / 2, (c[1] + e[1]) / 2); gr.addColorStop(0, 'rgba(210,232,255,.09)'); gr.addColorStop(1, 'rgba(210,232,255,0)'); g.fillStyle = gr; PL(g, [a, b, c, e], true); g.fill(); }
+  for (let i = 0; i < 6; i++) { const y = .3 + i * .42, dd = (i - 2.5) * .5, a = P(GX, y, mid - gp * .5), b = P(GX, y + .1, mid + gp * .5), c = P(GX - 1.7, y + .25 + dd * .15, mid + 1.2 + dd * .7), e = P(GX - 1.7, y - .05 + dd * .15, mid - .9 + dd * .7);
+    const gr = g.createLinearGradient(a[0], a[1], (c[0] + e[0]) / 2, (c[1] + e[1]) / 2); gr.addColorStop(0, 'rgba(210,232,255,.07)'); gr.addColorStop(1, 'rgba(210,232,255,0)'); g.fillStyle = gr; PL(g, [a, b, c, e], true); g.fill(); }
   g.globalCompositeOperation = 'source-over';
   g.restore();
   // leaves (panelled) and the frame
@@ -469,101 +513,101 @@ function gateGlow(g, t) {
 
 // ---------------------------------------------------------------- everything that stands on the road
 let ME = null;
+const closeUp = t => (t >= SAW[0] && t < B.run[0]) || (t >= SAW[1] && t < B.gap);
+function drawMe(g, m, t, o = {}) {
+  const red = { col: RED, red: true, alpha: o.alpha }, kerf = m.saw && m.saw.k >= 0 && t < TD[m.saw.k] && m.saw.act > .2 ? PIECE[m.saw.k] : null;
+  const crossNow = () => m.X && drawCross(g, m.X, { ...red, kerf });
+  const sawNow = () => m.saw && !m.saw.down && (drawSaw(g, m.saw.sw, m.saw.d), m.saw.act > .3 && sawdust(g, t, m.saw));
+  if (m.saw && m.saw.down) drawSaw(g, m.saw.sw, m.saw.d);
+  if (m.X && !m.X.falling && m.X.bar[0] === 1) {       // lying on the ground for sawing: cross first, then me over it, the saw in my hand
+    crossNow(); drawFigure(g, m.F, { hands: m.hands, thumb: m.thumb, mid: sawNow, alpha: o.alpha });
+  } else drawFigure(g, m.F, { hands: m.hands, thumb: m.thumb, mid: () => { crossNow(); sawNow(); }, farOver: m.farOver, alpha: o.alpha, swing: .6 });
+}
 function entities(g, t) {
   for (const o of OTH) {   // far lanes first
-    const s = othState(o, t); if (s.alpha <= 0 && !s.X) continue;
-    if (closeUp(t)) s.alpha *= .28;
-    const crossFn = () => s.X && drawCross(g, s.X, { alpha: closeUp(t) ? .28 : 1 });
-    if (s.X && s.X.laid) { drawCross(g, s.X, { alpha: closeUp(t) ? .28 : 1 }); if (s.alpha > 0) drawFigure(g, s.F, { alpha: s.alpha, swing: s.swing }); }
-    else if (s.alpha > 0) drawFigure(g, s.F, { hands: s.hands, mid: crossFn, alpha: s.alpha });
+    const s = othState(o, t); if (s.alpha <= 0) continue;
+    const a = closeUp(t) ? .28 : t < 2.8 ? lerp(.28, 1, ss(1.7, 2.8, t)) : 1, crossFn = () => s.X && drawCross(g, s.X, { alpha: a });
+    if (s.X && s.X.laid) { drawCross(g, s.X, { alpha: a }); drawFigure(g, s.F, { alpha: s.alpha * a, swing: s.swing, hands: s.hands }); }
+    else drawFigure(g, s.F, { hands: s.hands, mid: crossFn, alpha: s.alpha * a, farOver: false });
   }
-  for (let k = 0; k < 3; k++) { const p = pieceGeom(k, t); if (p) drawPiece(g, p.a, p.b); }
+  for (let k = 0; k < 3; k++) { const p = pieceGeom(k, t); if (p && !p.flying && !p.landed) drawPiece(g, p.a, p.b, { glow: glowK(t) }); }
   const m = ME = meState(t);
-  const red = { col: RED, red: true }, kerf = m.saw && t < TD[m.saw.k] && m.saw.act > .2 ? PIECE[m.saw.k] : null;
-  const crossNow = () => m.X && drawCross(g, m.X, { ...red, kerf });
-  if (m.X && !m.X.falling && m.X.bar[0] === 1) {       // lying on the ground for sawing: cross first, then me over it, the saw in my hand
-    crossNow();
-    drawFigure(g, m.F, { hands: m.hands, thumb: m.thumb, mid: () => m.saw && m.saw.alpha > 0 && (g.save(), g.globalAlpha *= m.saw.alpha, drawSaw(g, m.saw.sw, DC), g.restore(), sawdust(g, t, m.saw)) });
-  } else drawFigure(g, m.F, { hands: m.hands, mid: crossNow, swing: t > 21.2 ? 0 : 0 });
-  if (m.saw && m.saw.alpha > 0 && m.X && m.X.bar[0] !== 1) { g.save(); g.globalAlpha *= m.saw.alpha; drawSaw(g, m.saw.sw, DC); g.restore(); }
+  drawMe(g, m, t);
 }
-function drawPiece(g, a, b, o = {}) { beams(g, [[P3(a), P3(b), .13 * CAM.z]], { col: RED, red: true, ...o }); }
+const glowK = t => ss(B.back + .2, B.back + .8, t);
+function drawPiece(g, a, b, o = {}) {
+  const A = P3(a), Bp = P3(b);
+  if (o.glow > 0) {   // the cut pieces glow: warm red light round them
+    const c = [(A[0] + Bp[0]) / 2, (A[1] + Bp[1]) / 2], r = Math.max(70, Math.hypot(Bp[0] - A[0], Bp[1] - A[1]) * .95), gr = g.createRadialGradient(c[0], c[1], 0, c[0], c[1], r);
+    const k = o.glow * (.85 + .15 * Math.sin(o.t || 0));
+    gr.addColorStop(0, `rgba(255,140,110,${.55 * k})`); gr.addColorStop(.45, `rgba(255,90,70,${.2 * k})`); gr.addColorStop(1, 'rgba(255,90,70,0)');
+    g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = gr; g.fillRect(c[0] - r, c[1] - r, 2 * r, 2 * r); g.restore();
+  }
+  beams(g, [[A, Bp, .13 * CAM.z]], { col: RED, red: true, ...o, tint: o.glow > 0 ? `rgba(255,110,90,${.45 * o.glow})` : o.tint });
+}
 function sawdust(g, t, s) {
-  if (s.act < .3) return; const r = Pilot.rng(Math.floor(t * 30) + 5);
+  const r = Pilot.rng(Math.floor(t * 30) + 5);
   g.save(); g.fillStyle = INK;
-  for (let i = 0; i < 9; i++) { const q = r(), p = P(s.xc + (r() - .5) * .16, .1 - q * .12, DC - .02 - r() * .1); g.globalAlpha = .7 * (1 - q); g.fillRect(p[0], p[1], 2.2, 2.2); }
+  for (let i = 0; i < 9; i++) { const q = r(), p = P(s.xc + (r() - .5) * .16, .1 - q * .12, DC - .02 - r() * .1); g.globalAlpha = .7 * (1 - q); g.fillRect(p[0], p[1], 2.5, 2.5); }
   g.restore();
 }
 
-// ---------------------------------------------------------------- annotations: the dimensions that tell the story
-const closeUp = t => (t >= SAW[0] && t < B.run[0]) || (t >= SAW[1] && t < B.gap);
+// ---------------------------------------------------------------- annotations: few numbers, big, in red pencil where they are mine
 const crossDim = (g, X, off, lab, o = {}) => dim(g, P3(X.foot), P3(X.top), off * CAM.z, lab, o);
 function annotations(g, t) {
-  // the others' crosses: 3.0 m each (while carried)
-  if (t < B.gap && !closeUp(t)) for (const o of OTH) { const s = othState(o, t); dim(g, P3(s.X.foot), P3(s.X.top), -.74 * CAM.z, '3.0 m', { alpha: .8, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)) }); }
-  // mine, in red pencil, corrected after every cut
-  const m = ME, n = nCut(t);
-  if (m.X && t < 18.22) {
+  const m = ME, n = nCut(t), fade = 1 - ss(B.end - .3, B.end, t);
+  // my length, corrected after every cut
+  if (m.X && t < T_UP) {
     const lying = m.X.bar[0] === 1, settled = lying ? (t > SAW[0] + .32 && t < 4.4) || (t > SAW[1] + .32 && t < 11.4) : !(t > 4.4 && t < 4.64) && !(t > 11.4 && t < 11.67) && !(t > SAW[0] && t < SAW[0] + .32) && !(t > SAW[1] && t < SAW[1] + .32);
-    if (settled) {
-      const off = lying ? .78 : -.74, last = n ? TD[n - 1] : -9, fresh = t - last;
-      const lab = fmt(LEN[n]) + ' m', k = n && fresh < .5 ? ss(0, .4, fresh) : 1;
+    if (settled && !(t < 1.6)) {
+      const off = lying ? .8 : -.62, last = n ? TD[n - 1] : -9, fresh = t - last, sz = lying ? 64 : 56;
+      const k = n && fresh < .5 ? ss(0, .4, fresh) : t < 2.2 ? ss(1.6, 2.2, t) : 1;
       if (n && fresh < 1.6 && lying) {   // the old figure struck through, the new one lettered beside it
-        const a = P3(m.X.foot), b = P3(m.X.top), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, mm = [(a[0] + b[0]) / 2 + nx * (off * CAM.z + 46), (a[1] + b[1]) / 2 + ny * (off * CAM.z + 78)];
+        const a = P3(m.X.foot), b = P3(m.X.top), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, mm = [(a[0] + b[0]) / 2 + nx * (off * CAM.z + 92), (a[1] + b[1]) / 2 + ny * (off * CAM.z + 92)];
         let ang = Math.atan2(dy, dx); if (ang < -Math.PI / 2) ang += Math.PI; if (ang > Math.PI / 2) ang -= Math.PI;
-        g.save(); g.translate(mm[0], mm[1]); g.rotate(ang); g.globalAlpha = 1 - ss(1.1, 1.6, fresh);
-        const sz = Math.round(22 * Math.pow(CAM.z / Z0, .4)); Pilot.text(g, fmt(LEN[n - 1]) + ' m', 0, sz * .36, { size: sz, font: SANS, weight: 600, color: RED });
-        g.strokeStyle = RED; g.lineWidth = LW(2.6); g.beginPath(); g.moveTo(-sz * 1.6, sz * .1); g.lineTo(-sz * 1.6 + sz * 3.2 * ss(0, .3, fresh), -sz * .2); g.stroke(); g.restore();
+        g.save(); g.translate(mm[0], mm[1]); g.rotate(ang - .05); g.globalAlpha = 1 - ss(1.1, 1.6, fresh);
+        Pilot.text(g, fmt(LEN[n - 1]) + ' m', 0, 16, { size: 44, font: SANS, weight: 700, color: RED });
+        g.strokeStyle = RED; g.lineWidth = 4; g.beginPath(); g.moveTo(-72, 4); g.lineTo(-72 + 144 * ss(0, .3, fresh), -10); g.stroke(); g.restore();
       }
-      crossDim(g, m.X, off, lab, { col: RED, red: true, k, size: Math.round((lying ? 30 : 26) * Math.pow(CAM.z / Z0, .4)), weight: 700 });
+      crossDim(g, m.X, off, fmt(LEN[n]) + ' m', { col: RED, red: true, k, size: sz, weight: 800 });
     }
   }
-  if (t >= B.gap) {
-    const rowY = r => -.9 - .5 * r, sz = Math.round(25 * Math.pow(CAM.z / Z0, .4));
-    const row = (x0, x1, r, lab, o) => dim(g, P(x0, rowY(r), 0), P(x1, rowY(r), 0), 0, lab, { size: sz, ...o });
-    // the gap's requirement (its extension lines come down from the bearings)
-    const kq = ss(B.gap + .5, B.gap + 1.1, t);
-    if (kq > 0) { line(g, [P(FOOT, -.02, 0), P(FOOT, rowY(1) - .1, 0)], HAIR, INK, { k: kq, nib: false }); line(g, [P(END, -.02, 0), P(END, rowY(1) - .1, 0)], HAIR, INK, { k: kq, nib: false }); row(FOOT, END, 1, '필요 길이 3.0 m', { k: kq }); }
-    // the others' bridges fit
-    for (const o of OTH) { const a = ss(o.T + .82, o.T + 1.0, t) * (1 - ss(o.T + 2.3, o.T + 2.7, t)); if (a > 0) { const p = P(1.0, .3, o.d); label(g, '3.0 m ✓', p[0], p[1], { alpha: a, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)), patch: true }); } }
-    // mine: 1.44 m — and the red shortfall
-    const km = ss(18.68, 18.9, t);
-    if (km > 0) {
-      line(g, [P(LEN[3] + FOOT, .0, 0), P(LEN[3] + FOOT, rowY(0) - .1, 0)], HAIR, RED, { k: km, nib: false });
-      line(g, [P(FOOT, -.02, 0), P(FOOT, rowY(0) - .1, 0)], HAIR, RED, { k: km, nib: false });
-      row(FOOT, FOOT + LEN[3], 0, fmt(LEN[3]) + ' m', { col: RED, red: true, k: km, weight: 700 });
-      row(FOOT + LEN[3], END, 0, '−' + fmt(SHORT) + ' m', { col: RED, red: true, k: ss(18.8, 19.05, t), weight: 700, size: Math.round(sz * 1.25) });
-    }
-    // after the fall: where mine was, as a phantom line
-    const kp = ss(19.6, 20.1, t);
-    if (kp > 0) drawCross(g, { foot: [FOOT, .065, 0], top: [FOOT + LEN[3], .065, 0], bar: [0, 1, 0], L: LEN[3] }, { col: RED, dash: [12, 6, 3, 6], hollow: true, alpha: .85 * kp });
-    // the pieces on the road behind me: their own small dimensions, then they slide into the gap
-    if (t >= B.back + .3) {
-      let s0 = FOOT + LEN[3];
-      for (let k = 0; k < 3; k++) {
-        const p = pieceGeom(k, t), kd = ss(B.back + .5 + .25 * k, B.back + 1.0 + .25 * k, t);
-        dim(g, P3(p.a), P3(p.b), (k === 2 ? -.34 : .34) * CAM.z, fmt(PIECE[k]) + ' m', { col: RED, red: true, k: kd, size: Math.round(30 * Math.pow(CAM.z / Z0, .4)), weight: 700, alpha: 1 - .6 * ss(22.5, 23.2, t) });
-        const u = eio(clamp((t - 22.5 - .25 * k) / 1.15)), slot = [[s0, .065, 0], [s0 + PIECE[k], .065, 0]]; s0 += PIECE[k];
-        if (u > 0) { const lift = .9 * Math.sin(Math.PI * u), a = add(mix3(p.a, slot[0], u), [0, lift, 0]), b = add(mix3(p.b, slot[1], u), [0, lift, 0]);
-          drawPiece(g, a, b, { dash: [10, 5], hollow: true, tint: 'rgba(255,93,77,.22)', alpha: .95 }); }
-      }
-      const ks = ss(23.7, 24.3, t);
-      if (ks > 0) row(FOOT + LEN[3], END, 2, PIECE.map(fmt).join(' + ') + ' = ' + fmt(SHORT) + ' m', { col: RED, red: true, k: ks, weight: 700, size: Math.round(sz * 1.05) });
-    }
+  if (t < B.gap) return;
+  const rowY = r => -.72 - .62 * r;
+  const row = (x0, x1, r, lab, o) => dim(g, P(x0, rowY(r), 0), P(x1, rowY(r), 0), 0, lab, o);
+  // the gap's requirement, hung from the bearings
+  const kq = ss(B.gap + .5, B.gap + 1.1, t) * fade;
+  if (kq > 0) { line(g, [P(FOOT, -.02, 0), P(FOOT, rowY(1) - .1, 0)], THIN, INK, { k: kq, nib: false }); line(g, [P(END, -.02, 0), P(END, rowY(1) - .1, 0)], THIN, INK, { k: kq, nib: false }); row(FOOT, END, 1, '필요 길이 3.0 m', { k: kq, size: 50, weight: 700 }); }
+  // each bridge fits — while it lies there
+  for (const o of OTH) { const a = ss(o.T + .05, o.T + .2, t) * (1 - ss(o.T + .8, o.T + 1.0, t)); if (a > 0) { const p = P(1.3, .62, o.d); label(g, '3.0 m ✓', p[0], p[1], { alpha: a, size: 46, weight: 800, patch: true }); } }
+  // mine: short — and the red shortfall, over a dashed outline of the whole span
+  const km = ss(B.mine, B.mine + .25, t) * (1 - ss(B.back + .3, B.back + .8, t));
+  if (km > 0) {
+    const ko = ss(B.mine + .15, B.mine + .5, t);
+    drawCross(g, { foot: [FOOT, .065, 0], top: [END, .065, 0], bar: [0, 1, 0], L: 3 }, { col: INK, dash: [14, 8], hollow: true, alpha: .7 * ko * km });
+    line(g, [P(FOOT + LEN[3], .0, 0), P(FOOT + LEN[3], rowY(0) - .1, 0)], THIN, RED, { k: km, nib: false });
+    line(g, [P(END, .0, 0), P(END, rowY(0) - .1, 0)], THIN, RED, { k: km, nib: false });
+    row(FOOT + LEN[3], END, 0, '−' + fmt(SHORT) + ' m', { col: RED, red: true, k: km * ss(B.mine + .1, B.mine + .4, t), weight: 800, size: 74 });
   }
+  // the whole cross, dashed, waits for its missing foot: my 1.44 m as a ghost at the top end
+  const kw = ss(B.back + .4, B.back + 1.0, t);
+  if (kw > 0) {
+    drawCross(g, { foot: [FOOT, .065, 0], top: [END, .065, 0], bar: [0, 1, 0], L: 3 }, { col: RED, dash: [14, 8], hollow: true, alpha: .9 * kw * fade });
+    beams(g, [[P(END - LEN[3], .065, 0), P(END, .065, 0), .13 * CAM.z]], { col: RED, dash: [6, 6], hollow: true, tint: 'rgba(255,93,77,.16)', alpha: kw * fade });
+  }
+  // the pieces: their lengths while they glow on the road, then each one flies into its slot
+  if (t >= B.back) for (let k = 0; k < 3; k++) {
+    const p = pieceGeom(k, t), [f0] = flyT(k);
+    if (p.flying || p.landed) drawPiece(g, p.a, p.b, { glow: p.landed ? glowK(t) * .7 : 1, t: t * 6 });
+    const la = ss(B.back + .5 + .2 * k, B.back + .9 + .2 * k, t) * (1 - ss(f0 - .05, f0 + .2, t));
+    if (la > 0) { const c = P3(mix3(p.a, p.b, .5)); g.save(); g.translate(c[0], c[1] + (k === 2 ? 78 : -66)); g.rotate(-.05); label(g, fmt(PIECE[k]) + ' m', 0, 0, { col: RED, size: 46, weight: 800, alpha: la, patch: true }); g.restore(); }
+  }
+  const ks = ss(B.fill[1] - .1, B.fill[1] + .5, t) * fade;
+  if (ks > 0) { g.save(); const c = P((FOOT + END) / 2, rowY(0), 0); g.translate(c[0], c[1]); g.rotate(-.03);
+    label(g, PIECE.map(fmt).join(' + ') + ' = ' + fmt(SHORT) + ' m', 0, 18, { col: RED, size: 52, weight: 800, alpha: ks, patch: true }); g.restore(); }
 }
 
 // ---------------------------------------------------------------- figure numbers (the drawing's own captions), notes, end card
-const FIGS = [[0, 'FIG. 1  순례 행렬 — 측면도'], [SAW[0], 'FIG. 2  절단 상세 ①'], [B.run[0], 'FIG. 3  경량화 후'], [SAW[1], 'FIG. 4  절단 상세 ②·③'],
-  [B.gap, 'FIG. 5  단면 B–B · 낭떠러지'], [B.mine, 'FIG. 6  하중 시험'], [B.back, 'FIG. 7  잘라 낸 부재']];
-function figLabel(g, t) {
-  let i = 0; while (i < FIGS.length - 1 && t >= FIGS[i + 1][0]) i++;
-  const [t0, s] = FIGS[i], k = i === 0 ? 1 : ss(t0, t0 + .45, t), a = 1 - ss(B.end - .3, B.end, t); if (a <= 0) return;
-  g.save(); g.beginPath(); g.rect(60, 1440, 40 + 700 * k, 90); g.clip();
-  Pilot.text(g, s, 76, 1492, { size: 26, font: SANS, weight: 600, color: INK, alpha: .85 * a, align: 'left', ls: 1 });
-  g.restore();
-  g.save(); g.globalAlpha = .7 * a; g.strokeStyle = INK; g.lineWidth = 1.5; g.beginPath(); g.moveTo(76, 1508); g.lineTo(76 + 560 * k, 1508); g.stroke(); g.restore();
-}
 function noteBoxes(g, t) {
   S.lines.forEach(([a, b, s, src], i) => {
     const al = Pilot.win(t, a, b, .35, .45); if (al <= 0) return;
@@ -575,9 +619,7 @@ function noteBoxes(g, t) {
     g.globalAlpha = al; g.fillStyle = 'rgba(12,30,74,.72)'; g.fillRect(x0, top, bw, bot - top);
     g.strokeStyle = 'rgba(232,241,251,.9)'; g.lineWidth = 2; g.strokeRect(x0, top, bw, bot - top);
     g.lineWidth = 1; g.strokeRect(x0 + 7, top + 7, bw - 14, bot - top - 14);
-    g.fillStyle = 'rgba(12,30,74,.9)'; g.fillRect(x0 + 18, top - 15, 104, 28); g.strokeRect(x0 + 18, top - 15, 104, 28);
     g.restore();
-    Pilot.text(g, 'NOTE ' + (i + 1), x0 + 70, top + 6, { size: 18, font: SANS, weight: 700, color: INK, alpha: al * .9, ls: 2 });
   });
 }
 function endCard(g, t) {
@@ -600,8 +642,7 @@ function draw(ctx, t) {
   if (t >= B.gap) gateGlow(ctx, t);
   annotations(ctx, t);
   finish(ctx);
-  if (t >= B.mine + .8 && t < B.mine + .8 + 2 / 30) { ctx.save(); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.restore(); }   // two frames of negative on the hit
-  figLabel(ctx, t);
+  if (t >= B.fall && t < B.fall + 2 / 30) { ctx.save(); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.restore(); }   // two frames of negative on the hit
   noteBoxes(ctx, t);
   Story.captions(ctx, t, S.lines, { font: SANS, weight: 600, color: '#f4f8fd', srcColor: '#d2e2f6', shadow: 'rgba(4,14,40,.85)', shadowBlur: 14, y: 430 });
   endCard(ctx, t);
