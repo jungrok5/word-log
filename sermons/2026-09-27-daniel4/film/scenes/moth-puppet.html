@@ -187,7 +187,6 @@ const handRig = o => ({ box: [-182, -150, 820, 150], draw: g => {
     P.drawP(g, FIST);
     const ik = thumbIK(o.th);
     P.joint(g, THUMB1, TB[0], TB[1], ik.a1); P.joint(g, THUMB2, ik.k[0], ik.k[1], ik.a2);
-    P.rivet(g, TB[0], TB[1], 3.2); P.rivet(g, ik.k[0], ik.k[1], 2.8); P.rivet(g, WRIST[0], WRIST[1], 3.6);
   }
   g.globalCompositeOperation = 'multiply';
 } });
@@ -196,39 +195,38 @@ const GROUND_POSE = { x: 566, y: GY - 40, rot: -.19 };     // the scissors lying
 /* the hand comes up from the lower right (forearm running off the bottom of the cloth), blades pointing up-left at the neck */
 function handPose(t) {
   const aim = .9, cut = CUTPT(), [ox, oy] = R2(aim, [-108 * HS, 0]), tx = cut[0] - ox, ty = cut[1] - oy, G = GROUND_POSE;
-  if (t < B.near) return null;
-  if (t < B.relight) {                                     // take 1: come, open, snip, go
-    if (t > 7.6) return null;
-    const k = eo(clamp((t - B.near) / (B.press + .35 - B.near))), tw = P.tremor(t, 3, 1);
-    const d = t < B.press ? .9 * (1 - .6 * eo(clamp((t - B.near) / (B.press - B.near)))) : .36 * P.press(t, B.press, .45);
+  const come = u => {                                       // the approach (shared by both takes): a far soft shadow from frame 0
+    const k = eo(clamp(u / (B.press + .35))), d = u < B.press ? .9 * (1 - .6 * eo(clamp(u / B.press))) : .36 * P.press(u, B.press, .45);
+    return { x: lerp(tx + 240, tx, k), y: lerp(ty + 460, ty, k), d };
+  };
+  if (t < B.again) {                                        // take 1: come, open, snip, go
+    if (t > 6.2) return null;
+    const c = come(t), tw = P.tremor(t, 3, 1);
     const th = .3 * ss(B.spread, B.spread + .5, t) * (1 - ss(B.snip - .04, B.snip + .05, t)) + .02 * Math.sin(t * 7) * ss(B.spread, B.spread + .4, t) * (1 - ss(B.snip - .1, B.snip, t));
-    const lo = P.liftOff(t, 6.5, .9), away = eio(clamp((t - 6.5) / 1.1));
-    return { x: lerp(tx + 240, tx, k) + tw.x + 150 * away, y: lerp(ty + 460, ty, k) + tw.y + 260 * away, rot: aim + tw.r, arm: 1.05,
-      dist: Math.max(d, lo), alpha: 1 - ss(7.1, 7.6, t), th };
+    const lo = P.liftOff(t, B.snip + .5, .9), away = eio(clamp((t - B.snip - .5) / 1.1));
+    return { x: c.x + tw.x + 150 * away, y: c.y + tw.y + 260 * away, rot: aim + tw.r, arm: 1.05, dist: Math.max(c.d, lo), alpha: 1 - ss(B.snip + 1.1, B.snip + 1.6, t), th };
   }
-  if (t < B.hand2 || t > B.set + 1.1) return null;          // take 2: come, stop short, lay the scissors down, let go
-  const tense = ss(B.press2, B.press2 + .3, t) * (1 - ss(B.down, B.down + .4, t));
-  const tw = P.tremor(t, 7, 1 + 1.4 * tense), k = eo(clamp((t - B.hand2) / (B.press2 + .35 - B.hand2)));
-  const d = t < B.press2 ? .9 * (1 - .6 * eo(clamp((t - B.hand2) / (B.press2 - B.hand2)))) : .36 * P.press(t, B.press2, .45);
-  const th = .2 * ss(B.press2 + .1, B.press2 + .4, t) * (1 - ss(15.55, 15.95, t));          // opens a little… and closes again, slowly
-  const hx = tx + 34 * Math.cos(aim), hy = ty + 34 * Math.sin(aim);                       // it stops short of the neck
+  if (t > B.set + 1.1) return null;                         // take 2 (the same approach, picked up where the rewind left it): stop short, lay down, let go
+  const u = Math.min(t - B.again + S.rewindTo, B.press - .02), c = come(u);
+  const tense = ss(B.press2, B.press2 + .3, t) * (1 - ss(B.down, B.down + .4, t)), tw = P.tremor(t, 3, 1 + 1.4 * tense);
+  const d = t < B.press2 ? c.d : .36 * P.press(t, B.press2, .45) * .4;
+  const th = .2 * ss(B.press2 + .1, B.press2 + .4, t) * (1 - ss(B.down - .45, B.down - .05, t));       // opens a little… and closes again, slowly
+  const stop = ss(B.press2 - .3, B.press2 + .3, t), hx = lerp(c.x, tx + 34 * Math.cos(aim), stop), hy = lerp(c.y, ty + 34 * Math.sin(aim), stop);   // it stops short of the neck
   const dn = eio(clamp((t - B.down) / (B.set - B.down)));
-  const x = lerp(lerp(tx + 240, hx, k), G.x, dn), y = lerp(lerp(ty + 460, hy, k), G.y, dn), rot = lerp(aim, G.rot, dn);
-  return { x: x + tw.x * (1 - dn), y: y + tw.y * (1 - dn), rot: rot + tw.r * (1 - dn), arm: lerp(1.05, .55, dn), dist: d, th };
+  return { x: lerp(hx, G.x, dn) + tw.x * (1 - dn), y: lerp(hy, G.y, dn) + tw.y * (1 - dn), rot: lerp(aim, G.rot, dn) + tw.r * (1 - dn), arm: lerp(1.05, .55, dn), dist: d, th };
 }
 
 // ---------------------------------------------------------------- the moth
 /* pose: { u (thorax on the cocoon axis, local y) or world x/y, rot, dist, alpha, fat, crumple, fold 0..1, ws (wing scale),
    fill 0..1 (light in the veins), bloom 0..1 (the red eyespots), flap (rad), shiver (rad), clipY (hide below this local y) } */
 function mothPose(t) {
-  if (t < B.relight) {                                                     // take 1 (cut free)
-    if (t > B.dark + .62) return null;
+  if (t < B.again) {                                                       // take 1 (cut free)
     const base = { fat: true, crumple: true, alpha: 1 };
     if (t < B.out[0]) {                                                    // inside: only the antennae poke out of the hole as it strains
       const [x, y] = cocAt(124 - 40 * strain(t + .25) * (1 - ss(B.snip - .4, B.snip, t)), cocoonSway(t));
       return Object.assign(base, { x, y, rot: RC + cocoonSway(t), clip: 0, shiver: 0 });
     }
-    let shiver = 0; for (const t0 of B.tries) shiver += .5 * pulse(t, t0, .22) * Math.sin((t - t0) * 60);
+    let shiver = 0; for (const t0 of B.tries) shiver += .9 * pulse(t, t0, .35) * Math.abs(Math.sin((t - t0) * 9));   // heaves the stubs up, they flop back
     if (t < B.fall) {
       const u = t < B.out[1] ? lerp(118, -74, eo(clamp((t - B.out[0]) / (B.out[1] - B.out[0]))))
         : lerp(-74, PERCH, eio(clamp((t - B.climb[0]) / (B.climb[1] - B.climb[0])))) + 3 * Math.sin(clamp((t - B.climb[0]) / (B.climb[1] - B.climb[0])) * Math.PI * 6);
@@ -237,20 +235,21 @@ function mothPose(t) {
     }
     const [px, py] = cocAt(PERCH), f = clamp((t - B.fall) / .55), land = py + (GY - 30 - py) * f * f;
     const bounce = t > B.fall + .55 ? 12 * Math.max(0, Math.sin((t - B.fall - .55) * 15)) * Math.exp(-(t - B.fall - .55) * 9) : 0;
-    const crawl = ss(B.fall + .8, B.dark + .6, t);
+    const crawl = .4 * ss(B.fall + .8, B.rw[0], t);
     return Object.assign(base, { x: px - 70 * f - 46 * crawl + 3 * Math.sin(t * 18) * crawl, y: land - bounce, rot: RC + lerp(0, -Math.PI / 2 - .1, eo(f)) + .05 * Math.sin(t * 9) * crawl, shiver: .3 * Math.sin(t * 13) * crawl });
   }
   // take 2 (waited)
   if (t < B.push[0] - .6 || t > B.fly + 1.6) return null;
-  let p = 0; for (const t0 of B.push) p += .25 * eo(clamp((t - t0) / .42)) - .035 * ss(t0 + .42, t0 + .7, t) * (t0 < B.push[3] ? 1 : 0);
-  p = clamp(p + .035 * ss(B.push[3] + .42, B.push[3] + .7, t));
+  const n = B.push.length, last = B.push[n - 1];
+  let p = 0; for (const t0 of B.push) p += eo(clamp((t - t0) / .5)) / n - .03 * ss(t0 + .5, t0 + .8, t) * (t0 < last ? 1 : 0);
+  p = clamp(p + .03 * (n - 1) * ss(last + .5, last + .8, t));
   const peek = .12 * strain(t, 1.2) * (1 - ss(B.push[0] - .2, B.push[0], t));
   let u = lerp(70, -78, p) - 14 * peek;
   if (t > B.free - .2) u = lerp(u, PERCH, eio(clamp((t - B.free + .2) / .55)));
-  const [cx, cy] = cocAt(u), fold = eio(clamp((t - B.open) / 1.5));
+  const [cx, cy] = cocAt(u), fold = eio(clamp((t - B.open) / 1.5));   // folded wings swell a little with every push
   const fl = P.liftOff(t, B.fly, 1.5), up = eio(clamp((t - B.fly) / 1.5));
-  return { x: cx + 380 * up, y: cy - 250 * up, rot: RC + .3 * up, grow: .9, clip: t < B.free + .3 ? 0 : null, fold, ws: lerp(.4, 1, fold),
-    fill: Math.max(p * .8, ss(B.free, B.open + .5, t)), bloom: ss(B.open + .3, B.open + 1.9, t),
+  return { x: cx + 380 * up, y: cy - 250 * up, rot: RC + .3 * up, grow: .9, clip: t < B.free + .3 ? 0 : null, fold, ws: lerp(.42 + .14 * p, 1, fold),
+    fill: Math.max(p * .85, ss(B.free, B.open + .5, t)), bloom: ss(B.open + .3, B.open + 1.9, t),
     flap: t > B.fly ? .55 * Math.sin((t - B.fly) * Math.PI * 2 * 3) * ss(B.fly, B.fly + .2, t) : -.05 * Math.sin((t - B.open - 1.5) * 2.2) * ss(B.open + 1.4, B.open + 1.8, t),
     dist: fl, alpha: 1 - ss(B.fly + .8, B.fly + 1.45, t), squeeze: p < 1 && t > B.push[0] - .1 ? 1 : 0 };
 }
@@ -281,8 +280,8 @@ const mothRig = st => ({ box: [-260, -150, 260, 160], draw: g => {
 
 // ---------------------------------------------------------------- the cocoon
 function cocoonSway(t) {
-  if (t < B.relight) return .045 * strain(t + .25) * (1 - ss(B.snip - .3, B.snip, t)) + .03 * pulse(t, B.snip, .3) * Math.sin((t - B.snip) * 30) + .02 * Math.sin(t * 9) * (ss(B.out[0], B.out[0] + .1, t) - ss(B.out[1], B.out[1] + .3, t));
-  let s = .04 * strain(t - B.relight + .4, 1) * (1 - ss(B.push[0] - .4, B.push[0], t));
+  if (t < B.again) return .06 * strain(t + .25) * (1 - ss(B.snip - .3, B.snip, t)) + .03 * pulse(t, B.snip, .3) * Math.sin((t - B.snip) * 30) + .02 * Math.sin(t * 9) * (ss(B.out[0], B.out[0] + .1, t) - ss(B.out[1], B.out[1] + .3, t));
+  let s = .05 * strain(t - B.again + S.rewindTo + .25) * (1 - ss(B.push[0] - .4, B.push[0], t));
   for (const t0 of B.push) s += .05 * pulse(t, t0, .25) * Math.sin((t - t0) * 26);
   return s + .05 * pulse(t, B.free, .9) * Math.sin((t - B.free) * 7) + .035 * Math.exp(-Math.max(0, t - B.fly) * .7) * Math.sin((t - B.fly) * 4.2) * ss(B.fly, B.fly + .3, t);
 }
@@ -292,27 +291,24 @@ function capOpen(t) {                                     // take 2: the lid of 
   return -(p + .4 * eo(clamp((t - B.free + .1) / .5)) + .03 * Math.sin((t - B.free) * 6) * Math.exp(-Math.max(0, t - B.free) * 1.5) * ss(B.free, B.free + .2, t));
 }
 function capPose(t) {                                     // take 1: the snipped neck flies off and lands on the ground
-  if (t < B.snip || t > B.dark + .62) return null;
+  if (t < B.snip || t >= B.again) return null;
   const f = clamp((t - B.snip) / .62), [x0, y0] = cocAt(0);
   return { x: x0 - 90 * eo(f) - 10 * f, y: lerp(y0, GY - 14, f * f) - 120 * Math.sin(Math.PI * Math.min(1, f * 1.25)) * (1 - f), rot: RC + 3.4 * eo(f) + .2 * Math.sin(Math.min(1, f) * 9) * f };
 }
 
 // ---------------------------------------------------------------- light and camera
 function lampI(t) {
-  let I = (1 + .3 * P.flare(t, B.snip, .1)) * (1 - .12 * ss(B.fall, B.fall + .6, t));
-  if (t >= B.dark && t < B.relight) I *= P.gutter(t, B.dark, B.dark + .55);
-  if (t >= B.relight) {
-    const r = t - B.relight;
-    I = r < .25 ? .18 * (r > .06 ? 1 : 0) : r < .35 ? .05 : lerp(.3, 1, eo(clamp((r - .35) / .5)));
-    let push = 0; for (const t0 of B.push) push += .045 * ss(t0, t0 + .3, t);
-    I *= 1 + push + .1 * ss(B.open, B.open + 1.4, t) + .35 * P.flare(t, B.fly + 1.2, .45);
+  let I = (1 + .3 * P.flare(t, B.snip, .1)) * (1 - .1 * ss(B.fall, B.fall + .6, t) * (t < B.again ? 1 : 0));
+  if (t >= B.again) {
+    let push = 0; for (const t0 of B.push) push += .1 * P.flare(t, t0 + .15, .18);
+    I *= 1 + push - .22 * P.flare(t, (B.push[1] + B.push[2]) / 2 + .1, .3) + .1 * ss(B.open, B.open + 1.4, t) + .35 * P.flare(t, B.fly + 1.2, .45);
   }
+  I *= 1 - .8 * ss(B.end - .4, B.end + .5, t);
   return Math.max(0, I * P.flicker(t, { amt: .05, hz: 6, seed: 3.1, buzz: .01, buzzHz: 19 }));
 }
 function cam(t) {
   let m = P.cam();
-  m = P.zoom(m, P.pullBack(t, B.pull, 1.0), 540, 1690);
-  const z = 1.42 + .08 * ss(0, B.snip, t) - .16 * ss(B.out[0], B.climb[1], t) + .08 * ss(B.relight - .4, B.relight, t)
+  const z = 1.42 + .08 * ss(0, B.snip, t) - .16 * ss(B.out[0], B.climb[1], t) 
     + .13 * ss(B.push[0] - .6, B.push[3] + .3, t) - .37 * ss(B.free, B.open + 1.4, t);
   m = P.zoom(m, z * (1 + .06 * P.crash(t, B.snip) + .03 * P.crash(t, B.fall + .55) + .02 * P.crash(t, B.set)), COC[0], 980);
   return m;
@@ -320,19 +316,25 @@ function cam(t) {
 
 // ---------------------------------------------------------------- the frame
 function draw(ctx, t) {
+  const [r0, r1] = B.rw, u = clamp((t - r0) / (r1 - r0));
+  scene(ctx, t > r0 && t < r1 ? lerp(r0, S.rewindTo, eio(u)) : t, t > r0 && t < r1 ? Math.sin(Math.PI * u) : 0);
+  P.captions(ctx, t, S.lines, { color: '#26140a', srcColor: '#3e2410', shadow: 'rgba(255,238,210,.9)', shadowBlur: 22 });
+  P.endCard(ctx, t, S.endCard, B.end);
+}
+function scene(ctx, t, rew) {
   const M = cam(t), g = P.beginT(M);
   P.drawP(g, HILLS);
   P.drawP(g, GROUND);
   P.drawP(g, STEM);
   for (const [x, y, a, i] of [[352, 946, Math.PI + .25, 0], [648, 720, -.2, 1], [520, 718, -.65, 2]]) P.place(g, LEAF, { x, y, rot: a + .06 * Math.sin(t * 1.2 + i * 2) });
   // the cocoon on the twig (silk threads tie it on)
-  const sw = cocoonSway(t), whole = t >= B.relight || t < B.snip;
+  const sw = cocoonSway(t), whole = t >= B.again || t < B.snip, empty = ss(B.free, B.free + 1, t);
   g.save(); g.setTransform(M.multiply(new DOMMatrix().translate(COC[0], COC[1]).rotate((RC + sw) * 180 / Math.PI)));
   g.globalCompositeOperation = 'multiply';
   g.strokeStyle = 'rgba(30,16,6,.55)'; g.lineWidth = 1.6; g.beginPath();
   for (const [a, b, c, d] of [[-16, 14, -34, -20], [-30, 60, -46, 24], [-40, 120, -54, 92], [-34, 200, -50, 180]]) { g.moveTo(a, b); g.lineTo(c, d); }
   g.stroke();
-  P.drawP(g, CBODY);
+  g.globalAlpha = 1 - .35 * empty; P.drawP(g, CBODY); g.globalAlpha = 1;                     // empty: thinner, lighter
   if (whole) { const ca = capOpen(t); if (ca) { g.save(); g.translate(-24, SNIP_Y); g.rotate(ca); g.translate(24, -SNIP_Y); P.drawP(g, CCAP); g.restore(); } else P.drawP(g, CCAP); }
   g.restore();
   const cp = capPose(t); if (cp) P.place(g, CCAP, cp);
@@ -353,10 +355,12 @@ function draw(ctx, t) {
     P.place(g, handRig({ th: hp.th, scissors: !letgo, hand: true, arm: hp.arm - hp.rot }),
       { x: hp.x + 120 * drift, y: hp.y + 160 * drift, rot: hp.rot, scale: HS, dist: Math.max(hp.dist, lo), alpha: (hp.alpha ?? 1) * (1 - ss(B.set + .5, B.set + 1.05, t)) });
   }
-  const warmK = ss(B.open, B.open + 2, t) - .6 * ss(B.fall, B.dark, t) * (t < B.relight ? 1 : 0);
-  P.frame(ctx, t, M, { I: .9 * lampI(t), color: P.warm(Math.max(0, warmK * .9 + .1)), x: LAMP[0], y: LAMP[1] }, { audience: ss(B.pull + .1, B.pull + 1.2, t) });
-  P.captions(ctx, t, S.lines, { color: '#26140a', srcColor: '#3e2410', shadow: 'rgba(255,238,210,.9)', shadowBlur: 22 });
-  P.endCard(ctx, t, S.endCard, B.end);
+  const warmK = ss(B.open, B.open + 2, t) - .5 * ss(B.fall, B.rw[0], t) * (t < B.again ? 1 : 0);
+  P.frame(ctx, t, M, { I: .9 * lampI(t), color: P.warm(Math.max(0, warmK * .9 + .1)), x: LAMP[0], y: LAMP[1] }, {});
+  if (rew > 0) {                                           // rewinding: the lamp stutters, ◀◀ in the corner, a scan of light runs up
+    ctx.save(); ctx.globalAlpha = .55 * rew; ctx.fillStyle = '#26140a'; ctx.font = `700 54px ${P.FONT}`; ctx.textAlign = 'left'; ctx.fillText('◀◀', 70, 250);
+    const y = H * ((t * 1.7) % 1); ctx.globalAlpha = .12 * rew; ctx.fillStyle = '#fff6e4'; ctx.fillRect(0, y, W, 26); ctx.restore();
+  }
 }
 
 async function init() { P.init(); build(); }
