@@ -45,7 +45,9 @@
    의미가 맞는 것, 새 그림이 필요할 때만 canvas-film `references/STYLE-INDEX.md` 170개 전체에서(문서의 5단계).
    키트는 그리는 재료일 뿐 — 장면 구성·색·카메라는 매번 새로. 예전 영상과 헷갈려 보이면 다시 설계한다.
 4. **제안**: `tools/storyboard.template.md`를 채워 `sermons/.../storyboard.md` — 추천 스타일 1 + 대안 2–3, 본편 콘티
-   (시간·화면·자막·소리), **메시지 점검 표**, 체크리스트. 사용자에게 보여 주고 컨펌받는다.
+   (시간·화면·자막·소리), **메시지 점검 표**, 체크리스트. **스타일 샘플 이미지**를 함께:
+   `python3 tools/style-samples.py sermons/<폴더> "bass=추천 · 솔 바스" "woodcut=대안 1 · 목판화" …` → `style-samples.jpg`
+   (하우스 스타일은 `styles/samples.json`의 장면을 크게 렌더, 그 밖은 canvas-film 샘플 사이트 그림). 사용자에게 보여 주고 컨펌받는다.
 5. **제작** (컨펌 후):
    1. `python3 tools/new-film.py sermons/<폴더> --style <slug> --id <이름>` → `scenes/source.js`(엔딩 카드 자료),
       `scenes/script.js`(beats·lines; 엔딩 카드·loop 기본값이 붙어 있음), 키트 템플릿 장면.
