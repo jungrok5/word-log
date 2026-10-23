@@ -25,8 +25,8 @@ const { clamp, lerp, ss, eo, eio } = Pilot;
 const SANS = "'Noto Sans KR',sans-serif", SERIF = "'Noto Serif KR',serif";
 const FONTS = ["600 54px 'Noto Sans KR'", "500 28px 'Noto Sans KR'", "700 30px 'Noto Sans KR'", "400 30px 'Noto Sans KR'", "700 72px 'Noto Serif KR'"];
 const INK = '#e8f1fb', RED = '#ff5d4d';
-const KX = .2, KY = .4, Z0 = 150;                       // oblique: 1 m of depth = .2 m right, .4 m up on the sheet
-const OUT = 3.0, DET = 2.0, THIN = 1.3, HAIR = .9;      // line weights (px at zoom Z0; screen = w · (z/Z0)^.65)
+const KX = .14, KY = .4, Z0 = 150;                       // oblique: 1 m of depth = .2 m right, .4 m up on the sheet
+const OUT = 3.4, DET = 2.3, THIN = 1.4, HAIR = 1.0;      // line weights (px at zoom Z0; screen = w · (z/Z0)^.65)
 const LEN = S.left.map(k => +(3 * k).toFixed(2));        // my cross: 3, 2.4, 1.86, 1.44 m
 const PIECE = [0, 1, 2].map(k => +(LEN[k] - LEN[k + 1]).toFixed(2));   // .6 .54 .42
 const SHORT = +(3 - LEN[3]).toFixed(2);                  // 1.56
@@ -55,8 +55,8 @@ function buildSheet() {
   const A = [20, 46, 100], Bc = [44, 92, 168];
   for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) {
     const sx = TX0 + i / TPPM, sy = TY1 - j / TPPM;
-    const n = Pilot.fbm(sx * .32 + 3, sy * .32 + 7, 4), st = Pilot.noise(sx * .09 + 11, sy * 2.6), fine = Pilot.fbm(sx * 1.7, sy * 1.7, 2);
-    let v = clamp(.2 + .62 * n + .2 * (st - .5) + .14 * (fine - .5));
+    const n = Pilot.fbm(sx * .32 + 3, sy * .32 + 7, 4), st = Pilot.noise(sx * .07 + 11, sy * .9), fine = Pilot.fbm(sx * 1.7, sy * 1.7, 2);
+    let v = clamp(.2 + .64 * n + .07 * (st - .5) + .12 * (fine - .5));
     const cr1 = Math.abs(sx + 2.6), cr2 = Math.abs(sy - 6.2);                        // two fold creases
     v += .07 * Math.exp(-cr1 * cr1 * 900) - .05 * Math.exp(-((cr1 - .05) ** 2) * 900) + .06 * Math.exp(-cr2 * cr2 * 900);
     const c = Pilot.mix(A, Bc, clamp(v)), k = (j * TN + i) * 4;
@@ -161,21 +161,22 @@ function walkPose(x, d, f, ph, amp, heavy, yb = 0) {
   const legs = [0, 1].map(i => { const p = ph + i * Math.PI, th = amp * Math.sin(p), kb = amp * 1.4 * Math.max(0, Math.cos(p)) + .04;
     return { th, kb, h: LT * Math.cos(th) + LS * Math.cos(th - kb) }; });
   const hy = Math.max(legs[0].h, legs[1].h) + yb, lean = .05 + .13 * heavy;
-  const hip = [x, hy, d], sh = [x + lean * f, hy + .5 - .06 * heavy, d], head = [sh[0] + (.05 + .06 * heavy) * f, sh[1] + .22 - .04 * heavy, d];
+  const hip = [x, hy, d], sh = [x + lean * f, hy + .5 - .06 * heavy, d], head = [sh[0] + (.05 + .11 * heavy) * f, sh[1] + .22 - .07 * heavy, d];
   const kn = [], ft = [];
   legs.forEach((L, i) => { const dd = d + (i ? .1 : -.1);
     kn[i] = [x + LT * Math.sin(L.th) * f, hy - LT * Math.cos(L.th), dd];
     ft[i] = [kn[i][0] + LS * Math.sin(L.th - L.kb) * f, kn[i][1] - LS * Math.cos(L.th - L.kb), dd]; });
-  return { hip, sh, head, kn, ft, f, ph };
+  return { hip, sh, head, kn, ft, f, ph, toe: [[.12 * f, .01], [.12 * f, .01]] };
 }
 function kneelPose(x, d, f) {   // near knee down, far knee up; torso leaning well forward over the work
   return { hip: [x, .42, d], sh: [x + .42 * f, .66, d], head: [x + .6 * f, .8, d],
-    kn: [[x + .1 * f, .05, d - .1], [x + .36 * f, .43, d + .1]], ft: [[x - .36 * f, .04, d - .1], [x + .38 * f, .0, d + .1]], f, ph: 0 };
+    kn: [[x + .1 * f, .05, d - .1], [x + .36 * f, .43, d + .1]], ft: [[x - .3 * f, .1, d - .1], [x + .38 * f, .0, d + .1]], f, ph: 0, toe: [[-.04 * f, -.08], [.12 * f, .01]] };
 }
 function mixPose(A, Bp, k) {
   if (k <= 0) return A; if (k >= 1) return Bp;
   return { hip: mix3(A.hip, Bp.hip, k), sh: mix3(A.sh, Bp.sh, k), head: mix3(A.head, Bp.head, k),
-    kn: [0, 1].map(i => mix3(A.kn[i], Bp.kn[i], k)), ft: [0, 1].map(i => mix3(A.ft[i], Bp.ft[i], k)), f: lerp(A.f, Bp.f, k), ph: A.ph };
+    kn: [0, 1].map(i => mix3(A.kn[i], Bp.kn[i], k)), ft: [0, 1].map(i => mix3(A.ft[i], Bp.ft[i], k)), f: lerp(A.f, Bp.f, k), ph: A.ph,
+    toe: [0, 1].map(i => [lerp(A.toe[i][0], Bp.toe[i][0], k), lerp(A.toe[i][1], Bp.toe[i][1], k)]) };
 }
 // two-bone arm in screen space; the elbow takes the lower of the two solutions (elbows hang)
 function ik(s, h, l1, l2) {
@@ -186,34 +187,34 @@ function ik(s, h, l1, l2) {
   return [e, w];
 }
 function drawFigure(g, F, o = {}) {
-  const z = CAM.z, f = F.f, lw = LW(2.1), col = INK;
+  const z = CAM.z, f = F.f, lw = LW(2.4), col = INK;
   g.save(); g.globalAlpha *= o.alpha ?? 1; g.lineCap = 'round'; g.lineJoin = 'round';
   const tube = (p, w) => { PL(g, p); g.strokeStyle = col; g.lineWidth = w * z + 2 * lw; g.stroke(); g.strokeStyle = PAT; g.lineWidth = w * z; g.stroke(); };
-  const leg = i => { const toe = add(F.ft[i], [.12 * f, .01, 0]); tube([P3([F.hip[0], F.hip[1], F.kn[i][2]]), P3(F.kn[i]), P3(F.ft[i]), P3(toe)], .1); };
+  const leg = i => { const toe = add(F.ft[i], [F.toe[i][0], F.toe[i][1], 0]); tube([P3([F.hip[0], F.hip[1], F.kn[i][2]]), P3(F.kn[i]), P3(F.ft[i]), P3(toe)], .1); };
   const arm = i => {
     const S3 = add(F.sh, [-.02 * f, -.04, i ? .14 : -.14]), Sx = P3(S3);
     const tg = o.hands && o.hands[i] ? P3(o.hands[i]) : P3(add(S3, [(.06 + .16 * Math.sin(F.ph + (i ? Math.PI : 0)) * (o.swing ?? 0)) * f, -.56, 0]));
     const [e, w] = ik(Sx, tg, .31 * z, .3 * z); tube([Sx, e, w], .075);
-    const dx = w[0] - e[0], dy = w[1] - e[1], l = Math.hypot(dx, dy) || 1, c = [w[0] + dx / l * .035 * z, w[1] + dy / l * .035 * z];
+    const dx = w[0] - e[0], dy = w[1] - e[1], c = w;
     g.beginPath(); g.ellipse(c[0], c[1], .06 * z, .043 * z, Math.atan2(dy, dx), 0, 7); g.fillStyle = PAT; g.fill(); g.strokeStyle = col; g.lineWidth = lw; g.stroke();
-    if (o.thumb && i === 0) { const t2 = P3(o.thumb); g.beginPath(); g.moveTo(c[0], c[1] - .02 * z); g.lineTo(t2[0], t2[1]); g.lineWidth = lw * 1.2; g.stroke(); }
+    if (o.thumb && i === 0) { const t2 = P3(o.thumb); PL(g, [c, t2]); g.strokeStyle = col; g.lineWidth = .035 * z + 2 * lw; g.stroke(); g.strokeStyle = PAT; g.lineWidth = .035 * z; g.stroke(); }
   };
   leg(1); arm(1);
   // tunic
   const Sx = P3(F.sh), Hx = P3(F.hip), ax = Hx[0] - Sx[0], ay = Hx[1] - Sx[1], al = Math.hypot(ax, ay) || 1, an = [ax / al, ay / al], pn = [-an[1], an[0]];
-  const hem = [Hx[0] + an[0] * .24 * z, Hx[1] + an[1] * .24 * z], ws = .13 * z, wh = .2 * z;
-  g.beginPath(); g.moveTo(Sx[0] + pn[0] * ws, Sx[1] + pn[1] * ws); g.lineTo(hem[0] + pn[0] * wh, hem[1] + pn[1] * wh);
-  g.quadraticCurveTo(hem[0] + an[0] * .04 * z, hem[1] + an[1] * .04 * z, hem[0] - pn[0] * wh, hem[1] - pn[1] * wh);
+  const Hd = P3(add(F.hip, [.02 * f, -.26, 0])), hem = [Hd[0], Hd[1]], ws = .13 * z, wh = .2 * z, hn = [1, 0];
+  g.beginPath(); g.moveTo(Sx[0] + pn[0] * ws, Sx[1] + pn[1] * ws); g.lineTo(Hx[0] + pn[0] * ws * 1.15, Hx[1] + pn[1] * ws * 1.15); g.lineTo(hem[0] + hn[0] * wh * Math.sign(pn[0] || 1), hem[1]);
+  g.quadraticCurveTo(hem[0], hem[1] + .03 * z, hem[0] - hn[0] * wh * Math.sign(pn[0] || 1), hem[1]); g.lineTo(Hx[0] - pn[0] * ws * 1.15, Hx[1] - pn[1] * ws * 1.15);
   g.lineTo(Sx[0] - pn[0] * ws, Sx[1] - pn[1] * ws); g.quadraticCurveTo(Sx[0] - an[0] * .1 * z, Sx[1] - an[1] * .1 * z, Sx[0] + pn[0] * ws, Sx[1] + pn[1] * ws);
   g.fillStyle = PAT; g.fill(); g.strokeStyle = col; g.lineWidth = lw; g.stroke();
   g.beginPath(); g.moveTo(Hx[0] + pn[0] * .17 * z, Hx[1] + pn[1] * .17 * z); g.lineTo(Hx[0] - pn[0] * .17 * z, Hx[1] - pn[1] * .17 * z); g.lineWidth = LW(1.2); g.stroke();   // rope belt
-  // neck, hood, face
+  if (o.mid) o.mid();
+  // neck, hood, face (drawn over the load so the face always reads)
   const Hc = P3(F.head); tube([Sx, [lerp(Sx[0], Hc[0], .7), lerp(Sx[1], Hc[1], .7)]], .07);
   g.beginPath(); g.arc(Hc[0] - .035 * f * z, Hc[1] - .005 * z, .128 * z, 0, 7); g.fillStyle = PAT; g.fill(); g.lineWidth = lw; g.strokeStyle = col; g.stroke();
   g.beginPath(); g.arc(Hc[0] + .02 * f * z, Hc[1] + .012 * z, .088 * z, 0, 7); g.fill(); g.lineWidth = LW(1.3); g.stroke();
   g.beginPath(); g.moveTo(Hc[0] + .1 * f * z, Hc[1] + .0 * z); g.lineTo(Hc[0] + .125 * f * z, Hc[1] + .03 * z); g.lineTo(Hc[0] + .1 * f * z, Hc[1] + .04 * z); g.stroke();
   leg(0);
-  if (o.mid) o.mid();
   arm(0);
   g.restore();
 }
@@ -221,11 +222,11 @@ function drawFigure(g, F, o = {}) {
 // ---------------------------------------------------------------- crosses and cut pieces
 // X = { foot, top, bar (unit), L }: shaft foot→top, the crossbar (1.2 m) centred .7 m below the top
 function carryCross(F, L, heavy) {
-  const f = F.f, C = [F.sh[0] + .03 * f, F.sh[1] + .07, F.sh[2] - .2], reach = L - .7;
+  const f = F.f, C = [F.sh[0] - .07 * f, F.sh[1] + .08, F.sh[2] - .2], reach = L - .7;
   const a = heavy ? Math.asin(clamp((C[1] - .07) / reach, 0, 1)) : .46, u = [Math.cos(a) * f, Math.sin(a), 0];
   return { foot: add(C, mul(u, -reach)), top: add(C, mul(u, .7)), bar: [-Math.sin(a) * f, Math.cos(a), 0], L, C, u };
 }
-const carryHands = X => [add(X.C, mul(X.u, .3)), add(X.C, mul(X.u, .56))];
+const carryHands = X => [add(X.C, mul(X.bar, -.36)), add(X.C, mul(X.u, .26))];   // near hand on the crossbar's lower arm, far hand on the shaft
 const mixX = (A, Bx, k) => ({ foot: mix3(A.foot, Bx.foot, k), top: mix3(A.top, Bx.top, k), bar: nrm(mix3(A.bar, Bx.bar, k)), L: lerp(A.L, Bx.L, k) });
 function beamRect(a, b, w, inset = 0) {
   let dx = b[0] - a[0], dy = b[1] - a[1]; const l = Math.hypot(dx, dy); if (l < 1e-3) { dx = 1; dy = 0; } else { dx /= l; dy /= l; }
@@ -276,8 +277,8 @@ function drawSaw(g, sw, d) {
 const SAW = B.saw, TD = SAW.map(s => s + .8);            // piece drops .8 s after each saw beat
 const ME0 = -6.75, K1 = -5.6, K2 = -2.0, MEE = -.6, DC = -.75, DK = -.55;   // kneel spots; the cut lies at depth DC
 const XC = [K1 + .75, K2 + .75, K2 + .75], ROLL = [.16, .22, -.2];
-const V0 = .28, XL = -.45;
-const OTH = [{ d: 3.2, x0: -5.7, T: B.bridges[0] }, { d: 2.2, x0: -6.3, T: B.bridges[1] }, { d: 1.2, x0: -8.2, T: B.bridges[2] }];
+const V0 = .25, XL = -.45;
+const OTH = [{ d: 3.2, x0: -5.8, T: B.bridges[0] }, { d: 2.2, x0: -6.9, T: B.bridges[1] }, { d: 1.2, x0: -8.3, T: B.bridges[2] }];
 
 function meX(t) {
   if (t < SAW[0]) return ME0 + (K1 - ME0) * t / SAW[0] + .05 * Math.sin(t * Math.PI * 2 / 1.6);   // stagger
@@ -320,7 +321,7 @@ function meState(t) {
   const F = mixPose(Wp, kneelPose(x, d, f), kw);
   if (t > 19.2 && t < 21.2) { const k = ss(19.2, 19.5, t) * (1 - ss(20.9, 21.2, t)); F.head = add(F.head, [.05 * k, -.06 * k, 0]); }   // looks down
   let X = null, hands = null, saw = sawState(t), thumb = null;
-  const sawHands = s => { const w = s.sw(-.2, .03), gpt = s.sw(-.165, .07); return { hands: [[w[0], w[1], DC], [s.xc, .13, DC + .24]], grip: gpt }; };
+  const sawHands = s => { const w = s.sw(-.165, .075), gpt = s.sw(-.165, .075); return { hands: [[w[0], w[1], DC], [s.xc, .13, DC + .24]], grip: gpt }; };
   if (t < SAW[0]) { X = carryCross(F, 3, true); hands = carryHands(X); }
   else if (t < SAW[0] + .3) { const C = carryCross(F, 3, true), k = ss(SAW[0], SAW[0] + .3, t); X = mixX(C, groundCross(0, false), k); hands = carryHands(C).map((h, i) => mix3(h, sawHands(saw).hands[i], k)); }
   else if (t < 4.4) { X = groundCross(0, t >= TD[0]); hands = sawHands(saw).hands; }
@@ -333,15 +334,15 @@ function meState(t) {
   else if (t < 11.65) { const C = carryCross(F, LEN[3], false), k = ss(11.4, 11.65, t); X = mixX(groundCross(2, true), C, k); hands = sawHands(sawState(11.4)).hands.map((h, i) => mix3(h, carryHands(C)[i], k)); }
   else if (t < 18.22) { X = carryCross(F, LEN[3], false); hands = carryHands(X); }
   else {
-    const L = LEN[3], foot = [FOOT, .065, 0], up = { foot, top: [FOOT, .065 + L, 0], bar: [0, 0, 1], L };
+    const L = LEN[3], foot = [FOOT, .065, 0], up = { foot, top: [FOOT, .065 + L, 0], bar: [-1, 0, 0], L };
     const grip = Xx => { const u = nrm(sub(Xx.top, Xx.foot)); return [add(Xx.foot, mul(u, .08)), add(Xx.foot, mul(u, .24))]; };
     if (t < 18.45) { const C = carryCross(F, L, false), k = ss(18.22, 18.45, t); X = mixX(C, up, k); hands = carryHands(C).map((h, i) => mix3(h, grip(up)[i], k)); }
-    else if (t < 18.9) { const a = Math.PI / 2 * (1 - eio(clamp((t - 18.45) / .27))); X = { foot, top: [FOOT + L * Math.cos(a), .065 + L * Math.sin(a), 0], bar: [0, 0, 1], L }; hands = grip(X); }
+    else if (t < 18.9) { const a = Math.PI / 2 * (1 - eio(clamp((t - 18.45) / .27))); X = { foot, top: [FOOT + L * Math.cos(a), .065 + L * Math.sin(a), 0], bar: [-Math.sin(a), Math.cos(a), 0], L }; hands = grip(X); }
     else {
       let phi, piv; const T1 = 18.9, T2 = 19.2;
       if (t < T2) { phi = -6 * (t - T1) ** 2; piv = [0, .065]; } else { const q = t - T2; phi = -.54 - 3.2 * q - 2 * q * q; piv = [.35 * q, .065 - .6 * q - 4.9 * q * q]; }
       const c = Math.cos(phi), s = Math.sin(phi);
-      X = { foot: [piv[0] + FOOT * c, piv[1] + FOOT * s, 0], top: [piv[0] + (FOOT + L) * c, piv[1] + (FOOT + L) * s, 0], bar: [0, 0, 1], L, falling: true };
+      X = { foot: [piv[0] + FOOT * c, piv[1] + FOOT * s, 0], top: [piv[0] + (FOOT + L) * c, piv[1] + (FOOT + L) * s, 0], bar: [-s, c, 0], L, falling: true };
       if (X.top[1] < DEEP) X = null;
       const h0 = [[FOOT + .08, .1, 0], [FOOT + .24, .1, 0]], k = ss(19.35, 19.9, t);
       hands = k < 1 ? h0.map((h, i) => mix3(h, [F.sh[0] + .1 * f, .36, F.sh[2] + (i ? .14 : -.14)], k)) : null;   // empty hands sink back to the knees
@@ -349,7 +350,7 @@ function meState(t) {
     }
   }
   const sh = saw ? sawHands(saw) : null;
-  if (sh && t >= SAW[0] + .3 && t < 11.4 && !(t >= 4.4 && t < SAW[1] + .3)) thumb = [sh.grip[0] + .06, sh.grip[1] + .04, DC];
+  if (sh && t >= SAW[0] + .3 && t < 11.4 && !(t >= 4.4 && t < SAW[1] + .3)) { const q = saw.sw(-.06, .15); thumb = [q[0], q[1], DC]; }
   return { F, X, hands, saw, thumb, f };
 }
 function pieceGeom(k, t) {
@@ -366,20 +367,20 @@ function othState(o, t) {
   const heavy = t < o.T ? 1 : 1 - ss(o.T + .4, o.T + 1.0, t), yb = .13 * ss(-.3, -.05, x) * (1 - ss(GAP + .1, END + .1, x));
   const F = walkPose(x, o.d, 1, ph, amp, heavy, yb);
   const alpha = 1 - ss(GX - .55, GX + .05, x);
-  let X, hands = null; const foot = [FOOT, .065, o.d], up = { foot, top: [FOOT, 3.065, o.d], bar: [0, 0, 1], L: 3 };
+  let X, hands = null; const foot = [FOOT, .065, o.d], up = { foot, top: [FOOT, 3.065, o.d], bar: [-1, 0, 0], L: 3 };
   const grip = Xx => { const u = nrm(sub(Xx.top, Xx.foot)); return [add(Xx.foot, mul(u, 1.12)), add(Xx.foot, mul(u, 1.36))]; };
   if (t < o.T) { X = carryCross(F, 3, true); hands = carryHands(X); }
   else if (t < o.T + .35) { const C = carryCross(F, 3, true), k = ss(o.T, o.T + .35, t); X = mixX(C, up, k); hands = carryHands(C).map((h, i) => mix3(h, grip(up)[i], k)); }
-  else if (t < o.T + .8) { const u = clamp((t - o.T - .35) / .45), a = Math.PI / 2 * (1 - u * u); X = { foot, top: [FOOT + 3 * Math.cos(a), .065 + 3 * Math.sin(a), o.d], bar: [0, 0, 1], L: 3 };
+  else if (t < o.T + .8) { const u = clamp((t - o.T - .35) / .45), a = Math.PI / 2 * (1 - u * u); X = { foot, top: [FOOT + 3 * Math.cos(a), .065 + 3 * Math.sin(a), o.d], bar: [-Math.sin(a), Math.cos(a), 0], L: 3 };
     const k = ss(.15, .45, u); hands = grip(X).map((h, i) => mix3(h, add(F.sh, [.08, -.56, i ? .14 : -.14]), k)); }
-  else { const q = t - o.T - .8, b = .03 * Math.exp(-q * 9) * Math.abs(Math.sin(q * 26)); X = { foot: [FOOT, .065 + b * .3, o.d], top: [END, .065 + b, o.d], bar: [0, 0, 1], L: 3, laid: true }; }
+  else { const q = t - o.T - .8, b = .03 * Math.exp(-q * 9) * Math.abs(Math.sin(q * 26)); X = { foot: [FOOT, .065 + b * .3, o.d], top: [END, .065 + b, o.d], bar: [0, 1, 0], L: 3, laid: true }; }
   return { F, X, hands, alpha, x, swing: t > o.T + .9 ? 1 : 0 };
 }
 
 // ---------------------------------------------------------------- camera (hard cuts on the beats, like turning to the next figure)
 function cam(t) {
   const close = k => { const xc = XC[k], t0 = SAW[k === 2 ? 1 : k]; return { cx: xc - .3 + KX * DC, cy: .42 + KY * DC, z: 250 + 9 * (t - t0) }; };
-  if (t < SAW[0]) return { cx: meX(t) + .95, cy: 1.15, z: 150 };
+  if (t < SAW[0]) return { cx: meX(t) + .8, cy: 1.3, z: 172 };
   if (t < B.run[0]) return close(0);
   if (t < SAW[1]) return { cx: meX(t) + 1.05 + .25 * ss(B.run[0], 6, t), cy: 1.2, z: 140 };
   if (t < B.gap) return close(1);
@@ -390,8 +391,8 @@ function cam(t) {
       c = { cx: lerp(c.cx, 1.05, q) + sh, cy: lerp(c.cy, -.35, q) - sh, z: c.z * (1 + .38 * q) + 6 * (t - 19.2) }; }
     return c;
   }
-  const k = eio(clamp((t - B.back) / 1.0)), k2 = eio(clamp((t - 23.5) / 1.4));
-  const c0 = { cx: 1.05, cy: -.35, z: 150 * 1.38 + 6 * 1.8 }, c1 = { cx: -1.25, cy: 1.25, z: 108 }, c2 = { cx: 1.25, cy: .15, z: 170 };
+  const k = eio(clamp((t - B.back) / 1.1)), k2 = eio(clamp((t - 22.6) / 1.5));
+  const c0 = { cx: 1.05, cy: -.35, z: 150 * 1.38 + 6 * 1.8 }, c1 = { cx: -2.2, cy: .85, z: 175 }, c2 = { cx: 1.3, cy: -.15, z: 205 };
   const a = { cx: lerp(c0.cx, c1.cx, k), cy: lerp(c0.cy, c1.cy, k), z: lerp(c0.z, c1.z, k) };
   return { cx: lerp(a.cx, c2.cx, k2), cy: lerp(a.cy, c2.cy, k2), z: lerp(a.z, c2.z, k2) };
 }
@@ -437,6 +438,10 @@ function gate(g, t) {
   const sc = P(GX, 0, mid), gs = g.createRadialGradient(sc[0], sc[1], 0, sc[0], sc[1], 1.9 * CAM.z);
   gs.addColorStop(0, 'rgba(235,246,255,.42)'); gs.addColorStop(1, 'rgba(235,246,255,0)'); g.fillStyle = gs; PL(g, sp, true); g.fill();
   PL(g, [P(GX, 0, mid - gp), P(GX, 0, mid + gp), P(GX, hh - .05, mid + gp), P(GX, hh - .05, mid - gp)], true); g.fillStyle = 'rgba(244,250,255,.95)'; g.fill();
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 6; i++) { const y = .3 + i * .42, dd = (i - 2.5) * .5, a = P(GX, y, mid - gp * .5), b = P(GX, y + .1, mid + gp * .5), c = P(GX - 2.6, y + .35 + dd * .2, mid + 1.6 + dd), e = P(GX - 2.6, y - .05 + dd * .2, mid - 1.2 + dd);
+    const gr = g.createLinearGradient(a[0], a[1], (c[0] + e[0]) / 2, (c[1] + e[1]) / 2); gr.addColorStop(0, 'rgba(210,232,255,.09)'); gr.addColorStop(1, 'rgba(210,232,255,0)'); g.fillStyle = gr; PL(g, [a, b, c, e], true); g.fill(); }
+  g.globalCompositeOperation = 'source-over';
   g.restore();
   // leaves (panelled) and the frame
   for (const [a, b] of [[d0, mid - gp], [mid + gp, d1]]) {
@@ -447,8 +452,12 @@ function gate(g, t) {
     if (w > .5) for (const [y0, y1] of [[.25, 1.2], [1.45, 2.45]]) { const ia = a + Math.sign(b - a) * .2, ib = b - Math.sign(b - a) * .2; line(g, [P(GX, y0, ia), P(GX, y0, ib), P(GX, y1, ib), P(GX, y1, ia), P(GX, y0, ia)], HAIR, INK, { k, alpha: .7 }); }
     void m;
   }
-  line(g, [P(GX, 0, d0 - .15), P(GX, hh + .2, d0 - .15), P(GX, hh + .2, d1 + .15), P(GX, 0, d1 + .15)], OUT, INK, { k });
-  line(g, [P(GX, hh + .38, d0 - .3), P(GX, hh + .38, d1 + .3)], DET, INK, { k });
+  const arch = (r0, rise) => { const p = [P(GX, 0, d0 - r0)]; for (let i = 0; i <= 24; i++) { const a = Math.PI * (1 - i / 24); p.push(P(GX, hh + .15 + rise * Math.sin(a), mid + (mid - d0 + r0) * Math.cos(a))); } p.push(P(GX, 0, d1 + r0)); return p; };
+  const ar = arch(.15, .75), ar2 = arch(.42, .95);
+  g.save(); g.globalAlpha = k; PL(g, [...ar.slice(1, -1), ...ar2.slice(1, -1).reverse()], true); g.fillStyle = PAT; g.fill(); g.restore();
+  hatch(g, [...ar.slice(1, -1), ...ar2.slice(1, -1).reverse()], .09, .5 * k);
+  line(g, ar, OUT, INK, { k }); line(g, ar2, DET, INK, { k });
+  line(g, [P(GX, hh, d0), P(GX, hh, d1)], DET, INK, { k });
   line(g, [P(GX - .3, 0, ROAD0), P(GX - .3, 0, ROAD1)], HAIR, INK, { alpha: .4, k, dash: [10, 6] });   // threshold
 }
 function gateGlow(g, t) {
@@ -463,8 +472,9 @@ let ME = null;
 function entities(g, t) {
   for (const o of OTH) {   // far lanes first
     const s = othState(o, t); if (s.alpha <= 0 && !s.X) continue;
-    const crossFn = () => s.X && drawCross(g, s.X);
-    if (s.X && s.X.laid) { drawCross(g, s.X); if (s.alpha > 0) drawFigure(g, s.F, { alpha: s.alpha, swing: s.swing }); }
+    if (closeUp(t)) s.alpha *= .28;
+    const crossFn = () => s.X && drawCross(g, s.X, { alpha: closeUp(t) ? .28 : 1 });
+    if (s.X && s.X.laid) { drawCross(g, s.X, { alpha: closeUp(t) ? .28 : 1 }); if (s.alpha > 0) drawFigure(g, s.F, { alpha: s.alpha, swing: s.swing }); }
     else if (s.alpha > 0) drawFigure(g, s.F, { hands: s.hands, mid: crossFn, alpha: s.alpha });
   }
   for (let k = 0; k < 3; k++) { const p = pieceGeom(k, t); if (p) drawPiece(g, p.a, p.b); }
@@ -486,11 +496,11 @@ function sawdust(g, t, s) {
 }
 
 // ---------------------------------------------------------------- annotations: the dimensions that tell the story
+const closeUp = t => (t >= SAW[0] && t < B.run[0]) || (t >= SAW[1] && t < B.gap);
 const crossDim = (g, X, off, lab, o = {}) => dim(g, P3(X.foot), P3(X.top), off * CAM.z, lab, o);
 function annotations(g, t) {
-  const closeUp = (t >= SAW[0] && t < B.run[0]) || (t >= SAW[1] && t < B.gap);
   // the others' crosses: 3.0 m each (while carried)
-  if (t < B.gap && !closeUp) for (const o of OTH) { const s = othState(o, t); dim(g, P3(s.X.foot), P3(s.X.top), -.74 * CAM.z, '3.0 m', { alpha: .8, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)) }); }
+  if (t < B.gap && !closeUp(t)) for (const o of OTH) { const s = othState(o, t); dim(g, P3(s.X.foot), P3(s.X.top), -.74 * CAM.z, '3.0 m', { alpha: .8, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)) }); }
   // mine, in red pencil, corrected after every cut
   const m = ME, n = nCut(t);
   if (m.X && t < 18.22) {
@@ -499,23 +509,23 @@ function annotations(g, t) {
       const off = lying ? .78 : -.74, last = n ? TD[n - 1] : -9, fresh = t - last;
       const lab = fmt(LEN[n]) + ' m', k = n && fresh < .5 ? ss(0, .4, fresh) : 1;
       if (n && fresh < 1.6 && lying) {   // the old figure struck through, the new one lettered beside it
-        const a = P3(m.X.foot), b = P3(m.X.top), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, mm = [(a[0] + b[0]) / 2 + nx * (off * CAM.z + 46), (a[1] + b[1]) / 2 + ny * (off * CAM.z + 46)];
+        const a = P3(m.X.foot), b = P3(m.X.top), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, mm = [(a[0] + b[0]) / 2 + nx * (off * CAM.z + 46), (a[1] + b[1]) / 2 + ny * (off * CAM.z + 78)];
         let ang = Math.atan2(dy, dx); if (ang < -Math.PI / 2) ang += Math.PI; if (ang > Math.PI / 2) ang -= Math.PI;
         g.save(); g.translate(mm[0], mm[1]); g.rotate(ang); g.globalAlpha = 1 - ss(1.1, 1.6, fresh);
-        const sz = Math.round(24 * Math.pow(CAM.z / Z0, .4)); Pilot.text(g, fmt(LEN[n - 1]) + ' m', 0, sz * .36, { size: sz, font: SANS, weight: 600, color: RED });
+        const sz = Math.round(22 * Math.pow(CAM.z / Z0, .4)); Pilot.text(g, fmt(LEN[n - 1]) + ' m', 0, sz * .36, { size: sz, font: SANS, weight: 600, color: RED });
         g.strokeStyle = RED; g.lineWidth = LW(2.6); g.beginPath(); g.moveTo(-sz * 1.6, sz * .1); g.lineTo(-sz * 1.6 + sz * 3.2 * ss(0, .3, fresh), -sz * .2); g.stroke(); g.restore();
       }
       crossDim(g, m.X, off, lab, { col: RED, red: true, k, size: Math.round((lying ? 30 : 26) * Math.pow(CAM.z / Z0, .4)), weight: 700 });
     }
   }
   if (t >= B.gap) {
-    const rowY = r => -.5 - .48 * r, sz = Math.round(25 * Math.pow(CAM.z / Z0, .4));
+    const rowY = r => -.9 - .5 * r, sz = Math.round(25 * Math.pow(CAM.z / Z0, .4));
     const row = (x0, x1, r, lab, o) => dim(g, P(x0, rowY(r), 0), P(x1, rowY(r), 0), 0, lab, { size: sz, ...o });
     // the gap's requirement (its extension lines come down from the bearings)
     const kq = ss(B.gap + .5, B.gap + 1.1, t);
     if (kq > 0) { line(g, [P(FOOT, -.02, 0), P(FOOT, rowY(1) - .1, 0)], HAIR, INK, { k: kq, nib: false }); line(g, [P(END, -.02, 0), P(END, rowY(1) - .1, 0)], HAIR, INK, { k: kq, nib: false }); row(FOOT, END, 1, '필요 길이 3.0 m', { k: kq }); }
     // the others' bridges fit
-    for (const o of OTH) { const a = ss(o.T + .82, o.T + 1.0, t) * (1 - ss(o.T + 2.3, o.T + 2.7, t)); if (a > 0) { const p = P(1.3, .42, o.d); label(g, '3.0 m ✓', p[0], p[1], { alpha: a, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)), patch: true }); } }
+    for (const o of OTH) { const a = ss(o.T + .82, o.T + 1.0, t) * (1 - ss(o.T + 2.3, o.T + 2.7, t)); if (a > 0) { const p = P(1.0, .3, o.d); label(g, '3.0 m ✓', p[0], p[1], { alpha: a, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)), patch: true }); } }
     // mine: 1.44 m — and the red shortfall
     const km = ss(18.68, 18.9, t);
     if (km > 0) {
@@ -526,14 +536,14 @@ function annotations(g, t) {
     }
     // after the fall: where mine was, as a phantom line
     const kp = ss(19.6, 20.1, t);
-    if (kp > 0) drawCross(g, { foot: [FOOT, .065, 0], top: [FOOT + LEN[3], .065, 0], bar: [0, 0, 1], L: LEN[3] }, { col: RED, dash: [12, 6, 3, 6], hollow: true, alpha: .85 * kp });
+    if (kp > 0) drawCross(g, { foot: [FOOT, .065, 0], top: [FOOT + LEN[3], .065, 0], bar: [0, 1, 0], L: LEN[3] }, { col: RED, dash: [12, 6, 3, 6], hollow: true, alpha: .85 * kp });
     // the pieces on the road behind me: their own small dimensions, then they slide into the gap
     if (t >= B.back + .3) {
       let s0 = FOOT + LEN[3];
       for (let k = 0; k < 3; k++) {
         const p = pieceGeom(k, t), kd = ss(B.back + .5 + .25 * k, B.back + 1.0 + .25 * k, t);
-        dim(g, P3(p.a), P3(p.b), .32 * CAM.z, fmt(PIECE[k]) + ' m', { col: RED, red: true, k: kd, size: Math.round(24 * Math.pow(CAM.z / Z0, .4)), weight: 700, alpha: 1 - .5 * ss(23.6, 24.2, t) });
-        const u = eio(clamp((t - 22.4 - .3 * k) / 1.1)), slot = [[s0, .065, 0], [s0 + PIECE[k], .065, 0]]; s0 += PIECE[k];
+        dim(g, P3(p.a), P3(p.b), (k === 2 ? -.34 : .34) * CAM.z, fmt(PIECE[k]) + ' m', { col: RED, red: true, k: kd, size: Math.round(30 * Math.pow(CAM.z / Z0, .4)), weight: 700, alpha: 1 - .6 * ss(22.5, 23.2, t) });
+        const u = eio(clamp((t - 22.5 - .25 * k) / 1.15)), slot = [[s0, .065, 0], [s0 + PIECE[k], .065, 0]]; s0 += PIECE[k];
         if (u > 0) { const lift = .9 * Math.sin(Math.PI * u), a = add(mix3(p.a, slot[0], u), [0, lift, 0]), b = add(mix3(p.b, slot[1], u), [0, lift, 0]);
           drawPiece(g, a, b, { dash: [10, 5], hollow: true, tint: 'rgba(255,93,77,.22)', alpha: .95 }); }
       }
