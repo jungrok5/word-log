@@ -1,0 +1,34 @@
+{
+ "title": "잘라 낸 건 다리였다",
+ "source": "ko",
+ "scenes": [
+  {
+   "id": "cross-blueprint",
+   "label": "① 청사진 설계도 — Blueprint (치수선이 모자람을 증명)",
+   "dur": 30.5
+  },
+  {
+   "id": "cross-ukiyoe",
+   "label": "④ 우키요에 순례길 — Ukiyo-e",
+   "dur": 30.5
+  },
+  {
+   "id": "cross-papercut",
+   "label": "⑥ 붉은 전지 오림 — Red paper-cut",
+   "dur": 30.5
+  },
+  {
+   "id": "cross-glass",
+   "label": "⑦ 스테인드글라스 — Stained glass",
+   "dur": 30.5
+  }
+ ],
+ "audio": "scenes/soundtrack.wav",
+ "poster": 19.4,
+ "fonts": {
+  "local": {
+   "Noto Serif KR": "NotoSerifKR[wght].ttf",
+   "Noto Sans KR": "NotoSansKR[wght].ttf"
+  }
+ }
+}
