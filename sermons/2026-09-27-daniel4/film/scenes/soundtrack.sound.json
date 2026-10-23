@@ -1,0 +1,296 @@
+{
+ "duration": 29,
+ "music": [
+  {
+   "id": "m1",
+   "src": "fragile",
+   "at": 0.0,
+   "len": 12.0,
+   "db": -5,
+   "fout": 0.03,
+   "note": "take 1 of 4 (C/E/G/A); its own chord onsets at 0, 3.3, 6.65 (the relief), 10.0; cut dead at 12.0 (the fall)",
+   "prompt": "Quiet fragile intimate instrumental: sparse soft felt piano notes over a very soft high string harmonic, slow, delicate and a little anxious, small hesitant motif, gentle and hushed throughout, no drums, no vocals"
+  },
+  {
+   "id": "m2",
+   "src": "effort",
+   "at": 17.2,
+   "len": 3.6,
+   "db": 2,
+   "fin": 0.6,
+   "fout": 0.5,
+   "note": "take 1 of 4, centred on G (dominant) so it resolves into m3's C major",
+   "prompt": "Slow string swell building with strain and effort: low cellos and violas rising gradually from very quiet to strong, tense but hopeful, sustained bowed notes climbing upward, no drums, no vocals"
+  },
+  {
+   "id": "m3",
+   "src": "warm",
+   "at": 20.4,
+   "len": 8.6,
+   "db": -1,
+   "fin": 0.4,
+   "fout": 1.6,
+   "note": "take 2 of 4, C major; its swell lands ~23.4 (fly), decays from ~26.9 so the end is quiet for the loop",
+   "prompt": "Warm hopeful resolution: soft piano playing gentle major chords with warm strings, opening like a breath of light, lifting a little, then settling calmly and fading to quiet, slow, no drums, no vocals"
+  }
+ ],
+ "sfx": [
+  {
+   "id": "bed",
+   "src": "lamp",
+   "at": 0.0,
+   "len": 29.0,
+   "db": -8,
+   "loop": true,
+   "note": "take 4 of 4 (seamless loop), +24 dB then limited at -24 dBFS so the crackle pops stay small",
+   "prompt": "Quiet oil lamp flame burning, soft gentle crackle and flicker, close and steady, calm room"
+  },
+  {
+   "id": "st1",
+   "src": "strain",
+   "at": 0.0,
+   "len": 2.6,
+   "db": 4,
+   "fout": 0.3,
+   "note": "take 1 of 4",
+   "prompt": "Tiny dry silk cocoon rustling and creaking, something small wriggling and pushing inside, delicate close papery scratching"
+  },
+  {
+   "id": "ap",
+   "src": "approach",
+   "at": 2.75,
+   "len": 2.4,
+   "db": -8,
+   "fin": 0.2,
+   "fout": 0.4,
+   "note": "take 3 of 4, slowed to 0.55x (atempo) so it swells 2.75 -> peak 4.2 (hand sharp on the cloth)",
+   "prompt": "Slow soft low whoosh, a hand moving closer through the air near a cotton screen, gentle cloth swish"
+  },
+  {
+   "id": "bo",
+   "src": "bladeopen",
+   "at": 4.88,
+   "len": 0.7,
+   "db": -4,
+   "fout": 0.15,
+   "note": "take 1 of 4: rising blade slide, peak ~5.2",
+   "prompt": "Small steel scissors opening slowly, thin metal blade sliding against blade, quiet close scrape"
+  },
+  {
+   "id": "sn",
+   "src": "snip",
+   "at": 5.7,
+   "len": 0.52,
+   "db": 0,
+   "fout": 0.08,
+   "note": "take 3 of 4, first of its cuts only (file peak at 0.301 s -> 6.0)",
+   "prompt": "One crisp sharp scissors snip cutting through thick silk thread, single close metallic cut, dry"
+  },
+  {
+   "id": "sl",
+   "src": "slip",
+   "at": 6.3,
+   "len": 1.1,
+   "db": -8,
+   "fin": 0.05,
+   "fout": 0.3,
+   "note": "take 3 of 4",
+   "prompt": "Soft smooth slippery slide, something small slipping easily out of a silk pouch, gentle and quiet"
+  },
+  {
+   "id": "pn",
+   "src": "pnote",
+   "at": 6.62,
+   "len": 2.48,
+   "db": 6,
+   "fout": 0.5,
+   "note": "take 3 of 4, a C, on top of m1's own 6.65 chord",
+   "prompt": "A single soft felt piano note, high and bright, light relieved feeling, gentle with a long soft reverb tail"
+  },
+  {
+   "id": "cr1",
+   "src": "crawl",
+   "at": 7.3,
+   "len": 1.48,
+   "db": 4,
+   "fout": 0.2,
+   "note": "take 3 of 4",
+   "prompt": "Tiny insect legs crawling on a dry twig, faint delicate scratching steps, very close and quiet"
+  },
+  {
+   "id": "fl1",
+   "src": "flutter",
+   "at": 10.1,
+   "len": 0.55,
+   "db": 4,
+   "fout": 0.15,
+   "note": "take 4 of 4; three tries, each weaker",
+   "prompt": "One short weak dry papery flutter, crumpled insect wings shivering briefly and failing, tiny and close"
+  },
+  {
+   "id": "fl2",
+   "src": "flutter",
+   "at": 10.9,
+   "len": 0.5,
+   "db": 2,
+   "fout": 0.15
+  },
+  {
+   "id": "fl3",
+   "src": "flutter",
+   "at": 11.5,
+   "len": 0.45,
+   "db": 0,
+   "fout": 0.15
+  },
+  {
+   "id": "th",
+   "src": "thud",
+   "at": 12.48,
+   "len": 0.7,
+   "db": -4,
+   "fout": 0.2,
+   "note": "take 2 of 4 (file peak 0.071 s -> 12.55)",
+   "prompt": "Small soft muffled thud, a tiny light creature dropping onto dry earth"
+  },
+  {
+   "id": "cr2",
+   "src": "crawl",
+   "at": 12.75,
+   "len": 1.2,
+   "db": 2,
+   "fout": 0.3
+  },
+  {
+   "id": "hd",
+   "src": "hold",
+   "at": 12.0,
+   "len": 5.9,
+   "db": -12,
+   "loop": true,
+   "fin": 0.6,
+   "fout": 0.8,
+   "note": "take 1 of 4 (low, C-centred); fills the music-less stretch 12-17.4 so it never goes dead",
+   "prompt": "Very quiet low sustained room drone, hushed tense held breath, soft dark air, no melody"
+  },
+  {
+   "id": "gu",
+   "src": "gutter",
+   "at": 13.25,
+   "len": 1.0,
+   "db": -6,
+   "fin": 0.08,
+   "fout": 0.35,
+   "note": "take 2 of 4",
+   "prompt": "Oil lamp flame sputtering and guttering, almost going out, with a low soft breath-like draft of wind"
+  },
+  {
+   "id": "rl",
+   "src": "relight",
+   "at": 13.75,
+   "len": 1.2,
+   "db": -8,
+   "fout": 0.4,
+   "note": "take 3 of 4: flare peaks ~14.0",
+   "prompt": "Soft flame catching and flaring up with a gentle whoosh, an oil lamp wick relit"
+  },
+  {
+   "id": "st2",
+   "src": "strain2",
+   "at": 14.1,
+   "len": 2.9,
+   "db": 4,
+   "fin": 0.2,
+   "fout": 0.5,
+   "note": "take 4 of the strain node (a second take, so the repeat is not identical)"
+  },
+  {
+   "id": "tr",
+   "src": "tremble",
+   "at": 15.05,
+   "len": 1.15,
+   "db": -6,
+   "fout": 0.15,
+   "note": "take 4 of 4",
+   "prompt": "Small metal scissors trembling in a shaky hand, faint tiny metallic rattle and ticking of the blades"
+  },
+  {
+   "id": "ck",
+   "src": "clink",
+   "at": 16.65,
+   "len": 0.7,
+   "db": -6,
+   "fout": 0.2,
+   "note": "take 2 of 4 (file peak 0.146 s -> 16.8)",
+   "prompt": "Metal scissors laid down gently on a wooden table, one soft clink and light wooden thunk"
+  },
+  {
+   "id": "sq1",
+   "src": "squeeze",
+   "at": 17.7,
+   "len": 0.6,
+   "db": -14,
+   "fin": 0.06,
+   "fout": 0.2,
+   "note": "take 3 of 4; four pushes, each bigger",
+   "prompt": "One strained silk rustle and scratch, a small insect forcing its body through a tight silk opening, effortful push"
+  },
+  {
+   "id": "sq2",
+   "src": "squeeze",
+   "at": 18.5,
+   "len": 0.6,
+   "db": -11,
+   "fin": 0.06,
+   "fout": 0.2
+  },
+  {
+   "id": "sq3",
+   "src": "squeeze",
+   "at": 19.2,
+   "len": 0.62,
+   "db": -8,
+   "fin": 0.06,
+   "fout": 0.2
+  },
+  {
+   "id": "sq4",
+   "src": "squeeze",
+   "at": 19.9,
+   "len": 0.65,
+   "db": -5,
+   "fin": 0.06,
+   "fout": 0.25
+  },
+  {
+   "id": "op",
+   "src": "open",
+   "at": 20.6,
+   "len": 1.4,
+   "db": -6,
+   "fout": 0.4,
+   "note": "take 1 of 4: swell peaks ~20.95",
+   "prompt": "Soft airy whoosh, delicate wings slowly unfolding and opening wide, a gentle breath of air"
+  },
+  {
+   "id": "fp",
+   "src": "flaps",
+   "at": 23.3,
+   "len": 1.6,
+   "db": 2,
+   "fout": 0.4,
+   "note": "take 2 of 4",
+   "prompt": "Gentle soft moth wing flaps, light airy fluttering flight rising away, quiet"
+  },
+  {
+   "id": "sw",
+   "src": "sway",
+   "at": 24.8,
+   "len": 4.2,
+   "db": 4,
+   "fout": 0.8,
+   "note": "take 4 of 4 + a 4-tap echo (230-1100 ms) for the reverb tail",
+   "prompt": "Faint soft creak of an empty dry cocoon swaying on a twig, delicate, with a long gentle reverb tail"
+  }
+ ]
+}

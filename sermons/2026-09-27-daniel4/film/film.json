@@ -1,0 +1,19 @@
+{
+ "title": "광야의 시간을 어떻게 견뎌내야 할까?",
+ "source": "ko",
+ "scenes": [
+  {
+   "id": "moth-puppet",
+   "label": "그림자극 — Shadow puppetry (빛나는 막, 뚫린 가죽 인형)",
+   "dur": 29
+  }
+ ],
+ "audio": "scenes/soundtrack.wav",
+ "poster": 22.4,
+ "fonts": {
+  "local": {
+   "Noto Serif KR": "NotoSerifKR[wght].ttf",
+   "Noto Sans KR": "NotoSansKR[wght].ttf"
+  }
+ }
+}

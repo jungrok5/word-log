@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>가위를 내려놓았다 · 그림자극</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@400;500;600&display=swap">
+</head>
+<body>
+<script>window.FILM_FONTS = { serif: "'Gowun Batang'", sans: "'Noto Sans KR'" };</script>
+<script src="lib.js"></script>
+<script src="story.js"></script>
+<script src="source.js"></script>
+<script src="script.js"></script>
+<script src="kit-puppet.js"></script>
+<script>
+/* 가위를 내려놓았다 — shadow puppetry (styles/puppet/STYLE.md). The kit draws the medium; this file draws the story.
+   A cocoon strapped to a twig strains. My right hand (seen from the back: thumb in the upper ring, middle finger in the
+   lower ring, index finger along the shank, forearm to the lower right) brings scissors and snips the cocoon's neck: the
+   moth slides out easily — fat body, crumpled wings — tries, fails, falls. The lamp gutters. Relit: the same cocoon. The
+   hand comes again, stops, lays the scissors on the ground and lets go. The moth squeezes out through the narrow neck;
+   light fills its wing veins push by push; the wings open and the eyespots bloom red (the one colour); it flies into the
+   lamp. The empty cocoon sways. */
+const { clamp, lerp, ss, eo, eio } = Pilot;
+const P = Puppet, S = window.SCRIPT, B = S.beat, W = Pilot.W, H = Pilot.H;
+const LAMP = [540, 840];
+const GY = 1330;                                   // ground line (top of the carved ground strip)
+const COC = [530, 884], RC = -.05;                 // cocoon: its neck (top) on the cloth, and its lean
+const SNIP_Y = 36;                                 // where take 1 cuts the neck (cocoon local y); take 2's exit hole is at y 0
+const PERCH = -150;                                // the moth's thorax on the twig above the cocoon (cocoon local y)
+const HS = 1.15;                                   // hand rig scale
+let HILLS, GROUND, STEM, LEAF, CBODY, CCAP, BODY, FAT, FW, HW, FWS, HWS, CRF, CRH, BLA, BLB, FIST, THUMB1, THUMB2, ARM;
+
+// ---------------------------------------------------------------- helpers
+const R2 = (a, [x, y]) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+const cocAt = (u, sway = 0) => { const [x, y] = R2(RC + sway, [0, u]); return [COC[0] + x, COC[1] + y]; };   // a point on the cocoon's axis
+function limb(pts, w0, w1) {                       // a tapered branch as a closed outline around a centre line
+  const L = [], Rr = [], n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1;
+    const w = lerp(w0, w1, i / (n - 1)) / 2, nx = -dy / l * w, ny = dx / l * w;
+    L.push([pts[i][0] + nx, pts[i][1] + ny]); Rr.push([pts[i][0] - nx, pts[i][1] - ny]);
+  }
+  return [...L, ...Rr.reverse()];
+}
+const pulse = (t, t0, w = .5) => t < t0 ? 0 : Math.exp(-(t - t0) / w) * Math.sin(Math.min(1, (t - t0) / .05) * Math.PI / 2);
+const strain = (t, hz = .85) => Math.max(0, Math.sin(t * Math.PI * 2 * hz)) ** 3;     // the cocoon's rhythmic struggle
+
+// ---------------------------------------------------------------- pieces (built once)
+function build() {
+  HILLS = P.carve({ box: [-20, GY - 240, 1100, GY + 20], res: 1, seed: 2, dye: '#6e4524', cutAlpha: .55, rim: 6, outline: 2,
+    shape: [[-20, GY + 20], [-20, GY - 90], [140, GY - 128], [260, GY - 104], [420, GY - 146], [560, GY - 108], [700, GY - 136], [860, GY - 96], [980, GY - 124], [1100, GY - 104], [1100, GY + 20]],
+    punch: [{ kind: 'slits', area: [0, GY - 210, 1080, GY], len: 40, w: 3, step: 32, angle: .1, jitter: .3, seed: 8 }] });
+  GROUND = P.carve({ box: [-20, GY - 10, 1100, 1940], res: 1, seed: 3, dye: P.DYE.floor, smooth: false, rim: 0,
+    shape: [[-20, GY], [1100, GY], [1100, 1940], [-20, 1940]],
+    punch: { kind: 'slits', area: [0, GY + 60, 1080, GY + 230], len: 34, w: 3.2, step: 24, angle: Math.PI / 2 + .12, seed: 4 },
+    detail: g => {
+      P.cutLine(g, 1.8, q => { const y = GY + 34, s = 8; q.moveTo(0, y); for (let x = 0; x < 1080; x += s * 2) { q.lineTo(x, y - s); q.lineTo(x + s * 1.4, y - s); q.lineTo(x + s * 1.4, y - s * .3); q.lineTo(x + s * .7, y - s * .3); q.lineTo(x + s * .7, y); q.lineTo(x + s * 2, y); } });
+      for (let x = 30; x < 1080; x += 60) P.coin(g, x, GY + 54, 6);
+      g.fillStyle = P.DYE.floor;                                         // grass tufts standing on the line
+      for (let x = 12, i = 0; x < 1080; x += 26 + (i * 37) % 23, i++) { const h = 14 + (i * 53) % 22; g.beginPath(); g.moveTo(x - 5, GY + 2); g.quadraticCurveTo(x - 2, GY - h * .6, x + (i % 2 ? 6 : -6), GY - h); g.quadraticCurveTo(x + 1, GY - h * .5, x + 5, GY + 2); g.fill(); }
+    } });
+  const stem = [[456, GY + 6], [464, 1230], [476, 1130], [490, 1030], [504, 930], [512, 820], [516, 730], [522, 676]];
+  const twigL = [[490, 1036], [450, 990], [400, 958], [352, 946]], twigR = [[514, 790], [556, 752], [604, 728], [648, 720]];
+  STEM = P.carve({ box: [330, 530, 690, GY + 20], res: 1.5, seed: 6, dye: P.DYE.deep, rim: 3,
+    shape: g => { P.smooth(g, limb(stem, 22, 7)); P.smooth(g, limb(twigL, 10, 4)); P.smooth(g, limb(twigR, 10, 4)); },
+    punch: { kind: 'crescents', area: [430, 1100, 500, GY - 10], r: 5, w: 1.2 },
+    detail: g => { g.strokeStyle = '#1a0f07'; g.lineWidth = 2; for (const [x, y] of [[468, 1200], [494, 1000], [516, 760]]) { g.beginPath(); g.ellipse(x, y, 6, 3, -.2, 0, 7); g.stroke(); } } });
+  LEAF = P.carve({ box: [-4, -24, 84, 24], res: 2.5, seed: 9, dye: P.DYE.brace,
+    shape: [[0, 0], [22, -18], [56, -16], [82, 0], [56, 16], [22, 18]],
+    punch: { kind: 'slits', len: 12, w: 2.2, step: 12, angle: -.5, seed: 2 }, rim: 3,
+    detail: g => P.cutLine(g, 1.4, q => { q.moveTo(6, 0); q.lineTo(74, 0); }) });
+
+  // cocoon: origin = the neck (top); the body hangs to y 246. The cap (y 0–36) is a separate piece: take 1 snips it off.
+  const cocR = [[24, SNIP_Y], [40, 70], [51, 122], [48, 172], [36, 214], [16, 240], [0, 247]];
+  const body = [...cocR, ...cocR.slice(0, -1).reverse().map(([x, y]) => [-x, y])];
+  CBODY = P.carve({ box: [-60, 26, 60, 252], res: 2.5, seed: 21, dye: '#5a3618', cutAlpha: .7, rim: 5,
+    shape: g => { g.moveTo(-24, SNIP_Y); for (const [x, y] of body) g.lineTo(x, y); g.closePath(); },
+    punch: [{ kind: 'slits', area: [-55, 40, 55, 245], len: 30, w: 2, step: 13, angle: 1.25, jitter: .6, seed: 3 },
+            { kind: 'slits', area: [-55, 40, 55, 245], len: 26, w: 1.6, step: 15, angle: 1.95, jitter: .6, seed: 5 }],
+    detail: g => { P.ink(g, 1.6, q => { q.moveTo(-26, SNIP_Y + 2); for (let x = -26; x <= 26; x += 6) q.lineTo(x, SNIP_Y + 2 + ((x / 6) % 2 ? 3 : -2)); }); } });
+  CCAP = P.carve({ box: [-30, -6, 30, SNIP_Y + 4], res: 3, seed: 22, dye: '#4a2c13', rim: 3,
+    shape: [[-7, 0], [-14, 12], [-24, SNIP_Y], [24, SNIP_Y], [14, 12], [7, 0]], smooth: false,
+    detail: g => { P.cut(g, q => q.ellipse(0, 1.5, 6.5, 3.2, 0, 0, 7)); P.ink(g, 1.2, q => { q.moveTo(-12, 16); q.lineTo(12, 16); q.moveTo(-17, 26); q.lineTo(17, 26); }); } });
+
+  // the moth, dorsal view, head up; origin = the thorax. Wings are pieces on rivets at the thorax (right side; mirrored for left).
+  const mothBody = (fat) => P.carve({ box: [-72, -130, 72, 118], res: 2.5, seed: fat ? 33 : 31, dye: '#3c2210', rim: 3,
+    shape: g => {
+      const aw = fat ? 25 : 17, al = fat ? 104 : 96;
+      g.moveTo(0, 2); g.bezierCurveTo(aw + 4, 8, aw, al * .55, 5, al); g.lineTo(-5, al); g.bezierCurveTo(-aw, al * .55, -aw - 4, 8, 0, 2);   // abdomen
+      g.moveTo(22, -16); g.ellipse(0, -16, 22, 24, 0, 0, Math.PI * 2);                                                                        // thorax
+      g.moveTo(15, -46); g.arc(0, -46, 15, 0, Math.PI * 2);                                                                                   // head
+    },
+    detail: g => {
+      for (let k = 1; k <= 5; k++) { const y = 12 + k * (fat ? 16 : 14.5), w = (fat ? 24 : 16) * (1 - k / 7); P.cutLine(g, 1.6, q => { q.moveTo(-w, y); q.quadraticCurveTo(0, y + 4, w, y); }); }
+      for (const s of [-1, 1]) {
+        P.ink(g, 2.4, q => { q.moveTo(s * 6, -58); q.quadraticCurveTo(s * 18, -96, s * 42, -116); });                // feathered antennae
+        P.ink(g, 1.3, q => { for (let k = 0; k < 10; k++) { const u = .15 + k * .085, x = s * (6 + 36 * u * u + 12 * u), y = -58 - 58 * u; q.moveTo(x, y); q.lineTo(x + s * 10 * (1 - u * .5), y + 4); q.moveTo(x, y); q.lineTo(x - s * 6, y - 8 * (1 - u * .5)); } });
+        P.ink(g, 2.2, q => {                                                                                         // three pairs of legs
+          q.moveTo(s * 16, -30); q.lineTo(s * 36, -40); q.lineTo(s * 44, -60);
+          q.moveTo(s * 20, -14); q.lineTo(s * 46, -12); q.lineTo(s * 58, -26);
+          q.moveTo(s * 18, 2); q.lineTo(s * 42, 18); q.lineTo(s * 54, 8);
+        });
+      }
+      P.cut(g, q => { for (let k = 0; k < 9; k++) { const a = -2.6 + k * .65; q.moveTo(Math.cos(a) * 13, -16 + Math.sin(a) * 15); q.arc(Math.cos(a) * 13, -16 + Math.sin(a) * 15, 2, 0, 7); } }, 'nonzero');   // furry thorax
+    } });
+  BODY = mothBody(false); FAT = mothBody(true);
+  const fwPts = [[0, -4], [30, -42], [92, -84], [160, -106], [212, -104], [226, -84], [204, -42], [162, -6], [100, 14], [40, 16], [6, 8]];
+  const hwPts = [[0, 0], [42, -6], [102, 4], [150, 36], [166, 78], [142, 120], [96, 138], [52, 122], [20, 82], [4, 36]];
+  const wing = (pts, box, veins, eye, seed) => P.carve({ box, res: 2.5, seed, dye: '#6a3d1b', rim: 4, cutAlpha: .9,
+    shape: pts,
+    punch: { kind: 'dots', r: 1.5, step: 9 },
+    detail: g => {
+      g.save(); g.globalAlpha = 1; for (const [x, y] of veins) P.cutLine(g, 2.4, q => { q.moveTo(10, 2); q.quadraticCurveTo(x * .45, y * .45 + 10, x, y); }); g.restore();
+      P.cut(g, q => q.arc(eye[0], eye[1], eye[2], 0, 7));                                                            // the eyespot window
+      g.fillStyle = '#2a1608'; g.beginPath(); g.arc(eye[0], eye[1], eye[2] * .72, 0, 7); g.arc(eye[0], eye[1], eye[2] * .55, 0, 7, true); g.fill();
+      g.beginPath(); g.arc(eye[0], eye[1], eye[2] * .26, 0, 7); g.fill();
+      P.cutLine(g, 1.8, q => { const n = pts.length; for (let i = 2; i < n - 2; i++) { const [x, y] = pts[i]; const k = .82; i === 2 ? q.moveTo(x * k, y * k) : q.lineTo(x * k, y * k); } });   // a band near the edge
+    } });
+  const FWEYE = [124, -52, 23], HWEYE = [98, 70, 21];
+  FW = wing(fwPts, [-8, -114, 234, 24], [[206, -96], [214, -66], [186, -26], [140, 4], [80, 14]], FWEYE, 41); FW.eye = FWEYE;
+  HW = wing(hwPts, [-8, -14, 174, 146], [[146, 40], [158, 86], [128, 124], [80, 132], [36, 98]], HWEYE, 43); HW.eye = HWEYE;
+  const solid = (pts, box) => P.carve({ box, res: 1.5, dye: '#1d1008', shape: pts, outline: 1.5 });     // an unfilled wing (no light yet)
+  FWS = solid(fwPts, [-8, -114, 234, 24]); HWS = solid(hwPts, [-8, -14, 174, 146]);
+  CRF = P.carve({ box: [-6, -10, 74, 40], res: 3, seed: 45, dye: '#4a2a14', rim: 0, smooth: false,                   // crumpled wings: never fill
+    shape: [[0, 0], [16, -6], [24, 2], [38, -4], [46, 6], [60, 4], [66, 16], [56, 22], [62, 32], [44, 30], [34, 36], [22, 26], [10, 28], [2, 14]],
+    detail: g => P.ink(g, 1.2, q => { q.moveTo(8, 6); q.lineTo(30, 14); q.lineTo(48, 12); q.moveTo(14, 20); q.lineTo(40, 24); }, '#0c0603') });
+  CRH = P.carve({ box: [-6, -8, 58, 46], res: 3, seed: 47, dye: '#4a2a14', rim: 0, smooth: false,
+    shape: [[0, 0], [14, -2], [22, 8], [34, 4], [44, 16], [50, 30], [40, 32], [36, 42], [22, 34], [12, 38], [4, 22]],
+    detail: g => P.ink(g, 1.2, q => { q.moveTo(6, 8); q.lineTo(26, 20); q.lineTo(38, 30); }, '#0c0603') });
+
+  // scissors: origin = the pivot screw, blades point −x. BLA = upper blade + LOWER ring (held by the fingers, rigid in the
+  // hand); BLB = lower blade + UPPER ring (the thumb's). Rotating BLB by −θ about the pivot opens both blades and rings.
+  const blades = s => g => {
+    g.moveTo(10, -5 * s); g.lineTo(-40, -7 * s); g.lineTo(-120, -5 * s); g.lineTo(-172, 0); g.lineTo(-150, 3 * s); g.lineTo(-60, 5 * s); g.lineTo(10, 5 * s); g.closePath();
+    g.moveTo(4, 2 * s); g.lineTo(46, 12 * s); g.lineTo(82, 18 * s); g.lineTo(84, 28 * s); g.lineTo(44, 20 * s); g.lineTo(2, 9 * s); g.closePath();
+    g.moveTo(119, 30 * s); g.arc(98, 30 * s, 21, 0, Math.PI * 2);
+    g.moveTo(9, 0); g.arc(0, 0, 9, 0, Math.PI * 2);
+  };
+  const scissor = s => P.carve({ box: [-178, -56, 124, 56], res: 2.5, seed: 50, dye: '#120a05', rim: 0, outline: 1.2, shape: blades(s),
+    detail: g => { P.cut(g, q => q.arc(98, 30 * s, 13.5, 0, 7)); P.cutLine(g, 1.6, q => { q.moveTo(-26, -2.2 * s); q.lineTo(-140, -.8 * s); }); } });
+  BLA = scissor(-1); BLB = scissor(1);
+  // the hand, back view of a right hand: index along the lower shank, middle/ring/little fingers curled through and under the
+  // lower ring, the back of the hand rising to the wrist; the thumb is two pieces from its base on top of the hand.
+  const capsule = (g, x0, y0, x1, y1, w) => { const a = Math.atan2(y1 - y0, x1 - x0), r = w / 2;     // a finger bone, clockwise like the palm
+    g.moveTo(x0 + Math.cos(a - Math.PI / 2) * r, y0 + Math.sin(a - Math.PI / 2) * r); g.arc(x1, y1, r, a - Math.PI / 2, a + Math.PI / 2); g.arc(x0, y0, r, a + Math.PI / 2, a + Math.PI * 1.5); g.closePath(); };
+  const fist = g => {          // the middle finger's knuckle bump sits inside the lower ring (98, 30); the thumb ring is above
+    P.smooth(g, [[150, -36], [206, -42], [286, -32], [294, 50], [232, 80], [176, 92], [138, 90], [116, 78], [108, 58], [104, 36], [106, 18], [116, 2], [134, -18]]);
+    for (const [x, y, r] of [[122, 76, 15], [112, 54, 15], [104, 32, 14]]) { g.moveTo(x + r, y); g.arc(x, y, r, 0, Math.PI * 2); }
+    capsule(g, 146, -4, 96, 2, 18); capsule(g, 96, 2, 52, 10, 15);                                      // index finger along the shank
+  };
+  FIST = P.carve({ box: [30, -50, 300, 108], res: 2.5, seed: 61, dye: '#3a2010', shape: fist, outline: 1.6,
+    detail: g => {
+      P.ink(g, 1.3, q => { for (const y of [-20, 4, 28, 52]) { q.moveTo(170, y); q.quadraticCurveTo(220, y + 2, 270, y * .55 + 2); } }, '#22120a');   // tendons
+      P.ink(g, 1.5, q => { q.moveTo(126, 66); q.quadraticCurveTo(150, 70, 170, 64); q.moveTo(118, 44); q.quadraticCurveTo(144, 46, 166, 40); }, '#0c0603');   // finger creases
+      P.ink(g, 1.3, q => { q.moveTo(56, 4); q.quadraticCurveTo(62, 9, 56, 14); }, '#0c0603');                 // index fingernail
+    } });
+  THUMB1 = P.carve({ box: [-20, -20, 72, 20], res: 3, seed: 63, dye: '#3a2010', rim: 0, shape: [[-12, -17], [28, -16], [60, -12], [66, 0], [60, 12], [28, 15], [-12, 17], [-18, 0]] });
+  THUMB2 = P.carve({ box: [-14, -16, 62, 16], res: 3, seed: 64, dye: '#3a2010', rim: 0, shape: [[-10, -13], [32, -12], [50, -10], [58, 0], [50, 10], [32, 11], [-10, 13], [-13, 0]],
+    detail: g => P.ink(g, 1.2, q => { q.moveTo(40, -9); q.quadraticCurveTo(48, 0, 40, 9); }, '#0c0603') });
+  ARM = P.carve({ box: [-14, -50, 700, 76], res: 1.6, seed: 66, dye: '#3a2010', rim: 0, smooth: false,
+    shape: [[-6, -34], [60, -36], [70, -46], [700, -44], [700, 72], [70, 66], [60, 50], [-6, 38]],
+    detail: g => {
+      g.fillStyle = '#26150a'; g.beginPath(); P.poly(g, [[66, -46], [700, -44], [700, 72], [66, 66]]); g.fill();      // the sleeve
+      for (const [x0, y0, x1, y1, w] of [[120, -18, 420, -26, 4], [170, 14, 560, 20, 3.6], [260, 44, 640, 52, 3.2], [460, -30, 690, -34, 3]]) P.taper(g, x0, y0, x1, y1, w);   // folds
+      for (let y = -36; y < 64; y += 14) P.coin(g, 82, y, 4.2);                                                          // the cuff
+      P.ink(g, 2, q => { q.moveTo(68, -44); q.lineTo(68, 64); q.moveTo(96, -45); q.lineTo(96, 68); });
+    } });
+}
+
+// ---------------------------------------------------------------- the hand with the scissors
+const RU0 = [98, -30], TB = [176, -28], L1 = 56, L2 = 50, WRIST = [284, 8];
+function thumbIK(th) {                         // the thumb tip sits in the upper ring, wherever the ring has rotated to
+  const r = R2(-th, RU0), dx = r[0] - TB[0], dy = r[1] - TB[1], d = Math.min(L1 + L2 - 1, Math.hypot(dx, dy)), a0 = Math.atan2(dy, dx);
+  const al = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1)), a1 = a0 + al;      // + = knuckle bulges up (away from the palm)
+  const k = [TB[0] + Math.cos(a1) * L1, TB[1] + Math.sin(a1) * L1], a2 = Math.atan2(r[1] - k[1], r[0] - k[0]);
+  return { a1, a2, k };
+}
+/* the rig: { th (blade opening, rad), arm (forearm angle in the rig's frame), scissors (draw them), hand (draw the hand) } */
+const handRig = o => ({ box: [-182, -150, 820, 150], draw: g => {
+  if (o.hand) { g.save(); g.translate(WRIST[0], WRIST[1]); g.rotate(o.arm); P.drawP(g, ARM); g.restore(); }
+  if (o.scissors) {
+    P.drawP(g, BLA); P.joint(g, BLB, 0, 0, -o.th);
+    P.rivet(g, 0, 0, 4.2);
+  }
+  if (o.hand) {
+    P.drawP(g, FIST);
+    const ik = thumbIK(o.th);
+    P.joint(g, THUMB1, TB[0], TB[1], ik.a1); P.joint(g, THUMB2, ik.k[0], ik.k[1], ik.a2);
+    P.rivet(g, TB[0], TB[1], 3.2); P.rivet(g, ik.k[0], ik.k[1], 2.8); P.rivet(g, WRIST[0], WRIST[1], 3.6);
+  }
+  g.globalCompositeOperation = 'multiply';
+} });
+const CUTPT = () => cocAt(SNIP_Y);                         // the blades cross the neck here (blade local x −108)
+const GROUND_POSE = { x: 566, y: GY - 40, rot: -.19 };     // the scissors lying on the ground (both the tip and the ring touch it)
+/* the hand comes up from the lower right (forearm running off the bottom of the cloth), blades pointing up-left at the neck */
+function handPose(t) {
+  const aim = .9, cut = CUTPT(), [ox, oy] = R2(aim, [-108 * HS, 0]), tx = cut[0] - ox, ty = cut[1] - oy, G = GROUND_POSE;
+  if (t < B.near) return null;
+  if (t < B.relight) {                                     // take 1: come, open, snip, go
+    if (t > 7.6) return null;
+    const k = eo(clamp((t - B.near) / (B.press + .35 - B.near))), tw = P.tremor(t, 3, 1);
+    const d = t < B.press ? .9 * (1 - .6 * eo(clamp((t - B.near) / (B.press - B.near)))) : .36 * P.press(t, B.press, .45);
+    const th = .3 * ss(B.spread, B.spread + .5, t) * (1 - ss(B.snip - .04, B.snip + .05, t)) + .02 * Math.sin(t * 7) * ss(B.spread, B.spread + .4, t) * (1 - ss(B.snip - .1, B.snip, t));
+    const lo = P.liftOff(t, 6.5, .9), away = eio(clamp((t - 6.5) / 1.1));
+    return { x: lerp(tx + 240, tx, k) + tw.x + 150 * away, y: lerp(ty + 460, ty, k) + tw.y + 260 * away, rot: aim + tw.r, arm: 1.05,
+      dist: Math.max(d, lo), alpha: 1 - ss(7.1, 7.6, t), th };
+  }
+  if (t < B.hand2 || t > B.set + 1.1) return null;          // take 2: come, stop short, lay the scissors down, let go
+  const tense = ss(B.press2, B.press2 + .3, t) * (1 - ss(B.down, B.down + .4, t));
+  const tw = P.tremor(t, 7, 1 + 1.4 * tense), k = eo(clamp((t - B.hand2) / (B.press2 + .35 - B.hand2)));
+  const d = t < B.press2 ? .9 * (1 - .6 * eo(clamp((t - B.hand2) / (B.press2 - B.hand2)))) : .36 * P.press(t, B.press2, .45);
+  const th = .2 * ss(B.press2 + .1, B.press2 + .4, t) * (1 - ss(15.55, 15.95, t));          // opens a little… and closes again, slowly
+  const hx = tx + 34 * Math.cos(aim), hy = ty + 34 * Math.sin(aim);                       // it stops short of the neck
+  const dn = eio(clamp((t - B.down) / (B.set - B.down)));
+  const x = lerp(lerp(tx + 240, hx, k), G.x, dn), y = lerp(lerp(ty + 460, hy, k), G.y, dn), rot = lerp(aim, G.rot, dn);
+  return { x: x + tw.x * (1 - dn), y: y + tw.y * (1 - dn), rot: rot + tw.r * (1 - dn), arm: lerp(1.05, .55, dn), dist: d, th };
+}
+
+// ---------------------------------------------------------------- the moth
+/* pose: { u (thorax on the cocoon axis, local y) or world x/y, rot, dist, alpha, fat, crumple, fold 0..1, ws (wing scale),
+   fill 0..1 (light in the veins), bloom 0..1 (the red eyespots), flap (rad), shiver (rad), clipY (hide below this local y) } */
+function mothPose(t) {
+  if (t < B.relight) {                                                     // take 1 (cut free)
+    if (t > B.dark + .62) return null;
+    const base = { fat: true, crumple: true, alpha: 1 };
+    if (t < B.out[0]) {                                                    // inside: only the antennae poke out of the hole as it strains
+      const [x, y] = cocAt(124 - 40 * strain(t + .25) * (1 - ss(B.snip - .4, B.snip, t)), cocoonSway(t));
+      return Object.assign(base, { x, y, rot: RC + cocoonSway(t), clip: 0, shiver: 0 });
+    }
+    let shiver = 0; for (const t0 of B.tries) shiver += .5 * pulse(t, t0, .22) * Math.sin((t - t0) * 60);
+    if (t < B.fall) {
+      const u = t < B.out[1] ? lerp(118, -74, eo(clamp((t - B.out[0]) / (B.out[1] - B.out[0]))))
+        : lerp(-74, PERCH, eio(clamp((t - B.climb[0]) / (B.climb[1] - B.climb[0])))) + 3 * Math.sin(clamp((t - B.climb[0]) / (B.climb[1] - B.climb[0])) * Math.PI * 6);
+      const [x, y] = cocAt(u);
+      return Object.assign(base, { x, y, rot: RC + .03 * Math.sin(t * 2.3) + (t > B.climb[1] ? shiver * .12 : 0), clip: t < B.out[1] + .2 ? SNIP_Y : null, shiver });   // the cut neck is wide open
+    }
+    const [px, py] = cocAt(PERCH), f = clamp((t - B.fall) / .55), land = py + (GY - 30 - py) * f * f;
+    const bounce = t > B.fall + .55 ? 12 * Math.max(0, Math.sin((t - B.fall - .55) * 15)) * Math.exp(-(t - B.fall - .55) * 9) : 0;
+    const crawl = ss(B.fall + .8, B.dark + .6, t);
+    return Object.assign(base, { x: px - 70 * f - 46 * crawl + 3 * Math.sin(t * 18) * crawl, y: land - bounce, rot: RC + lerp(0, -Math.PI / 2 - .1, eo(f)) + .05 * Math.sin(t * 9) * crawl, shiver: .3 * Math.sin(t * 13) * crawl });
+  }
+  // take 2 (waited)
+  if (t < B.push[0] - .6 || t > B.fly + 1.6) return null;
+  let p = 0; for (const t0 of B.push) p += .25 * eo(clamp((t - t0) / .42)) - .035 * ss(t0 + .42, t0 + .7, t) * (t0 < B.push[3] ? 1 : 0);
+  p = clamp(p + .035 * ss(B.push[3] + .42, B.push[3] + .7, t));
+  const peek = .12 * strain(t, 1.2) * (1 - ss(B.push[0] - .2, B.push[0], t));
+  let u = lerp(70, -78, p) - 14 * peek;
+  if (t > B.free - .2) u = lerp(u, PERCH, eio(clamp((t - B.free + .2) / .55)));
+  const [cx, cy] = cocAt(u), fold = eio(clamp((t - B.open) / 1.5));
+  const fl = P.liftOff(t, B.fly, 1.5), up = eio(clamp((t - B.fly) / 1.5));
+  return { x: cx + 380 * up, y: cy - 250 * up, rot: RC + .3 * up, grow: .9, clip: t < B.free + .3 ? 0 : null, fold, ws: lerp(.4, 1, fold),
+    fill: Math.max(p * .8, ss(B.free, B.open + .5, t)), bloom: ss(B.open + .3, B.open + 1.9, t),
+    flap: t > B.fly ? .55 * Math.sin((t - B.fly) * Math.PI * 2 * 3) * ss(B.fly, B.fly + .2, t) : -.05 * Math.sin((t - B.open - 1.5) * 2.2) * ss(B.open + 1.4, B.open + 1.8, t),
+    dist: fl, alpha: 1 - ss(B.fly + .8, B.fly + 1.45, t), squeeze: p < 1 && t > B.push[0] - .1 ? 1 : 0 };
+}
+function wingAt(g, wp, sol, root, side, a, sc, fill, bloom) {
+  g.save(); g.translate(root[0] * side, root[1]); g.scale(side * sc, sc); g.rotate(a);
+  P.drawP(g, wp);
+  if (fill < 1) {                                                         // the part the light hasn't reached yet stays dark
+    g.save(); g.beginPath(); g.rect(-40, -160, 320, 340); g.arc(0, 0, Math.max(.1, fill * 250), 0, Math.PI * 2, true); g.clip('evenodd'); P.drawP(g, sol); g.restore();
+  }
+  if (bloom > 0) { g.globalCompositeOperation = 'multiply'; g.globalAlpha = .92 * bloom; g.fillStyle = P.ACCENT; g.beginPath(); g.arc(wp.eye[0], wp.eye[1], wp.eye[2] * .98, 0, 7); g.fill(); g.globalAlpha = 1; }
+  g.restore();
+}
+const mothRig = st => ({ box: [-260, -150, 260, 160], draw: g => {
+  if (st.crumple) {
+    for (const s of [-1, 1]) {
+      g.save(); g.translate(14 * s, -6); g.scale(1.4 * s, 1.4); g.rotate(.85 - st.shiver); P.drawP(g, CRH); g.restore();
+      g.save(); g.translate(16 * s, -22); g.scale(1.4 * s, 1.4); g.rotate(.2 - st.shiver * 1.4); P.drawP(g, CRF); g.restore();
+    }
+  } else {
+    const fa = lerp(1.78, 0, st.fold) + (st.flap || 0), ha = lerp(.95, 0, st.fold) + (st.flap || 0) * .7;
+    for (const s of [-1, 1]) wingAt(g, HW, HWS, [12, -6], s, ha, st.ws, st.fill, st.bloom);
+    for (const s of [-1, 1]) wingAt(g, FW, FWS, [14, -22], s, fa, st.ws, st.fill, st.bloom);
+  }
+  P.drawP(g, st.fat ? FAT : BODY);
+  for (const s of [-1, 1]) { P.rivet(g, 14 * s, -22, 2.8); P.rivet(g, 12 * s, -6, 2.6); }
+  g.globalCompositeOperation = 'multiply';
+} });
+
+// ---------------------------------------------------------------- the cocoon
+function cocoonSway(t) {
+  if (t < B.relight) return .045 * strain(t + .25) * (1 - ss(B.snip - .3, B.snip, t)) + .03 * pulse(t, B.snip, .3) * Math.sin((t - B.snip) * 30) + .02 * Math.sin(t * 9) * (ss(B.out[0], B.out[0] + .1, t) - ss(B.out[1], B.out[1] + .3, t));
+  let s = .04 * strain(t - B.relight + .4, 1) * (1 - ss(B.push[0] - .4, B.push[0], t));
+  for (const t0 of B.push) s += .05 * pulse(t, t0, .25) * Math.sin((t - t0) * 26);
+  return s + .05 * pulse(t, B.free, .9) * Math.sin((t - B.free) * 7) + .035 * Math.exp(-Math.max(0, t - B.fly) * .7) * Math.sin((t - B.fly) * 4.2) * ss(B.fly, B.fly + .3, t);
+}
+function capOpen(t) {                                     // take 2: the lid of the neck is pushed open a crack, then hangs open
+  if (t < B.push[0]) return 0;
+  let p = 0; for (const t0 of B.push) p += .06 * eo(clamp((t - t0) / .4));
+  return -(p + .4 * eo(clamp((t - B.free + .1) / .5)) + .03 * Math.sin((t - B.free) * 6) * Math.exp(-Math.max(0, t - B.free) * 1.5) * ss(B.free, B.free + .2, t));
+}
+function capPose(t) {                                     // take 1: the snipped neck flies off and lands on the ground
+  if (t < B.snip || t > B.dark + .62) return null;
+  const f = clamp((t - B.snip) / .62), [x0, y0] = cocAt(0);
+  return { x: x0 - 90 * eo(f) - 10 * f, y: lerp(y0, GY - 14, f * f) - 120 * Math.sin(Math.PI * Math.min(1, f * 1.25)) * (1 - f), rot: RC + 3.4 * eo(f) + .2 * Math.sin(Math.min(1, f) * 9) * f };
+}
+
+// ---------------------------------------------------------------- light and camera
+function lampI(t) {
+  let I = (1 + .3 * P.flare(t, B.snip, .1)) * (1 - .12 * ss(B.fall, B.fall + .6, t));
+  if (t >= B.dark && t < B.relight) I *= P.gutter(t, B.dark, B.dark + .55);
+  if (t >= B.relight) {
+    const r = t - B.relight;
+    I = r < .25 ? .18 * (r > .06 ? 1 : 0) : r < .35 ? .05 : lerp(.3, 1, eo(clamp((r - .35) / .5)));
+    let push = 0; for (const t0 of B.push) push += .045 * ss(t0, t0 + .3, t);
+    I *= 1 + push + .1 * ss(B.open, B.open + 1.4, t) + .35 * P.flare(t, B.fly + 1.2, .45);
+  }
+  return Math.max(0, I * P.flicker(t, { amt: .05, hz: 6, seed: 3.1, buzz: .01, buzzHz: 19 }));
+}
+function cam(t) {
+  let m = P.cam();
+  m = P.zoom(m, P.pullBack(t, B.pull, 1.0), 540, 1690);
+  const z = 1.42 + .08 * ss(0, B.snip, t) - .16 * ss(B.out[0], B.climb[1], t) + .08 * ss(B.relight - .4, B.relight, t)
+    + .13 * ss(B.push[0] - .6, B.push[3] + .3, t) - .37 * ss(B.free, B.open + 1.4, t);
+  m = P.zoom(m, z * (1 + .06 * P.crash(t, B.snip) + .03 * P.crash(t, B.fall + .55) + .02 * P.crash(t, B.set)), COC[0], 980);
+  return m;
+}
+
+// ---------------------------------------------------------------- the frame
+function draw(ctx, t) {
+  const M = cam(t), g = P.beginT(M);
+  P.drawP(g, HILLS);
+  P.drawP(g, GROUND);
+  P.drawP(g, STEM);
+  for (const [x, y, a, i] of [[352, 946, Math.PI + .25, 0], [648, 720, -.2, 1], [522, 676, -1.3, 2]]) P.place(g, LEAF, { x, y, rot: a + .06 * Math.sin(t * 1.2 + i * 2) });
+  // the cocoon on the twig (silk threads tie it on)
+  const sw = cocoonSway(t), whole = t >= B.relight || t < B.snip;
+  g.save(); g.setTransform(M.multiply(new DOMMatrix().translate(COC[0], COC[1]).rotate((RC + sw) * 180 / Math.PI)));
+  g.globalCompositeOperation = 'multiply';
+  g.strokeStyle = 'rgba(30,16,6,.55)'; g.lineWidth = 1.6; g.beginPath();
+  for (const [a, b, c, d] of [[-16, 14, -34, -20], [-30, 60, -46, 24], [-40, 120, -54, 92], [-34, 200, -50, 180]]) { g.moveTo(a, b); g.lineTo(c, d); }
+  g.stroke();
+  P.drawP(g, CBODY);
+  if (whole) { const ca = capOpen(t); if (ca) { g.save(); g.translate(-24, SNIP_Y); g.rotate(ca); g.translate(24, -SNIP_Y); P.drawP(g, CCAP); g.restore(); } else P.drawP(g, CCAP); }
+  g.restore();
+  const cp = capPose(t); if (cp) P.place(g, CCAP, cp);
+  // the scissors left on the ground (take 2)
+  const hp = handPose(t), G = GROUND_POSE;
+  if (t >= B.set) P.place(g, handRig({ th: 0, scissors: true }), { x: G.x, y: G.y, rot: G.rot, scale: HS });
+  // the moth (hidden inside until it comes out over the opening)
+  const m = mothPose(t);
+  if (m && m.alpha > 0) {
+    g.save();
+    if (m.clip != null) { g.setTransform(M.multiply(new DOMMatrix().translate(COC[0], COC[1]).rotate((RC + sw) * 180 / Math.PI))); g.beginPath(); g.rect(-700, -1200, 1400, 1200 + m.clip); g.clip(); g.setTransform(M); }
+    P.place(g, mothRig(m), { x: m.x, y: m.y, rot: m.rot, dist: m.dist || 0, alpha: m.alpha, grow: m.grow });
+    g.restore();
+  }
+  // my hand (with the scissors until it lays them down)
+  if (hp && (hp.alpha ?? 1) > 0) {
+    const letgo = t >= B.set, lo = letgo ? P.liftOff(t, B.set, .8) : 0, drift = letgo ? eio(clamp((t - B.set) / 1.0)) : 0;
+    P.place(g, handRig({ th: hp.th, scissors: !letgo, hand: true, arm: hp.arm - hp.rot }),
+      { x: hp.x + 120 * drift, y: hp.y + 160 * drift, rot: hp.rot, scale: HS, dist: Math.max(hp.dist, lo), alpha: (hp.alpha ?? 1) * (1 - ss(B.set + .5, B.set + 1.05, t)) });
+  }
+  const warmK = ss(B.open, B.open + 2, t) - .6 * ss(B.fall, B.dark, t) * (t < B.relight ? 1 : 0);
+  P.frame(ctx, t, M, { I: .9 * lampI(t), color: P.warm(Math.max(0, warmK * .9 + .1)), x: LAMP[0], y: LAMP[1] }, { audience: ss(B.pull + .1, B.pull + 1.2, t) });
+  P.captions(ctx, t, S.lines, { color: '#26140a', srcColor: '#3e2410', shadow: 'rgba(255,238,210,.9)', shadowBlur: 22 });
+  P.endCard(ctx, t, S.endCard, B.end);
+}
+
+async function init() { P.init(); build(); }
+Pilot.run({ audio: (Pilot.cut ? 'moth-puppet-' + Pilot.cut + '.m4a' : 'soundtrack.m4a'), W, H, dur: S.DUR, fonts: P.FONTS, init, draw });
+</script>
+<script>window.POSTER_T = 22.4;</script>
+    <style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+    border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+    #pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+    border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}#pv-play[hidden]{display:none}</style>
+    <button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+    <script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+    if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+    </body>
+</html>
