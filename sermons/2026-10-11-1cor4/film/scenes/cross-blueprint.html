@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>잘라 낸 건 다리였다 · ① 청사진</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600;700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script>
+<script src="story.js"></script>
+<script src="source.js"></script>
+<script src="script.js"></script>
+<script>
+/* 잘라 낸 건 다리였다 — ① Blueprint (cyanotype engineering drawing; after OPUSCAR no. 30, The Bridge on the River Kwai).
+   The whole film is one sheet of Prussian-blue paper: white line work, section hatching, centre lines, dimension lines.
+   The road is drawn in cabinet-oblique (depth recedes up and a little right), so the lanes of the procession, the
+   chasm and the crosses laid across it read as one technical drawing. My cross is the only thing in red correction
+   pencil, and its dimension is corrected after every cut (3.0 → 2.4 → 1.86 → 1.44 m). The chasm carries the dimension
+   "필요 길이 3.0 m"; at the decisive moment a red dimension shows the shortfall (−1.56 m); at the end the pieces I cut
+   (0.6 + 0.54 + 0.42) slide, as phantom lines, into exactly that gap.
+   World units are metres: x along the road (the chasm's near edge at x = 0), y up, d depth (0 = my lane). */
+const S = window.SCRIPT, B = S.beat, W = Pilot.W, H = Pilot.H;
+const { clamp, lerp, ss, eo, eio } = Pilot;
+const SANS = "'Noto Sans KR',sans-serif", SERIF = "'Noto Serif KR',serif";
+const FONTS = ["600 54px 'Noto Sans KR'", "500 28px 'Noto Sans KR'", "700 30px 'Noto Sans KR'", "400 30px 'Noto Sans KR'", "700 72px 'Noto Serif KR'"];
+const INK = '#e8f1fb', RED = '#ff5d4d';
+const KX = .2, KY = .4, Z0 = 150;                       // oblique: 1 m of depth = .2 m right, .4 m up on the sheet
+const OUT = 3.0, DET = 2.0, THIN = 1.3, HAIR = .9;      // line weights (px at zoom Z0; screen = w · (z/Z0)^.65)
+const LEN = S.left.map(k => +(3 * k).toFixed(2));        // my cross: 3, 2.4, 1.86, 1.44 m
+const PIECE = [0, 1, 2].map(k => +(LEN[k] - LEN[k + 1]).toFixed(2));   // .6 .54 .42
+const SHORT = +(3 - LEN[3]).toFixed(2);                  // 1.56
+const GAP = 2.6, FOOT = -.2, END = 2.8, GX = 3.5, ROAD0 = -1.6, ROAD1 = 3.9, DEEP = -8;
+const fmt = v => (Math.round(v * 100) % 10 === 0 ? v.toFixed(1) : v.toFixed(2));
+
+// ---------------------------------------------------------------- small math
+const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+const mix3 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)];
+const nrm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const keys = (K, t) => { if (t <= K[0][0]) return K[0][1]; for (let i = 1; i < K.length; i++) if (t <= K[i][0]) return lerp(K[i - 1][1], K[i][1], (t - K[i - 1][0]) / (K[i][0] - K[i - 1][0])); return K[K.length - 1][1]; };
+
+// ---------------------------------------------------------------- camera / projection (sheet coords sx = x + KX·d, sy = y + KY·d)
+let CAM = { cx: 0, cy: 0, z: Z0 };
+const P = (x, y, d = 0) => [540 + (x + KX * d - CAM.cx) * CAM.z, 1050 - (y + KY * d - CAM.cy) * CAM.z];
+const P3 = q => P(q[0], q[1], q[2]);
+const LW = w => w * Math.pow(CAM.z / Z0, .65);
+
+// ---------------------------------------------------------------- the sheet (built once, locked to the drawing)
+const TX0 = -12, TY1 = 12, TPPM = 40, TN = 880;           // texture covers sheet x −12…10, y −10…12
+let TEX, GRAIN, VIG, PAT, GPAT;
+function buildSheet() {
+  TEX = Pilot.canvas(TN, TN); const x = TEX.getContext('2d'), id = x.createImageData(TN, TN), D = id.data;
+  const A = [20, 46, 100], Bc = [44, 92, 168];
+  for (let j = 0; j < TN; j++) for (let i = 0; i < TN; i++) {
+    const sx = TX0 + i / TPPM, sy = TY1 - j / TPPM;
+    const n = Pilot.fbm(sx * .32 + 3, sy * .32 + 7, 4), st = Pilot.noise(sx * .09 + 11, sy * 2.6), fine = Pilot.fbm(sx * 1.7, sy * 1.7, 2);
+    let v = clamp(.2 + .62 * n + .2 * (st - .5) + .14 * (fine - .5));
+    const cr1 = Math.abs(sx + 2.6), cr2 = Math.abs(sy - 6.2);                        // two fold creases
+    v += .07 * Math.exp(-cr1 * cr1 * 900) - .05 * Math.exp(-((cr1 - .05) ** 2) * 900) + .06 * Math.exp(-cr2 * cr2 * 900);
+    const c = Pilot.mix(A, Bc, clamp(v)), k = (j * TN + i) * 4;
+    D[k] = c[0]; D[k + 1] = c[1]; D[k + 2] = c[2]; D[k + 3] = 255;
+  }
+  x.putImageData(id, 0, 0);
+  const r = Pilot.rng(7); x.strokeStyle = 'rgba(200,225,255,.07)'; x.lineWidth = 1;     // fibres
+  for (let i = 0; i < 260; i++) { const a = r() * 6.28, px = r() * TN, py = r() * TN, l = 4 + r() * 10; x.beginPath(); x.moveTo(px, py); x.quadraticCurveTo(px + Math.cos(a + 1) * l, py + Math.sin(a + 1) * l, px + Math.cos(a) * l * 2, py + Math.sin(a) * l * 2); x.stroke(); }
+  GRAIN = Pilot.canvas(256, 256); const g = GRAIN.getContext('2d'), r2 = Pilot.rng(11);
+  for (let i = 0; i < 2600; i++) { g.fillStyle = r2() < .5 ? `rgba(225,238,255,${.04 + r2() * .08})` : `rgba(6,16,40,${.05 + r2() * .1})`; g.fillRect(r2() * 256, r2() * 256, 1 + r2() * 1.4, 1 + r2() * 1.4); }
+  for (let i = 0; i < 26; i++) { g.fillStyle = `rgba(230,242,255,${.1 + r2() * .15})`; g.beginPath(); g.arc(r2() * 256, r2() * 256, .6 + r2() * 1.3, 0, 7); g.fill(); }
+  VIG = Pilot.canvas(W, H); const v = VIG.getContext('2d'), gr = v.createRadialGradient(W / 2, H * .5, H * .25, W / 2, H * .5, H * .78);
+  gr.addColorStop(0, 'rgba(5,12,32,0)'); gr.addColorStop(1, 'rgba(5,12,32,.5)'); v.fillStyle = gr; v.fillRect(0, 0, W, H);
+}
+function texM() { const a = CAM.z / TPPM; return [a, 540 + (TX0 - CAM.cx) * CAM.z, 1050 - (TY1 - CAM.cy) * CAM.z]; }
+function sheet(g) {
+  if (!PAT) { PAT = g.createPattern(TEX, 'repeat'); GPAT = g.createPattern(GRAIN, 'repeat'); }
+  const [a, e, f] = texM(); PAT.setTransform(new DOMMatrix([a, 0, 0, a, e, f]));
+  g.fillStyle = '#1d4185'; g.fillRect(0, 0, W, H);
+  g.imageSmoothingEnabled = true; g.drawImage(TEX, e, f, TN * a, TN * a);
+  // the faint drafting grid (sheet coordinates, every .5 m; every 2.5 m a little stronger)
+  const x0 = CAM.cx - 540 / CAM.z, x1 = CAM.cx + 540 / CAM.z, y0 = CAM.cy - 870 / CAM.z, y1 = CAM.cy + 1050 / CAM.z;
+  for (const [st, al] of [[.5, .045], [2.5, .07]]) {
+    g.beginPath();
+    for (let x = Math.ceil(x0 / st) * st; x <= x1; x += st) { const X = 540 + (x - CAM.cx) * CAM.z; g.moveTo(X, 0); g.lineTo(X, H); }
+    for (let y = Math.ceil(y0 / st) * st; y <= y1; y += st) { const Y = 1050 - (y - CAM.cy) * CAM.z; g.moveTo(0, Y); g.lineTo(W, Y); }
+    g.strokeStyle = `rgba(215,232,255,${al})`; g.lineWidth = 1; g.stroke();
+  }
+}
+function finish(g) {   // grain over the ink (it moves with the sheet), then a soft vignette
+  const [, e, f] = texM(); GPAT.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(e), Math.round(f)]));
+  g.fillStyle = GPAT; g.fillRect(0, 0, W, H); g.drawImage(VIG, 0, 0);
+}
+
+// ---------------------------------------------------------------- line work
+const PL = (g, p, close) => { g.beginPath(); g.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) g.lineTo(p[i][0], p[i][1]); if (close) g.closePath(); };
+function trunc(p, k) {
+  let tot = 0; const L = [0]; for (let i = 1; i < p.length; i++) { tot += Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]); L.push(tot); }
+  const want = tot * clamp(k), out = [p[0]];
+  for (let i = 1; i < p.length; i++) { if (L[i] <= want) { out.push(p[i]); continue; } const f = (want - L[i - 1]) / ((L[i] - L[i - 1]) || 1); out.push([lerp(p[i - 1][0], p[i][0], f), lerp(p[i - 1][1], p[i][1], f)]); break; }
+  return out;
+}
+function nib(g, p) { const r = 16, gr = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], r); gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(1, 'rgba(190,220,255,0)'); g.fillStyle = gr; g.fillRect(p[0] - r, p[1] - r, 2 * r, 2 * r); }
+function line(g, pts, w, col = INK, o = {}) {
+  const k = o.k == null ? 1 : o.k; if (k <= 0) return;
+  g.save(); if (o.alpha != null) g.globalAlpha *= o.alpha;
+  g.strokeStyle = col; g.lineWidth = LW(w); g.lineCap = o.cap || 'round'; g.lineJoin = 'round';
+  if (o.dash) g.setLineDash(o.dash.map(v => v * Math.pow(CAM.z / Z0, .65)));
+  const p = k < 1 ? trunc(pts, k) : pts; PL(g, p, o.close && k >= 1); g.stroke();
+  if (k < 1 && o.nib !== false) nib(g, p[p.length - 1]);
+  g.restore();
+}
+// 45° section hatching inside a screen polygon, locked to the sheet
+function hatch(g, poly, sp = .12, alpha = .5, w = HAIR, col = INK) {
+  g.save(); PL(g, poly, true); g.clip();
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const [x, y] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  x0 = Math.max(x0, -50); x1 = Math.min(x1, W + 50); y0 = Math.max(y0, -50); y1 = Math.min(y1, H + 50);
+  if (x0 < x1 && y0 < y1) {
+    const o = P(0, 0), s = sp * CAM.z * Math.SQRT2, c0 = o[0] + o[1] + Math.ceil((x0 + y0 - o[0] - o[1]) / s) * s;
+    g.beginPath(); for (let c = c0; c <= x1 + y1; c += s) { g.moveTo(c - y0, y0); g.lineTo(c - y1, y1); }
+    g.strokeStyle = col; g.globalAlpha *= alpha; g.lineWidth = LW(w); g.stroke();
+  }
+  g.restore();
+}
+// a dimension: measured points a, b (screen), offset off px (+ = to the right of a→b), label, draw-on k
+function dim(g, a, b, off, label, o = {}) {
+  const k = o.k == null ? 1 : o.k; if (k <= 0) return;
+  const col = o.col || INK, dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = -uy, ny = ux, sg = Math.sign(off) || 1;
+  const a2 = [a[0] + nx * off, a[1] + ny * off], b2 = [b[0] + nx * off, b[1] + ny * off], m = [(a2[0] + b2[0]) / 2, (a2[1] + b2[1]) / 2];
+  g.save(); g.globalAlpha *= o.alpha ?? 1;
+  const ext = p => line(g, [[p[0] + nx * sg * 5, p[1] + ny * sg * 5], [p[0] + nx * (off + sg * 12), p[1] + ny * (off + sg * 12)]], HAIR, col, { k: ss(0, .4, k), nib: false });
+  ext(a); ext(b);
+  const kk = ss(.2, .8, k), p0 = [lerp(m[0], a2[0], kk), lerp(m[1], a2[1], kk)], p1 = [lerp(m[0], b2[0], kk), lerp(m[1], b2[1], kk)];
+  line(g, [p0, p1], o.red ? 1.6 : THIN, col, { nib: false });
+  if (kk > .98) for (const [p, s] of [[a2, 1], [b2, -1]]) {      // arrowheads pointing outward
+    const L = LW(13), Wd = LW(4.2); g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0] + ux * s * L + nx * Wd, p[1] + uy * s * L + ny * Wd); g.lineTo(p[0] + ux * s * L - nx * Wd, p[1] + uy * s * L - ny * Wd); g.closePath(); g.fillStyle = col; g.fill();
+  }
+  const la = ss(.55, 1, k); if (label && la > 0) {
+    let ang = Math.atan2(uy, ux); if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI;
+    const size = o.size || Math.round(26 * Math.pow(CAM.z / Z0, .4)), s = Pilot.tr(label);
+    g.save(); g.translate(m[0], m[1]); g.rotate(ang); g.font = `${o.weight || 600} ${size}px ${SANS}`;
+    const tw = g.measureText(s).width; g.globalAlpha *= la;
+    g.fillStyle = PAT; g.fillRect(-tw / 2 - 10, -size * .72, tw + 20, size * 1.3);
+    if (o.strike) { g.fillStyle = 'rgba(0,0,0,0)'; }
+    Pilot.text(g, label, 0, size * .36, { size, font: SANS, weight: o.weight || 600, color: col });
+    if (o.strike) { const sk = clamp(o.strike); g.strokeStyle = col; g.lineWidth = LW(2.4); g.beginPath(); g.moveTo(-tw / 2 - 6, size * .05); g.lineTo(-tw / 2 - 6 + (tw + 12) * sk, -size * .12); g.stroke(); }
+    g.restore();
+  }
+  g.restore();
+}
+// a small free label (sheet text), optionally on a paper patch
+function label(g, s, x, y, o = {}) {
+  const size = o.size || Math.round(24 * Math.pow(CAM.z / Z0, .4));
+  if (o.patch) { g.save(); g.font = `${o.weight || 600} ${size}px ${SANS}`; const tw = g.measureText(Pilot.tr(s)).width, al = o.align || 'center', x0 = al === 'left' ? x : x - tw / 2;
+    g.globalAlpha *= o.alpha ?? 1; g.fillStyle = PAT; g.fillRect(x0 - 8, y - size * .95, tw + 16, size * 1.3); g.restore(); }
+  Pilot.text(g, s, x, y, { size, font: SANS, weight: o.weight || 600, color: o.col || INK, alpha: o.alpha ?? 1, align: o.align, ls: o.ls });
+}
+
+// ---------------------------------------------------------------- figures (line-art pilgrims: tunic, hood, tube limbs)
+const LT = .46, LS = .46;
+function walkPose(x, d, f, ph, amp, heavy, yb = 0) {
+  const legs = [0, 1].map(i => { const p = ph + i * Math.PI, th = amp * Math.sin(p), kb = amp * 1.4 * Math.max(0, Math.cos(p)) + .04;
+    return { th, kb, h: LT * Math.cos(th) + LS * Math.cos(th - kb) }; });
+  const hy = Math.max(legs[0].h, legs[1].h) + yb, lean = .05 + .13 * heavy;
+  const hip = [x, hy, d], sh = [x + lean * f, hy + .5 - .06 * heavy, d], head = [sh[0] + (.05 + .06 * heavy) * f, sh[1] + .22 - .04 * heavy, d];
+  const kn = [], ft = [];
+  legs.forEach((L, i) => { const dd = d + (i ? .1 : -.1);
+    kn[i] = [x + LT * Math.sin(L.th) * f, hy - LT * Math.cos(L.th), dd];
+    ft[i] = [kn[i][0] + LS * Math.sin(L.th - L.kb) * f, kn[i][1] - LS * Math.cos(L.th - L.kb), dd]; });
+  return { hip, sh, head, kn, ft, f, ph };
+}
+function kneelPose(x, d, f) {   // near knee down, far knee up; torso leaning well forward over the work
+  return { hip: [x, .42, d], sh: [x + .42 * f, .66, d], head: [x + .6 * f, .8, d],
+    kn: [[x + .1 * f, .05, d - .1], [x + .36 * f, .43, d + .1]], ft: [[x - .36 * f, .04, d - .1], [x + .38 * f, .0, d + .1]], f, ph: 0 };
+}
+function mixPose(A, Bp, k) {
+  if (k <= 0) return A; if (k >= 1) return Bp;
+  return { hip: mix3(A.hip, Bp.hip, k), sh: mix3(A.sh, Bp.sh, k), head: mix3(A.head, Bp.head, k),
+    kn: [0, 1].map(i => mix3(A.kn[i], Bp.kn[i], k)), ft: [0, 1].map(i => mix3(A.ft[i], Bp.ft[i], k)), f: lerp(A.f, Bp.f, k), ph: A.ph };
+}
+// two-bone arm in screen space; the elbow takes the lower of the two solutions (elbows hang)
+function ik(s, h, l1, l2) {
+  const dx = h[0] - s[0], dy = h[1] - s[1], D = Math.hypot(dx, dy), Dc = clamp(D, Math.abs(l1 - l2) + 1, l1 + l2 - .5), a = Math.atan2(dy, dx);
+  const A = Math.acos(clamp((l1 * l1 + Dc * Dc - l2 * l2) / (2 * l1 * Dc), -1, 1));
+  const e1 = [s[0] + l1 * Math.cos(a + A), s[1] + l1 * Math.sin(a + A)], e2 = [s[0] + l1 * Math.cos(a - A), s[1] + l1 * Math.sin(a - A)];
+  const e = e1[1] > e2[1] ? e1 : e2, w = [s[0] + Dc * Math.cos(a), s[1] + Dc * Math.sin(a)];
+  return [e, w];
+}
+function drawFigure(g, F, o = {}) {
+  const z = CAM.z, f = F.f, lw = LW(2.1), col = INK;
+  g.save(); g.globalAlpha *= o.alpha ?? 1; g.lineCap = 'round'; g.lineJoin = 'round';
+  const tube = (p, w) => { PL(g, p); g.strokeStyle = col; g.lineWidth = w * z + 2 * lw; g.stroke(); g.strokeStyle = PAT; g.lineWidth = w * z; g.stroke(); };
+  const leg = i => { const toe = add(F.ft[i], [.12 * f, .01, 0]); tube([P3([F.hip[0], F.hip[1], F.kn[i][2]]), P3(F.kn[i]), P3(F.ft[i]), P3(toe)], .1); };
+  const arm = i => {
+    const S3 = add(F.sh, [-.02 * f, -.04, i ? .14 : -.14]), Sx = P3(S3);
+    const tg = o.hands && o.hands[i] ? P3(o.hands[i]) : P3(add(S3, [(.06 + .16 * Math.sin(F.ph + (i ? Math.PI : 0)) * (o.swing ?? 0)) * f, -.56, 0]));
+    const [e, w] = ik(Sx, tg, .31 * z, .3 * z); tube([Sx, e, w], .075);
+    const dx = w[0] - e[0], dy = w[1] - e[1], l = Math.hypot(dx, dy) || 1, c = [w[0] + dx / l * .035 * z, w[1] + dy / l * .035 * z];
+    g.beginPath(); g.ellipse(c[0], c[1], .06 * z, .043 * z, Math.atan2(dy, dx), 0, 7); g.fillStyle = PAT; g.fill(); g.strokeStyle = col; g.lineWidth = lw; g.stroke();
+    if (o.thumb && i === 0) { const t2 = P3(o.thumb); g.beginPath(); g.moveTo(c[0], c[1] - .02 * z); g.lineTo(t2[0], t2[1]); g.lineWidth = lw * 1.2; g.stroke(); }
+  };
+  leg(1); arm(1);
+  // tunic
+  const Sx = P3(F.sh), Hx = P3(F.hip), ax = Hx[0] - Sx[0], ay = Hx[1] - Sx[1], al = Math.hypot(ax, ay) || 1, an = [ax / al, ay / al], pn = [-an[1], an[0]];
+  const hem = [Hx[0] + an[0] * .24 * z, Hx[1] + an[1] * .24 * z], ws = .13 * z, wh = .2 * z;
+  g.beginPath(); g.moveTo(Sx[0] + pn[0] * ws, Sx[1] + pn[1] * ws); g.lineTo(hem[0] + pn[0] * wh, hem[1] + pn[1] * wh);
+  g.quadraticCurveTo(hem[0] + an[0] * .04 * z, hem[1] + an[1] * .04 * z, hem[0] - pn[0] * wh, hem[1] - pn[1] * wh);
+  g.lineTo(Sx[0] - pn[0] * ws, Sx[1] - pn[1] * ws); g.quadraticCurveTo(Sx[0] - an[0] * .1 * z, Sx[1] - an[1] * .1 * z, Sx[0] + pn[0] * ws, Sx[1] + pn[1] * ws);
+  g.fillStyle = PAT; g.fill(); g.strokeStyle = col; g.lineWidth = lw; g.stroke();
+  g.beginPath(); g.moveTo(Hx[0] + pn[0] * .17 * z, Hx[1] + pn[1] * .17 * z); g.lineTo(Hx[0] - pn[0] * .17 * z, Hx[1] - pn[1] * .17 * z); g.lineWidth = LW(1.2); g.stroke();   // rope belt
+  // neck, hood, face
+  const Hc = P3(F.head); tube([Sx, [lerp(Sx[0], Hc[0], .7), lerp(Sx[1], Hc[1], .7)]], .07);
+  g.beginPath(); g.arc(Hc[0] - .035 * f * z, Hc[1] - .005 * z, .128 * z, 0, 7); g.fillStyle = PAT; g.fill(); g.lineWidth = lw; g.strokeStyle = col; g.stroke();
+  g.beginPath(); g.arc(Hc[0] + .02 * f * z, Hc[1] + .012 * z, .088 * z, 0, 7); g.fill(); g.lineWidth = LW(1.3); g.stroke();
+  g.beginPath(); g.moveTo(Hc[0] + .1 * f * z, Hc[1] + .0 * z); g.lineTo(Hc[0] + .125 * f * z, Hc[1] + .03 * z); g.lineTo(Hc[0] + .1 * f * z, Hc[1] + .04 * z); g.stroke();
+  leg(0);
+  if (o.mid) o.mid();
+  arm(0);
+  g.restore();
+}
+
+// ---------------------------------------------------------------- crosses and cut pieces
+// X = { foot, top, bar (unit), L }: shaft foot→top, the crossbar (1.2 m) centred .7 m below the top
+function carryCross(F, L, heavy) {
+  const f = F.f, C = [F.sh[0] + .03 * f, F.sh[1] + .07, F.sh[2] - .2], reach = L - .7;
+  const a = heavy ? Math.asin(clamp((C[1] - .07) / reach, 0, 1)) : .46, u = [Math.cos(a) * f, Math.sin(a), 0];
+  return { foot: add(C, mul(u, -reach)), top: add(C, mul(u, .7)), bar: [-Math.sin(a) * f, Math.cos(a), 0], L, C, u };
+}
+const carryHands = X => [add(X.C, mul(X.u, .3)), add(X.C, mul(X.u, .56))];
+const mixX = (A, Bx, k) => ({ foot: mix3(A.foot, Bx.foot, k), top: mix3(A.top, Bx.top, k), bar: nrm(mix3(A.bar, Bx.bar, k)), L: lerp(A.L, Bx.L, k) });
+function beamRect(a, b, w, inset = 0) {
+  let dx = b[0] - a[0], dy = b[1] - a[1]; const l = Math.hypot(dx, dy); if (l < 1e-3) { dx = 1; dy = 0; } else { dx /= l; dy /= l; }
+  const nx = -dy * (w / 2 - inset), ny = dx * (w / 2 - inset), a2 = [a[0] + dx * inset, a[1] + dy * inset], b2 = [b[0] - dx * inset, b[1] - dy * inset];
+  return [[a2[0] + nx, a2[1] + ny], [b2[0] + nx, b2[1] + ny], [b2[0] - nx, b2[1] - ny], [a2[0] - nx, a2[1] - ny]];
+}
+function beams(g, segs, o = {}) {   // segs: [[a,b,w],…] screen; one outline for the union
+  const col = o.col || INK, lw = LW(o.red ? 2.5 : 2.1);
+  g.save(); g.globalAlpha *= o.alpha ?? 1; g.lineJoin = 'miter';
+  if (o.dash) g.setLineDash(o.dash.map(v => v * Math.pow(CAM.z / Z0, .65)));
+  g.strokeStyle = col; g.lineWidth = lw;
+  for (const [a, b, w] of segs) { PL(g, beamRect(a, b, w), true); g.stroke(); }
+  if (o.red && !o.dash) { g.globalAlpha *= .45; g.lineWidth = lw * .6; g.save(); g.translate(1.2, -.9); for (const [a, b, w] of segs) { PL(g, beamRect(a, b, w), true); g.stroke(); } g.restore(); g.globalAlpha /= .45; }
+  g.setLineDash([]);
+  if (!o.hollow) { g.fillStyle = PAT; for (const [a, b, w] of segs) { PL(g, beamRect(a, b, w, lw * .5), true); g.fill(); } }
+  if (o.tint) { g.fillStyle = o.tint; for (const [a, b, w] of segs) { PL(g, beamRect(a, b, w, lw * .5), true); g.fill(); } }
+  g.restore();
+}
+function drawCross(g, X, o = {}) {
+  const z = CAM.z, u = nrm(sub(X.top, X.foot)), Cc = add(X.top, mul(u, -.7));
+  const A0 = P3(X.foot), A1 = P3(X.top), B0 = P3(add(Cc, mul(X.bar, -.6))), B1 = P3(add(Cc, mul(X.bar, .6)));
+  beams(g, [[A0, A1, .13 * z], [B0, B1, .12 * z]], o);
+  if (!o.dash && (o.alpha ?? 1) > .05) line(g, [A0, A1], HAIR, o.col || INK, { alpha: .5 * (o.alpha ?? 1), dash: [18, 6, 3, 6] });   // centre line
+  if (o.kerf != null) { const p = P3(add(X.foot, mul(u, o.kerf))), q = P3(add(add(X.foot, mul(u, o.kerf)), [.07, 0, 0])), r = P3(add(add(X.foot, mul(u, o.kerf)), [-.07, 0, 0]));
+    line(g, [r, q], 1.6, o.col || INK, { nib: false }); }
+}
+
+// ---------------------------------------------------------------- the saw (a hand saw seen side-on: blade, teeth, closed handle)
+const SB = [.883, -.469], SN = [.469, .883];
+function sawAt(xc, y0, s) { const u0 = .3 - s, O = [xc - SB[0] * u0, y0 - SB[1] * u0]; return (u, v) => [O[0] + SB[0] * u + SN[0] * v, O[1] + SB[1] * u + SN[1] * v]; }
+function drawSaw(g, sw, d) {
+  const L = (u, v) => { const q = sw(u, v); return P(q[0], q[1], d); }, z = CAM.z, lw = LW(2);
+  g.save(); g.lineJoin = 'round';
+  const blade = [L(0, 0), L(.56, 0), L(.58, .07), L(0, .125)];
+  PL(g, blade, true); g.fillStyle = PAT; g.fill(); g.strokeStyle = INK; g.lineWidth = lw; g.stroke();
+  g.beginPath(); for (let i = 0; i < 18; i++) { const u = .02 + i * .03, a = L(u, 0), b = L(u + .015, -.02), c = L(u + .03, 0); if (!i) g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineTo(c[0], c[1]); }
+  g.lineWidth = LW(1.1); g.stroke();
+  line(g, [L(.04, .035), L(.5, .03)], HAIR, INK, { alpha: .55, nib: false });
+  const hd = [L(0, -.01), L(-.05, -.035), L(-.16, -.025), L(-.2, .06), L(-.16, .17), L(-.03, .16), L(0, .13)];
+  const hole = [L(-.045, .025), L(-.11, .025), L(-.13, .075), L(-.1, .13), L(-.045, .12)];
+  PL(g, hd, true); g.fillStyle = PAT; g.fill(); g.lineWidth = lw; g.stroke();
+  PL(g, hole, true); g.lineWidth = LW(1.3); g.stroke();
+  for (const [u, v] of [[-.015, .03], [-.015, .1]]) { const p = L(u, v); g.beginPath(); g.arc(p[0], p[1], .008 * z, 0, 7); g.stroke(); }   // rivets
+  g.restore();
+}
+
+// ---------------------------------------------------------------- the story in space and time
+const SAW = B.saw, TD = SAW.map(s => s + .8);            // piece drops .8 s after each saw beat
+const ME0 = -6.75, K1 = -5.6, K2 = -2.0, MEE = -.6, DC = -.75, DK = -.55;   // kneel spots; the cut lies at depth DC
+const XC = [K1 + .75, K2 + .75, K2 + .75], ROLL = [.16, .22, -.2];
+const V0 = .28, XL = -.45;
+const OTH = [{ d: 3.2, x0: -5.7, T: B.bridges[0] }, { d: 2.2, x0: -6.3, T: B.bridges[1] }, { d: 1.2, x0: -8.2, T: B.bridges[2] }];
+
+function meX(t) {
+  if (t < SAW[0]) return ME0 + (K1 - ME0) * t / SAW[0] + .05 * Math.sin(t * Math.PI * 2 / 1.6);   // stagger
+  if (t < B.run[0]) return K1;
+  if (t < B.run[1]) { const u = (t - B.run[0]) / (B.run[1] - B.run[0]); return lerp(K1, K2 - .25, .7 * u + .3 * u * u * (3 - 2 * u)); }
+  if (t < SAW[1]) return lerp(K2 - .25, K2, (t - B.run[1]) / (SAW[1] - B.run[1]));
+  if (t < 11.65) return K2;
+  return lerp(K2, MEE, ss(11.65, 12.75, t));
+}
+function mePhase(t) {
+  const a = meX(Math.min(t, SAW[0])) - ME0, b = t > B.run[0] ? meX(Math.min(t, SAW[1])) - K1 : 0, c = t > 11.65 ? meX(Math.min(t, 12.75)) - K2 : 0;
+  return Math.PI * 2 * (a / .95 + b / 1.2 + c / 1.2) + .5;
+}
+const AMP_ME = [[0, .24], [3.1, .24], [3.3, 0], [4.42, 0], [4.75, .42], [8.4, .42], [8.75, .3], [8.98, 0], [11.6, 0], [11.85, .38], [12.45, .38], [12.75, 0]];
+const kwSaw = t => ss(SAW[0], SAW[0] + .25, t) - ss(4.4, 4.62, t) + ss(SAW[1], SAW[1] + .25, t) - ss(11.4, 11.65, t);
+const kwMe = t => kwSaw(t) + ss(18.22, 18.45, t) - ss(21.0, 21.35, t);
+const nCut = t => (t >= TD[0]) + (t >= TD[1]) + (t >= TD[2]);
+
+function groundCross(k, cut, d = 0) {
+  const L = cut ? LEN[k + 1] : LEN[k], foot = cut ? DC : DC - PIECE[k];
+  return { foot: [XC[k], .065, foot], top: [XC[k], .065, foot + L], bar: [1, 0, 0], L };
+}
+function sawState(t) {
+  let k = -1; if (t >= SAW[0] && t < 4.45) k = 0; else if (t >= SAW[1] && t < 11.45) k = t < 10.2 ? 1 : 2;
+  if (k < 0) return null;
+  const tb = SAW[k], alpha = k === 0 ? ss(3.22, 3.4, t) * (1 - ss(4.3, 4.45, t)) : ss(9.02, 9.2, t) * (1 - ss(11.3, 11.45, t));
+  const act = ss(tb + .3, tb + .36, t) * (1 - ss(tb + .78, tb + .95, t));
+  const stroke = .085 * Math.sin((t - tb - .3) * Math.PI * 2 * 4.6) * ss(tb + .3, tb + .36, t) * (1 - ss(tb + .76, tb + .8, t));
+  const sink = .1 * ss(tb + .32, tb + .78, t) * (1 - ss(tb + .78, tb + .95, t));
+  const y0 = .13 - sink + .1 * (1 - act);
+  return { k, xc: XC[k], sw: sawAt(XC[k], y0, stroke), alpha, act, tb };
+}
+// me: pose, cross, hands
+function meState(t) {
+  const f = t < 21.05 ? 1 : lerp(1, -1, ss(21.05, 21.35, t)), x = meX(t), kw = clamp(kwMe(t)), ksaw = clamp(kwSaw(t));
+  const d = DK * ksaw, heavy = t < 4.5 ? 1 : .25;
+  const Wp = walkPose(x, d, f, mePhase(t), keys(AMP_ME, t), heavy);
+  if (t < 3.6) { const s = 1 - ss(3.1, 3.3, t);            // stagger: the load sways me
+    Wp.sh[0] += .05 * Math.sin(t * 3.9) * s; Wp.sh[1] -= .035 * Math.abs(Math.sin(t * 2.1)) * s; Wp.head[0] += .06 * Math.sin(t * 3.9 - .4) * s; Wp.head[1] -= .04 * Math.abs(Math.sin(t * 2.1)) * s; }
+  const F = mixPose(Wp, kneelPose(x, d, f), kw);
+  if (t > 19.2 && t < 21.2) { const k = ss(19.2, 19.5, t) * (1 - ss(20.9, 21.2, t)); F.head = add(F.head, [.05 * k, -.06 * k, 0]); }   // looks down
+  let X = null, hands = null, saw = sawState(t), thumb = null;
+  const sawHands = s => { const w = s.sw(-.2, .03), gpt = s.sw(-.165, .07); return { hands: [[w[0], w[1], DC], [s.xc, .13, DC + .24]], grip: gpt }; };
+  if (t < SAW[0]) { X = carryCross(F, 3, true); hands = carryHands(X); }
+  else if (t < SAW[0] + .3) { const C = carryCross(F, 3, true), k = ss(SAW[0], SAW[0] + .3, t); X = mixX(C, groundCross(0, false), k); hands = carryHands(C).map((h, i) => mix3(h, sawHands(saw).hands[i], k)); }
+  else if (t < 4.4) { X = groundCross(0, t >= TD[0]); hands = sawHands(saw).hands; }
+  else if (t < 4.62) { const C = carryCross(F, LEN[1], false), k = ss(4.4, 4.62, t); X = mixX(groundCross(0, true), C, k); hands = sawHands(sawState(4.4)).hands.map((h, i) => mix3(h, carryHands(C)[i], k)); }
+  else if (t < SAW[1]) { X = carryCross(F, LEN[1], false); hands = carryHands(X); }
+  else if (t < SAW[1] + .3) { const C = carryCross(F, LEN[1], false), k = ss(SAW[1], SAW[1] + .3, t); X = mixX(C, groundCross(1, false), k); hands = carryHands(C).map((h, i) => mix3(h, sawHands(saw).hands[i], k)); }
+  else if (t < 10.0) { X = groundCross(1, t >= TD[1]); hands = sawHands(saw).hands; }
+  else if (t < 10.35) { X = mixX(groundCross(1, true), groundCross(2, false), ss(10.0, 10.35, t)); hands = sawHands(saw).hands; }
+  else if (t < 11.4) { X = groundCross(2, t >= TD[2]); hands = sawHands(saw).hands; }
+  else if (t < 11.65) { const C = carryCross(F, LEN[3], false), k = ss(11.4, 11.65, t); X = mixX(groundCross(2, true), C, k); hands = sawHands(sawState(11.4)).hands.map((h, i) => mix3(h, carryHands(C)[i], k)); }
+  else if (t < 18.22) { X = carryCross(F, LEN[3], false); hands = carryHands(X); }
+  else {
+    const L = LEN[3], foot = [FOOT, .065, 0], up = { foot, top: [FOOT, .065 + L, 0], bar: [0, 0, 1], L };
+    const grip = Xx => { const u = nrm(sub(Xx.top, Xx.foot)); return [add(Xx.foot, mul(u, .08)), add(Xx.foot, mul(u, .24))]; };
+    if (t < 18.45) { const C = carryCross(F, L, false), k = ss(18.22, 18.45, t); X = mixX(C, up, k); hands = carryHands(C).map((h, i) => mix3(h, grip(up)[i], k)); }
+    else if (t < 18.9) { const a = Math.PI / 2 * (1 - eio(clamp((t - 18.45) / .27))); X = { foot, top: [FOOT + L * Math.cos(a), .065 + L * Math.sin(a), 0], bar: [0, 0, 1], L }; hands = grip(X); }
+    else {
+      let phi, piv; const T1 = 18.9, T2 = 19.2;
+      if (t < T2) { phi = -6 * (t - T1) ** 2; piv = [0, .065]; } else { const q = t - T2; phi = -.54 - 3.2 * q - 2 * q * q; piv = [.35 * q, .065 - .6 * q - 4.9 * q * q]; }
+      const c = Math.cos(phi), s = Math.sin(phi);
+      X = { foot: [piv[0] + FOOT * c, piv[1] + FOOT * s, 0], top: [piv[0] + (FOOT + L) * c, piv[1] + (FOOT + L) * s, 0], bar: [0, 0, 1], L, falling: true };
+      if (X.top[1] < DEEP) X = null;
+      const h0 = [[FOOT + .08, .1, 0], [FOOT + .24, .1, 0]], k = ss(19.35, 19.9, t);
+      hands = k < 1 ? h0.map((h, i) => mix3(h, [F.sh[0] + .1 * f, .36, F.sh[2] + (i ? .14 : -.14)], k)) : null;   // empty hands sink back to the knees
+      if (t > 21.0) hands = null;
+    }
+  }
+  const sh = saw ? sawHands(saw) : null;
+  if (sh && t >= SAW[0] + .3 && t < 11.4 && !(t >= 4.4 && t < SAW[1] + .3)) thumb = [sh.grip[0] + .06, sh.grip[1] + .04, DC];
+  return { F, X, hands, saw, thumb, f };
+}
+function pieceGeom(k, t) {
+  if (t < TD[k]) return null;
+  const u = eo(clamp((t - TD[k]) / .4)), xc = XC[k] + ROLL[k] * u, hop = .09 * Math.sin(Math.PI * clamp((t - TD[k]) / .3)), d0 = DC - PIECE[k] - .12 * u;
+  return { a: [xc, .065 + hop, d0], b: [xc, .065 + hop, d0 + PIECE[k]] };
+}
+// the others
+function othState(o, t) {
+  const p12 = o.x0 + V0 * 12, v2 = (XL - p12) / (o.T - 12);
+  let x; if (t < 12) x = o.x0 + V0 * t; else if (t < o.T) x = p12 + v2 * (t - 12); else if (t < o.T + 1.0) x = XL; else x = XL + 2.2 * (t - o.T - 1.0);
+  const ph = Math.PI * 2 * (x - o.x0) / .85 + o.d * 1.7;
+  const amp = t < o.T ? .26 * (1 - ss(o.T - .2, o.T, t)) : .38 * ss(o.T + .9, o.T + 1.15, t);
+  const heavy = t < o.T ? 1 : 1 - ss(o.T + .4, o.T + 1.0, t), yb = .13 * ss(-.3, -.05, x) * (1 - ss(GAP + .1, END + .1, x));
+  const F = walkPose(x, o.d, 1, ph, amp, heavy, yb);
+  const alpha = 1 - ss(GX - .55, GX + .05, x);
+  let X, hands = null; const foot = [FOOT, .065, o.d], up = { foot, top: [FOOT, 3.065, o.d], bar: [0, 0, 1], L: 3 };
+  const grip = Xx => { const u = nrm(sub(Xx.top, Xx.foot)); return [add(Xx.foot, mul(u, 1.12)), add(Xx.foot, mul(u, 1.36))]; };
+  if (t < o.T) { X = carryCross(F, 3, true); hands = carryHands(X); }
+  else if (t < o.T + .35) { const C = carryCross(F, 3, true), k = ss(o.T, o.T + .35, t); X = mixX(C, up, k); hands = carryHands(C).map((h, i) => mix3(h, grip(up)[i], k)); }
+  else if (t < o.T + .8) { const u = clamp((t - o.T - .35) / .45), a = Math.PI / 2 * (1 - u * u); X = { foot, top: [FOOT + 3 * Math.cos(a), .065 + 3 * Math.sin(a), o.d], bar: [0, 0, 1], L: 3 };
+    const k = ss(.15, .45, u); hands = grip(X).map((h, i) => mix3(h, add(F.sh, [.08, -.56, i ? .14 : -.14]), k)); }
+  else { const q = t - o.T - .8, b = .03 * Math.exp(-q * 9) * Math.abs(Math.sin(q * 26)); X = { foot: [FOOT, .065 + b * .3, o.d], top: [END, .065 + b, o.d], bar: [0, 0, 1], L: 3, laid: true }; }
+  return { F, X, hands, alpha, x, swing: t > o.T + .9 ? 1 : 0 };
+}
+
+// ---------------------------------------------------------------- camera (hard cuts on the beats, like turning to the next figure)
+function cam(t) {
+  const close = k => { const xc = XC[k], t0 = SAW[k === 2 ? 1 : k]; return { cx: xc - .3 + KX * DC, cy: .42 + KY * DC, z: 250 + 9 * (t - t0) }; };
+  if (t < SAW[0]) return { cx: meX(t) + .95, cy: 1.15, z: 150 };
+  if (t < B.run[0]) return close(0);
+  if (t < SAW[1]) return { cx: meX(t) + 1.05 + .25 * ss(B.run[0], 6, t), cy: 1.2, z: 140 };
+  if (t < B.gap) return close(1);
+  if (t < B.mine) return { cx: 1.75, cy: 1.25, z: 116 + 10 * ss(B.gap, B.mine, t) };
+  if (t < B.back) {
+    const k = eio(clamp((t - B.mine) / .7)); let c = { cx: lerp(1.75, 1.0, k), cy: lerp(1.25, .55, k), z: lerp(126, 150, k) };
+    if (t >= 19.2) { const q = eo(clamp((t - 19.2) / .14)), sh = Math.exp(-(t - 19.2) * 9) * Math.sin((t - 19.2) * 70) * .03;
+      c = { cx: lerp(c.cx, 1.05, q) + sh, cy: lerp(c.cy, -.35, q) - sh, z: c.z * (1 + .38 * q) + 6 * (t - 19.2) }; }
+    return c;
+  }
+  const k = eio(clamp((t - B.back) / 1.0)), k2 = eio(clamp((t - 23.5) / 1.4));
+  const c0 = { cx: 1.05, cy: -.35, z: 150 * 1.38 + 6 * 1.8 }, c1 = { cx: -1.25, cy: 1.25, z: 108 }, c2 = { cx: 1.25, cy: .15, z: 170 };
+  const a = { cx: lerp(c0.cx, c1.cx, k), cy: lerp(c0.cy, c1.cy, k), z: lerp(c0.z, c1.z, k) };
+  return { cx: lerp(a.cx, c2.cx, k2), cy: lerp(a.cy, c2.cy, k2), z: lerp(a.z, c2.z, k2) };
+}
+
+// ---------------------------------------------------------------- the ground: road band, section hatching, the chasm, the gate
+function road(g, t) {
+  const segs = t >= B.gap ? [[-16, 0], [GAP, 12]] : [[-16, 12]];
+  for (const [x0, x1] of segs) {
+    hatch(g, [P(x0, 0, ROAD0), P(x1, 0, ROAD0), P(x1, -.5, ROAD0), P(x0, -.5, ROAD0)], .12, .42);
+    line(g, [P(x0, -.5, ROAD0), P(x1, -.5, ROAD0)], HAIR, INK, { alpha: .45 });
+    line(g, [P(x0, 0, ROAD0), P(x1, 0, ROAD0)], OUT);
+    line(g, [P(x0, 0, ROAD1), P(x1, 0, ROAD1)], DET, INK, { alpha: .75 });
+    line(g, [P(x0, 0, 1.15), P(x1, 0, 1.15)], HAIR, INK, { alpha: .4, dash: [30, 9, 5, 9] });
+    for (let x = Math.ceil(x0); x <= x1; x++) line(g, [P(x, 0, ROAD0), P(x, -.1, ROAD0)], HAIR, INK, { alpha: .6 });   // chainage ticks
+  }
+}
+function chasm(g, t) {
+  const k = ss(B.gap, B.gap + .6, t), kf = ss(B.gap, B.gap + .3, t);
+  const voidP = [P(0, 0, ROAD1), P(GAP, 0, ROAD1), P(GAP, 0, ROAD0), P(GAP, DEEP, ROAD0), P(0, DEEP, ROAD0), P(0, 0, ROAD0)];
+  g.save(); g.globalAlpha = kf; PL(g, voidP, true);
+  const y0 = P(0, 0, ROAD0)[1], gr = g.createLinearGradient(0, y0 - .8 * CAM.z, 0, y0 + 4 * CAM.z);
+  gr.addColorStop(0, 'rgba(10,26,66,.55)'); gr.addColorStop(1, 'rgba(3,10,30,.94)'); g.fillStyle = gr; g.fill();
+  const face = [P(0, 0, ROAD0), P(0, 0, ROAD1), P(0, DEEP, ROAD1), P(0, DEEP, ROAD0)];   // the near bank's inner face (faces us across the gap)
+  PL(g, face, true); g.fillStyle = 'rgba(30,66,130,.55)'; g.fill();
+  g.restore();
+  hatch(g, face, .2, .22 * kf);
+  hatch(g, [P(-.42, -.5, ROAD0), P(0, -.5, ROAD0), P(0, DEEP, ROAD0), P(-.42, DEEP, ROAD0)], .12, .42 * kf);
+  hatch(g, [P(GAP, -.5, ROAD0), P(GAP + .42, -.5, ROAD0), P(GAP + .42, DEEP, ROAD0), P(GAP, DEEP, ROAD0)], .12, .42 * kf);
+  const jag = (x, s) => { const p = []; for (let y = -.5; y >= -6; y -= .5) p.push(P(x + s * (.06 * Math.sin(y * 7.3) + .04), y, ROAD0)); return p; };
+  line(g, jag(-.42, -1), HAIR, INK, { alpha: .5, k }); line(g, jag(GAP + .42, 1), HAIR, INK, { alpha: .5, k });
+  line(g, [P(0, 0, ROAD1), P(0, 0, ROAD0), P(0, DEEP, ROAD0)], OUT, INK, { k });
+  line(g, [P(GAP, 0, ROAD1), P(GAP, 0, ROAD0), P(GAP, DEEP, ROAD0)], OUT, INK, { k });
+  line(g, [P(0, 0, ROAD1), P(0, -3, ROAD1)], THIN, INK, { alpha: .45, k });
+  label(g, '단면 B–B', P(GAP + .9, -1.1, ROAD0)[0], P(GAP + .9, -1.1, ROAD0)[1], { alpha: .75 * ss(B.gap + .4, B.gap + .8, t), size: Math.round(22 * Math.pow(CAM.z / Z0, .4)), patch: true });
+}
+function doorGap(t) { let b = 0; for (const o of OTH) { const ta = o.T + 1.0 + (GX - .4 - XL) / 2.2; b = Math.max(b, ss(ta - .4, ta, t) * (1 - ss(ta + .4, ta + .9, t))); } return .1 + .5 * b; }
+function gate(g, t) {
+  const k = ss(B.gap + .15, B.gap + .9, t); if (k <= 0) return;
+  const d0 = -1.0, d1 = 3.4, hh = 2.7, mid = 1.2, gp = doorGap(t);
+  // light from the gap between the door leaves, spilling back across the far bank
+  g.save(); g.globalAlpha = ss(B.gap + .3, B.gap + 1.1, t);
+  const sp = [P(GX, 0, mid - gp), P(GX, 0, mid + gp), P(GX - 1.6, 0, mid + gp + 1.3), P(GX - 1.6, 0, mid - gp - 1.3)];
+  const sc = P(GX, 0, mid), gs = g.createRadialGradient(sc[0], sc[1], 0, sc[0], sc[1], 1.9 * CAM.z);
+  gs.addColorStop(0, 'rgba(235,246,255,.42)'); gs.addColorStop(1, 'rgba(235,246,255,0)'); g.fillStyle = gs; PL(g, sp, true); g.fill();
+  PL(g, [P(GX, 0, mid - gp), P(GX, 0, mid + gp), P(GX, hh - .05, mid + gp), P(GX, hh - .05, mid - gp)], true); g.fillStyle = 'rgba(244,250,255,.95)'; g.fill();
+  g.restore();
+  // leaves (panelled) and the frame
+  for (const [a, b] of [[d0, mid - gp], [mid + gp, d1]]) {
+    const q = [P(GX, 0, a), P(GX, 0, b), P(GX, hh, b), P(GX, hh, a)];
+    g.save(); g.globalAlpha = k; PL(g, q, true); g.fillStyle = PAT; g.fill(); g.restore();
+    line(g, [...q, q[0]], DET, INK, { k });
+    const m = (a + b) / 2, w = Math.abs(b - a);
+    if (w > .5) for (const [y0, y1] of [[.25, 1.2], [1.45, 2.45]]) { const ia = a + Math.sign(b - a) * .2, ib = b - Math.sign(b - a) * .2; line(g, [P(GX, y0, ia), P(GX, y0, ib), P(GX, y1, ib), P(GX, y1, ia), P(GX, y0, ia)], HAIR, INK, { k, alpha: .7 }); }
+    void m;
+  }
+  line(g, [P(GX, 0, d0 - .15), P(GX, hh + .2, d0 - .15), P(GX, hh + .2, d1 + .15), P(GX, 0, d1 + .15)], OUT, INK, { k });
+  line(g, [P(GX, hh + .38, d0 - .3), P(GX, hh + .38, d1 + .3)], DET, INK, { k });
+  line(g, [P(GX - .3, 0, ROAD0), P(GX - .3, 0, ROAD1)], HAIR, INK, { alpha: .4, k, dash: [10, 6] });   // threshold
+}
+function gateGlow(g, t) {
+  const a = ss(B.gap + .3, B.gap + 1.2, t); if (a <= 0) return;
+  const c = P(GX, 1.35, 1.2), r = 2.3 * CAM.z, gr = g.createRadialGradient(c[0], c[1], 0, c[0], c[1], r);
+  gr.addColorStop(0, `rgba(225,240,255,${.32 * a})`); gr.addColorStop(.4, `rgba(200,225,255,${.12 * a})`); gr.addColorStop(1, 'rgba(200,225,255,0)');
+  g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = gr; g.fillRect(c[0] - r, c[1] - r, 2 * r, 2 * r); g.restore();
+}
+
+// ---------------------------------------------------------------- everything that stands on the road
+let ME = null;
+function entities(g, t) {
+  for (const o of OTH) {   // far lanes first
+    const s = othState(o, t); if (s.alpha <= 0 && !s.X) continue;
+    const crossFn = () => s.X && drawCross(g, s.X);
+    if (s.X && s.X.laid) { drawCross(g, s.X); if (s.alpha > 0) drawFigure(g, s.F, { alpha: s.alpha, swing: s.swing }); }
+    else if (s.alpha > 0) drawFigure(g, s.F, { hands: s.hands, mid: crossFn, alpha: s.alpha });
+  }
+  for (let k = 0; k < 3; k++) { const p = pieceGeom(k, t); if (p) drawPiece(g, p.a, p.b); }
+  const m = ME = meState(t);
+  const red = { col: RED, red: true }, kerf = m.saw && t < TD[m.saw.k] && m.saw.act > .2 ? PIECE[m.saw.k] : null;
+  const crossNow = () => m.X && drawCross(g, m.X, { ...red, kerf });
+  if (m.X && !m.X.falling && m.X.bar[0] === 1) {       // lying on the ground for sawing: cross first, then me over it, the saw in my hand
+    crossNow();
+    drawFigure(g, m.F, { hands: m.hands, thumb: m.thumb, mid: () => m.saw && m.saw.alpha > 0 && (g.save(), g.globalAlpha *= m.saw.alpha, drawSaw(g, m.saw.sw, DC), g.restore(), sawdust(g, t, m.saw)) });
+  } else drawFigure(g, m.F, { hands: m.hands, mid: crossNow, swing: t > 21.2 ? 0 : 0 });
+  if (m.saw && m.saw.alpha > 0 && m.X && m.X.bar[0] !== 1) { g.save(); g.globalAlpha *= m.saw.alpha; drawSaw(g, m.saw.sw, DC); g.restore(); }
+}
+function drawPiece(g, a, b, o = {}) { beams(g, [[P3(a), P3(b), .13 * CAM.z]], { col: RED, red: true, ...o }); }
+function sawdust(g, t, s) {
+  if (s.act < .3) return; const r = Pilot.rng(Math.floor(t * 30) + 5);
+  g.save(); g.fillStyle = INK;
+  for (let i = 0; i < 9; i++) { const q = r(), p = P(s.xc + (r() - .5) * .16, .1 - q * .12, DC - .02 - r() * .1); g.globalAlpha = .7 * (1 - q); g.fillRect(p[0], p[1], 2.2, 2.2); }
+  g.restore();
+}
+
+// ---------------------------------------------------------------- annotations: the dimensions that tell the story
+const crossDim = (g, X, off, lab, o = {}) => dim(g, P3(X.foot), P3(X.top), off * CAM.z, lab, o);
+function annotations(g, t) {
+  const closeUp = (t >= SAW[0] && t < B.run[0]) || (t >= SAW[1] && t < B.gap);
+  // the others' crosses: 3.0 m each (while carried)
+  if (t < B.gap && !closeUp) for (const o of OTH) { const s = othState(o, t); dim(g, P3(s.X.foot), P3(s.X.top), -.74 * CAM.z, '3.0 m', { alpha: .8, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)) }); }
+  // mine, in red pencil, corrected after every cut
+  const m = ME, n = nCut(t);
+  if (m.X && t < 18.22) {
+    const lying = m.X.bar[0] === 1, settled = lying ? (t > SAW[0] + .32 && t < 4.4) || (t > SAW[1] + .32 && t < 11.4) : !(t > 4.4 && t < 4.64) && !(t > 11.4 && t < 11.67) && !(t > SAW[0] && t < SAW[0] + .32) && !(t > SAW[1] && t < SAW[1] + .32);
+    if (settled) {
+      const off = lying ? .78 : -.74, last = n ? TD[n - 1] : -9, fresh = t - last;
+      const lab = fmt(LEN[n]) + ' m', k = n && fresh < .5 ? ss(0, .4, fresh) : 1;
+      if (n && fresh < 1.6 && lying) {   // the old figure struck through, the new one lettered beside it
+        const a = P3(m.X.foot), b = P3(m.X.top), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy), nx = -dy / l, ny = dx / l, mm = [(a[0] + b[0]) / 2 + nx * (off * CAM.z + 46), (a[1] + b[1]) / 2 + ny * (off * CAM.z + 46)];
+        let ang = Math.atan2(dy, dx); if (ang < -Math.PI / 2) ang += Math.PI; if (ang > Math.PI / 2) ang -= Math.PI;
+        g.save(); g.translate(mm[0], mm[1]); g.rotate(ang); g.globalAlpha = 1 - ss(1.1, 1.6, fresh);
+        const sz = Math.round(24 * Math.pow(CAM.z / Z0, .4)); Pilot.text(g, fmt(LEN[n - 1]) + ' m', 0, sz * .36, { size: sz, font: SANS, weight: 600, color: RED });
+        g.strokeStyle = RED; g.lineWidth = LW(2.6); g.beginPath(); g.moveTo(-sz * 1.6, sz * .1); g.lineTo(-sz * 1.6 + sz * 3.2 * ss(0, .3, fresh), -sz * .2); g.stroke(); g.restore();
+      }
+      crossDim(g, m.X, off, lab, { col: RED, red: true, k, size: Math.round((lying ? 30 : 26) * Math.pow(CAM.z / Z0, .4)), weight: 700 });
+    }
+  }
+  if (t >= B.gap) {
+    const rowY = r => -.5 - .48 * r, sz = Math.round(25 * Math.pow(CAM.z / Z0, .4));
+    const row = (x0, x1, r, lab, o) => dim(g, P(x0, rowY(r), 0), P(x1, rowY(r), 0), 0, lab, { size: sz, ...o });
+    // the gap's requirement (its extension lines come down from the bearings)
+    const kq = ss(B.gap + .5, B.gap + 1.1, t);
+    if (kq > 0) { line(g, [P(FOOT, -.02, 0), P(FOOT, rowY(1) - .1, 0)], HAIR, INK, { k: kq, nib: false }); line(g, [P(END, -.02, 0), P(END, rowY(1) - .1, 0)], HAIR, INK, { k: kq, nib: false }); row(FOOT, END, 1, '필요 길이 3.0 m', { k: kq }); }
+    // the others' bridges fit
+    for (const o of OTH) { const a = ss(o.T + .82, o.T + 1.0, t) * (1 - ss(o.T + 2.3, o.T + 2.7, t)); if (a > 0) { const p = P(1.3, .42, o.d); label(g, '3.0 m ✓', p[0], p[1], { alpha: a, size: Math.round(22 * Math.pow(CAM.z / Z0, .4)), patch: true }); } }
+    // mine: 1.44 m — and the red shortfall
+    const km = ss(18.68, 18.9, t);
+    if (km > 0) {
+      line(g, [P(LEN[3] + FOOT, .0, 0), P(LEN[3] + FOOT, rowY(0) - .1, 0)], HAIR, RED, { k: km, nib: false });
+      line(g, [P(FOOT, -.02, 0), P(FOOT, rowY(0) - .1, 0)], HAIR, RED, { k: km, nib: false });
+      row(FOOT, FOOT + LEN[3], 0, fmt(LEN[3]) + ' m', { col: RED, red: true, k: km, weight: 700 });
+      row(FOOT + LEN[3], END, 0, '−' + fmt(SHORT) + ' m', { col: RED, red: true, k: ss(18.8, 19.05, t), weight: 700, size: Math.round(sz * 1.25) });
+    }
+    // after the fall: where mine was, as a phantom line
+    const kp = ss(19.6, 20.1, t);
+    if (kp > 0) drawCross(g, { foot: [FOOT, .065, 0], top: [FOOT + LEN[3], .065, 0], bar: [0, 0, 1], L: LEN[3] }, { col: RED, dash: [12, 6, 3, 6], hollow: true, alpha: .85 * kp });
+    // the pieces on the road behind me: their own small dimensions, then they slide into the gap
+    if (t >= B.back + .3) {
+      let s0 = FOOT + LEN[3];
+      for (let k = 0; k < 3; k++) {
+        const p = pieceGeom(k, t), kd = ss(B.back + .5 + .25 * k, B.back + 1.0 + .25 * k, t);
+        dim(g, P3(p.a), P3(p.b), .32 * CAM.z, fmt(PIECE[k]) + ' m', { col: RED, red: true, k: kd, size: Math.round(24 * Math.pow(CAM.z / Z0, .4)), weight: 700, alpha: 1 - .5 * ss(23.6, 24.2, t) });
+        const u = eio(clamp((t - 22.4 - .3 * k) / 1.1)), slot = [[s0, .065, 0], [s0 + PIECE[k], .065, 0]]; s0 += PIECE[k];
+        if (u > 0) { const lift = .9 * Math.sin(Math.PI * u), a = add(mix3(p.a, slot[0], u), [0, lift, 0]), b = add(mix3(p.b, slot[1], u), [0, lift, 0]);
+          drawPiece(g, a, b, { dash: [10, 5], hollow: true, tint: 'rgba(255,93,77,.22)', alpha: .95 }); }
+      }
+      const ks = ss(23.7, 24.3, t);
+      if (ks > 0) row(FOOT + LEN[3], END, 2, PIECE.map(fmt).join(' + ') + ' = ' + fmt(SHORT) + ' m', { col: RED, red: true, k: ks, weight: 700, size: Math.round(sz * 1.05) });
+    }
+  }
+}
+
+// ---------------------------------------------------------------- figure numbers (the drawing's own captions), notes, end card
+const FIGS = [[0, 'FIG. 1  순례 행렬 — 측면도'], [SAW[0], 'FIG. 2  절단 상세 ①'], [B.run[0], 'FIG. 3  경량화 후'], [SAW[1], 'FIG. 4  절단 상세 ②·③'],
+  [B.gap, 'FIG. 5  단면 B–B · 낭떠러지'], [B.mine, 'FIG. 6  하중 시험'], [B.back, 'FIG. 7  잘라 낸 부재']];
+function figLabel(g, t) {
+  let i = 0; while (i < FIGS.length - 1 && t >= FIGS[i + 1][0]) i++;
+  const [t0, s] = FIGS[i], k = i === 0 ? 1 : ss(t0, t0 + .45, t), a = 1 - ss(B.end - .3, B.end, t); if (a <= 0) return;
+  g.save(); g.beginPath(); g.rect(60, 1440, 40 + 700 * k, 90); g.clip();
+  Pilot.text(g, s, 76, 1492, { size: 26, font: SANS, weight: 600, color: INK, alpha: .85 * a, align: 'left', ls: 1 });
+  g.restore();
+  g.save(); g.globalAlpha = .7 * a; g.strokeStyle = INK; g.lineWidth = 1.5; g.beginPath(); g.moveTo(76, 1508); g.lineTo(76 + 560 * k, 1508); g.stroke(); g.restore();
+}
+function noteBoxes(g, t) {
+  S.lines.forEach(([a, b, s, src], i) => {
+    const al = Pilot.win(t, a, b, .35, .45); if (al <= 0) return;
+    const two = s.includes('\n'), size = two ? 54 : 62, y = 430, lines = Pilot.tr(s).split('\n');
+    g.save(); g.font = `600 ${size}px ${SANS}`; let w = Math.max(...lines.map(l => g.measureText(l).width));
+    let bot = y + (two ? size * 1.55 : 0) + size * .3 + 30;
+    if (src) { g.font = `400 28px ${SANS}`; w = Math.max(w, g.measureText(Pilot.tr(src)).width); bot = y + (two ? size * 1.55 : 0) + 76 + 30; }
+    const top = y - size - 32, bw = Math.min(W - 60, w + 110), x0 = (W - bw) / 2;
+    g.globalAlpha = al; g.fillStyle = 'rgba(12,30,74,.72)'; g.fillRect(x0, top, bw, bot - top);
+    g.strokeStyle = 'rgba(232,241,251,.9)'; g.lineWidth = 2; g.strokeRect(x0, top, bw, bot - top);
+    g.lineWidth = 1; g.strokeRect(x0 + 7, top + 7, bw - 14, bot - top - 14);
+    g.fillStyle = 'rgba(12,30,74,.9)'; g.fillRect(x0 + 18, top - 15, 104, 28); g.strokeRect(x0 + 18, top - 15, 104, 28);
+    g.restore();
+    Pilot.text(g, 'NOTE ' + (i + 1), x0 + 70, top + 6, { size: 18, font: SANS, weight: 700, color: INK, alpha: al * .9, ls: 2 });
+  });
+}
+function endCard(g, t) {
+  const a = ss(B.end, B.end + .5, t); if (a <= 0) return;
+  g.save(); g.globalAlpha = a; g.fillStyle = 'rgba(16,38,88,.84)'; g.fillRect(0, 0, W, H);
+  const x0 = 110, x1 = 970, y0 = 600, y1 = 1150;
+  g.strokeStyle = 'rgba(232,241,251,.9)'; g.lineWidth = 2.5; g.strokeRect(x0, y0, x1 - x0, y1 - y0); g.lineWidth = 1; g.strokeRect(x0 + 9, y0 + 9, x1 - x0 - 18, y1 - y0 - 18);
+  g.beginPath(); g.moveTo(x0 + 9, 930); g.lineTo(x1 - 9, 930); g.stroke();
+  g.restore();
+  Story.endCard(g, t, S.endCard, B.end, { font: SERIF, color: '#f4f8fd', srcColor: '#d2e2f6', titleShadow: '', y: 800 });
+}
+
+// ---------------------------------------------------------------- frame
+function draw(ctx, t) {
+  CAM = cam(t);
+  sheet(ctx);
+  road(ctx, t);
+  if (t >= B.gap) { chasm(ctx, t); gate(ctx, t); }
+  entities(ctx, t);
+  if (t >= B.gap) gateGlow(ctx, t);
+  annotations(ctx, t);
+  finish(ctx);
+  if (t >= B.mine + .8 && t < B.mine + .8 + 2 / 30) { ctx.save(); ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H); ctx.restore(); }   // two frames of negative on the hit
+  figLabel(ctx, t);
+  noteBoxes(ctx, t);
+  Story.captions(ctx, t, S.lines, { font: SANS, weight: 600, color: '#f4f8fd', srcColor: '#d2e2f6', shadow: 'rgba(4,14,40,.85)', shadowBlur: 14, y: 430 });
+  endCard(ctx, t);
+}
+async function init() { buildSheet(); }
+Pilot.run({ W, H, dur: S.DUR, fonts: FONTS, init, draw });
+</script>
+</body>
+</html>
