@@ -2,8 +2,8 @@
 window.SOURCE = {
  "type": "sermon",
  "url": "https://www.youtube.com/watch?v=s74gWHdAb_o",
- "date": "",
- "date_note": "영상 제목에 날짜 없음 — 강해 14가 2026-10-18이라 폴더 이름만 10-11로 추정(확인 필요, 엔딩 카드에 쓰기 전에 확인)",
+ "date": "2026-10-11",
+ "service": "1부예배",
  "series": "고린도전서 강해 13",
  "title": "이것을 잃어버렸다고요?",
  "passage": "고린도전서 4:6-21",
