@@ -70,5 +70,41 @@
    }
   ],
   "stamp": "20261023161005"
+ },
+ {
+  "v": 3,
+  "date": "2026-10-23",
+  "note": "소리 넣음(네 버전 공통 사운드트랙, −14 LUFS)",
+  "scenes": [
+   {
+    "id": "cross-blueprint",
+    "label": "① 청사진 설계도 — Blueprint (치수선이 모자람을 증명)",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   },
+   {
+    "id": "cross-ukiyoe",
+    "label": "④ 우키요에 순례길 — Ukiyo-e",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   },
+   {
+    "id": "cross-papercut",
+    "label": "⑥ 붉은 전지 오림 — Red paper-cut",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   },
+   {
+    "id": "cross-glass",
+    "label": "⑦ 스테인드글라스 — Stained glass",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   }
+  ],
+  "stamp": "20261023162312"
  }
 ]

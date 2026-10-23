@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>잘라 낸 건 다리였다 · ⑦ 스테인드글라스</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600&family=Noto+Serif+KR:wght@500;600;700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script>
+<script src="story.js"></script>
+<script src="source.js"></script>
+<script src="script.js"></script>
+<script>
+/* 잘라 낸 건 다리였다 — ⑦ stained glass (lemo-opuscar styles/stained-glass: grammar only, own renderer).
+   The whole frame is one tall lancet in a dark stone wall: a blue pearled border, a white fillet, cobalt lozenge quarries
+   for sky (fixed in the window's lead), a white-glass inscription band for the words. The story is a living panel inside it:
+   hills, a buff road and umber ground cut as glass pieces, the pilgrims as rigid leaded pieces that step at 12 fps.
+   One accent: my cross is the only ruby glass; the others carry amber / clear crosses. The chasm is an unlit band
+   (no light comes through it); on the far side the gate's door is the brightest white glass and its light leaks.
+   The turn is the medium breaking: as my short cross slips into the dark the window CRACKS (light races through the
+   cracks); looking back, the three ruby offcuts slide along the leads into the ghost of my cross over the gap — together
+   exactly a bridge — and the cracks are mended into new leads. End: a cloud covers the sun, the panes go unlit and the
+   card is painted on a white-glass plate. Everything is a pure function of t. */
+const { clamp, lerp, ss, eo, eio, rng } = Pilot;
+const S = window.SCRIPT, B = S.beat, W = Pilot.W, H = Pilot.H, TAU = Math.PI * 2;
+const SERIF = "'Noto Serif KR',serif", SANS = "'Noto Sans KR',sans-serif";
+
+// ---------------------------------------------------------------- palette (transmittance colours)
+const C = {
+  cobT: '#162f82', cob: '#1d3a9c', cobH: '#3a5db3', deep: '#142a70', green: '#2f7f36', green2: '#22602e', olive: '#6b7a22',
+  olive2: '#56621c', moss: '#3f6a2a', umber: '#7a4e24', umber2: '#5e3b1c', earth: '#6a4220', buff: '#a89c72', buff2: '#968a62',
+  buff3: '#b5a980', stone: '#8b819c', stone2: '#776d8b', stone3: '#9a90ab', white: '#fbf8ee', flesh: '#b97f5e', shoe: '#3b2617',
+  amber: '#d99a2b', clear: '#e3dab6', ruby: '#c3121f', rubyDim: '#4a0b12', wood: '#8a5a2a', steel: '#b4c0c0', label: '#ece3c7',
+  chasm: ['#151b38', '#10152d', '#0c1022', '#080a17', '#05060e'],
+};
+const LEAD = '#131417', INK = 'rgba(44,26,12,.88)', INK2 = 'rgba(44,26,12,.55)';
+
+// ---------------------------------------------------------------- geometry
+const PX0 = 98, PX1 = 982, PY0 = 602, PY1 = 1840;          // the picture field (screen)
+const BAND0 = 324, BAND1 = 598;                             // the inscription band (screen)
+const ROAD0 = 1296, ROAD1 = 1392;                           // road surface band (world y)
+const LANES = [1312, 1327, 1342], MEY = 1368;              // the others' lanes (back → front) and mine (nearest)
+const XN = 1300, XF = 1590, FOOT0 = 1268;                   // chasm lips; where a cross is planted
+const L = 360, CB = 78, CBW = 140, BW = 24;                 // cross: length (= the bridge), crossbar from top, crossbar, beam width
+const DOOR = { x: 1700, base: 1297, spring: 1170, apex: 1112, hw: 46 };
+const WX0 = -240, WY0 = 260, WW = 2280, WH = 2080, WS = 1.5; // world canvas extent (built at 1.5× for the close framings)
+const STEP = 12;                                            // figures step at 12 fps (glass moves piece by piece)
+const q12 = t => Math.floor(t * STEP + 1e-6) / STEP;
+const SEG_ME = [0, S.left[3], S.left[2], S.left[1], 1];    // my cross is leaded where it will be cut
+const SEG_OT = [0, .42, .74, 1];
+const CUTLEN = [0, 1, 2].map(k => (S.left[k] - S.left[k + 1]) * L);
+const ME_S = 1.08, KX = 100 * ME_S;
+
+// ---------------------------------------------------------------- small helpers
+const hsh = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+function vary(hex, id, amt = .08) {
+  const [r, g, b] = Pilot.hex(hex), v = 1 + (hsh(id * 3.17 + .5) - .5) * 2 * amt, w = (hsh(id * 1.9 + 7) - .5) * amt * .6;
+  const f = x => clamp(Math.round(x), 0, 255); return `rgb(${f(r * v * (1 + w))},${f(g * v)},${f(b * v * (1 - w))})`;
+}
+function smoothP(pts, closed = true, k = .5, p = new Path2D()) {
+  const n = pts.length, P = i => closed ? pts[(i + n) % n] : pts[clamp(i, 0, n - 1)];
+  p.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 0, m = closed ? n : n - 1; i < m; i++) {
+    const a = P(i), b = P(i + 1), a0 = P(i - 1), b1 = P(i + 2), ka = a[2] ? 0 : k / 3, kb = b[2] ? 0 : k / 3;
+    p.bezierCurveTo(a[0] + (b[0] - a0[0]) * ka, a[1] + (b[1] - a0[1]) * ka, b[0] - (b1[0] - a[0]) * kb, b[1] - (b1[1] - a[1]) * kb, b[0], b[1]);
+  }
+  if (closed) p.closePath(); return p;
+}
+const polyP = (pts, p = new Path2D()) => { pts.forEach((q, i) => i ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1])); p.closePath(); return p; };
+const rectP = (x, y, w, h) => { const p = new Path2D(); p.rect(x, y, w, h); return p; };
+const ellP = (x, y, rx, ry, r = 0) => { const p = new Path2D(); p.ellipse(x, y, rx, ry, r, 0, TAU); return p; };
+function stroke(c, pts, w, col = INK, closed = false) { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.lineJoin = 'round'; c.stroke(smoothP(pts, closed)); }
+// a tapered grisaille trace line
+function brush(c, pts, w, col = INK) {
+  const n = pts.length; if (n < 2) return; const Lf = [], Rt = [];
+  for (let i = 0; i < n; i++) { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)]; let dx = b[0] - a[0], dy = b[1] - a[1]; const l = Math.hypot(dx, dy) || 1;
+    const hw = w * .5 * (.3 + .7 * Math.sin(Math.PI * i / (n - 1))); Lf.push([pts[i][0] - dy / l * hw, pts[i][1] + dx / l * hw]); Rt.push([pts[i][0] + dy / l * hw, pts[i][1] - dx / l * hw]); }
+  c.fillStyle = col; c.fill(smoothP(Lf.concat(Rt.reverse()), true, .3));
+}
+// tileable value noise for the glass texture
+const h2 = (a, b) => { let h = Math.imul(a, 374761393) + Math.imul(b, 668265263) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return ((h ^ h >>> 16) >>> 0) / 4294967296; };
+function pvn(x, y, Px, Py) { const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, s = q => q * q * (3 - 2 * q), mx = a => ((a % Px) + Px) % Px, my = a => ((a % Py) + Py) % Py;
+  const a = h2(mx(i), my(j)), b = h2(mx(i + 1), my(j)), c = h2(mx(i), my(j + 1)), d = h2(mx(i + 1), my(j + 1));
+  return (a * (1 - s(u)) + b * s(u)) * (1 - s(v)) + (c * (1 - s(u)) + d * s(u)) * s(v); }
+function ik(Sh, T, a, b, down = 1) {     // two-bone arm: elbow on the lower side when down=1, upper when −1
+  const dx = T[0] - Sh[0], dy = T[1] - Sh[1], d = clamp(Math.hypot(dx, dy), Math.abs(a - b) + 1, a + b - .5), th = Math.atan2(dy, dx);
+  const al = Math.acos(clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1));
+  const e1 = [Sh[0] + Math.cos(th + al) * a, Sh[1] + Math.sin(th + al) * a], e2 = [Sh[0] + Math.cos(th - al) * a, Sh[1] + Math.sin(th - al) * a];
+  const E = (e1[1] > e2[1]) === (down > 0) ? e1 : e2, a2 = Math.atan2(T[1] - E[1], T[0] - E[0]);
+  return [E, [E[0] + Math.cos(a2) * b, E[1] + Math.sin(a2) * b]];
+}
+function limbP(P, Q, w0, w1) { const dx = Q[0] - P[0], dy = Q[1] - P[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+  return smoothP([[P[0] + nx * w0 / 2, P[1] + ny * w0 / 2], [Q[0] + nx * w1 / 2, Q[1] + ny * w1 / 2], [Q[0] - nx * w1 / 2, Q[1] - ny * w1 / 2], [P[0] - nx * w0 / 2, P[1] - ny * w0 / 2]], true, .25); }
+
+// ---------------------------------------------------------------- glass texture + one glass piece
+let TEX = null; const PATS = new WeakMap();
+function makeTex() {
+  const N = 256, c = Pilot.canvas(N, N), x = c.getContext('2d'), im = x.createImageData(N, N), d = im.data;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const u = i / N, v = j / N, n = pvn(u * 3, v * 26, 3, 26) * .5 + pvn(u * 7, v * 64, 7, 64) * .25 + pvn(u * 4, v * 4, 4, 4) * .25;
+    const val = 255 * (.79 + .21 * n), k = (i + j * N) * 4; d[k] = val; d[k + 1] = val; d[k + 2] = val * (.985 + .015 * n); d[k + 3] = 255;
+  }
+  x.putImageData(im, 0, 0);
+  const r = rng(11);
+  for (let i = 0; i < 46; i++) { const bx = 8 + r() * (N - 16), by = 8 + r() * (N - 16), br = .9 + r() * r() * 3.2;   // seed bubbles
+    x.fillStyle = 'rgba(150,150,150,.55)'; x.beginPath(); x.arc(bx, by, br + .8, 0, TAU); x.fill();
+    x.fillStyle = '#fff'; x.beginPath(); x.arc(bx - br * .15, by - br * .15, br * .72, 0, TAU); x.fill(); }
+  x.strokeStyle = 'rgba(165,165,165,.55)'; x.lineWidth = .8;                                                            // scratches
+  for (let i = 0; i < 7; i++) { const a = r() * N, b = r() * N, an = r() * TAU, len = 20 + r() * 60; x.beginPath(); x.moveTo(a, b); x.lineTo(a + Math.cos(an) * len, b + Math.sin(an) * len); x.stroke(); }
+  TEX = c;
+}
+const pat = c => { let p = PATS.get(c); if (!p) { p = c.createPattern(TEX, 'repeat'); PATS.set(c, p); } return p; };
+// one cut piece: colour (thickness varies per piece), streaks + bubbles (multiply, rotated per piece), matting inside the lead, lead
+function piece(c, path, col, id, o = {}) {
+  c.fillStyle = o.flat ? col : vary(col, id, o.vary ?? .07); c.fill(path);
+  if (o.tex !== false) {
+    c.save(); c.clip(path); c.globalCompositeOperation = 'multiply';
+    const p = pat(c); p.setTransform(new DOMMatrix().translate(hsh(id + .3) * 256, hsh(id + .7) * 256).rotate(hsh(id * 2.3) * 180).scale(o.ts ?? .75));
+    c.fillStyle = p; c.fill(path); c.globalCompositeOperation = 'source-over';
+    if (o.mat !== 0) { c.lineJoin = 'round'; c.strokeStyle = 'rgba(46,26,10,.24)'; c.lineWidth = o.mat ?? 12; c.stroke(path);
+      if (o.mat2 !== 0) { c.strokeStyle = 'rgba(46,26,10,.14)'; c.lineWidth = (o.mat ?? 12) * 2.2; c.stroke(path); } }
+    if (o.paint) o.paint(c);
+    c.restore();
+  } else if (o.paint) { c.save(); c.clip(path); o.paint(c); c.restore(); }
+  if (o.lead !== 0) { c.strokeStyle = LEAD; c.lineJoin = 'round'; c.lineCap = 'round'; c.lineWidth = o.lead ?? 5; c.stroke(path); }
+}
+
+// ---------------------------------------------------------------- the lancet (screen-fixed)
+const LCX = [603.7, 476.3], LSPR = 560, LR = 549.7;
+function lancet(d, p = new Path2D()) {
+  const x0 = 54 + d, x1 = 1026 - d, r = LR - d, ay = LSPR - Math.sqrt(r * r - (540 - LCX[0]) ** 2);
+  p.moveTo(x0, 1840); p.lineTo(x0, LSPR);
+  p.arc(LCX[0], LSPR, r, Math.PI, Math.atan2(ay - LSPR, 540 - LCX[0]));
+  p.arc(LCX[1], LSPR, r, Math.atan2(ay - LSPR, 540 - LCX[1]), 0);
+  p.lineTo(x1, 1840); p.closePath(); return p;
+}
+function lancetPts(d, step) {          // points along the lancet's outline (bottom-left → up → apex → down right)
+  const x0 = 54 + d, x1 = 1026 - d, r = LR - d, ay = LSPR - Math.sqrt(r * r - (540 - LCX[0]) ** 2), out = [];
+  for (let y = 1840; y > LSPR; y -= step) out.push([x0, y]);
+  const a0 = Math.PI, a1 = Math.atan2(ay - LSPR, 540 - LCX[0]) + TAU, n0 = Math.ceil((a1 - a0) * r / step);
+  for (let i = 0; i < n0; i++) { const a = a0 + (a1 - a0) * i / n0; out.push([LCX[0] + Math.cos(a) * r, LSPR + Math.sin(a) * r]); }
+  const b0 = Math.atan2(ay - LSPR, 540 - LCX[1]), n1 = Math.ceil(-b0 * r / step);
+  for (let i = 0; i <= n1; i++) { const a = b0 - b0 * i / n1; out.push([LCX[1] + Math.cos(a) * r, LSPR + Math.sin(a) * r]); }
+  for (let y = LSPR + step; y <= 1840; y += step) out.push([x1, y]);
+  return out;
+}
+
+let SKY, FRAME, BANDC, WORLD, BL1, BL2, BL3, PLATE;
+function buildSky() {                     // cobalt lozenge quarries, each with a painted curl — fixed in the window
+  const c = Pilot.canvas(W, H), g = c.getContext('2d'), cw = 96, ch = 134, r = rng(3);
+  const V = (m, n) => [m * cw / 2 + (h2(m + 50, n + 80) - .5) * 14, n * ch / 2 + (h2(m + 9, n + 300) - .5) * 14];
+  g.save(); g.clip(lancet(40));
+  let id = 1;
+  for (let n = -1; n < 31; n++) for (let m = -1; m < 24; m++) {
+    if ((m + n) % 2) continue;
+    const cx = m * cw / 2, cy = n * ch / 2;
+    const pts = [V(m, n - 1), V(m + 1, n), V(m, n + 1), V(m - 1, n)], yk = clamp((cy - 300) / 1000);
+    const col = Pilot.rgb(Pilot.mix(Pilot.hex(C.cobT), Pilot.hex(cy > 600 ? C.cobH : C.cob), cy > 600 ? ss(.35, 1, yk) : ss(0, 1, cy / 600)));
+    const hex = '#' + col.match(/\d+/g).slice(0, 3).map(v => (+v).toString(16).padStart(2, '0')).join('');
+    piece(g, polyP(pts), hex, id++, { lead: 4.5, mat: 9, paint: q => {   // a small vine curl in grisaille
+      q.strokeStyle = 'rgba(20,14,40,.45)'; q.lineWidth = 2.2; q.lineCap = 'round'; const s = r() > .5 ? 1 : -1;
+      q.beginPath(); q.arc(cx + 4 * s, cy + 6, 13, s > 0 ? -2.4 : -.7, s > 0 ? 1.2 : 2.9, s < 0); q.stroke();
+      q.beginPath(); q.arc(cx + 4 * s, cy + 6, 4, 0, TAU); q.stroke();
+    } });
+  }
+  g.restore();
+  SKY = c;
+}
+function buildFrame() {
+  const c = Pilot.canvas(W, H), g = c.getContext('2d'), r = rng(17);
+  // stone wall: dark ashlar, lit a little by the window near the opening
+  g.fillStyle = '#26221f'; g.fillRect(0, 0, W, H);
+  for (let y = 0, row = 0; y < H; y += 92, row++) for (let x = -((row % 2) * 70); x < W; x += 140 + (r() - .5) * 20) {
+    const v = 34 + r() * 12; g.fillStyle = `rgb(${v + 6},${v + 2},${v - 2})`; g.fillRect(x + 3, y + 3, 134, 86);
+    g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x + 3, y + 80, 134, 9); }
+  g.save(); g.strokeStyle = 'rgba(120,135,190,.18)'; g.lineWidth = 120; g.filter = 'blur(30px)'; g.stroke(lancet(0)); g.restore();
+  g.save(); g.strokeStyle = 'rgba(205,190,160,.14)'; g.lineWidth = 26; g.stroke(lancet(-10)); g.restore();      // the splayed reveal
+  // sill
+  g.fillStyle = '#3a342e'; g.fillRect(0, 1840, W, 80); g.fillStyle = 'rgba(210,190,160,.16)'; g.fillRect(0, 1840, W, 6);
+  // cut the opening
+  g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.fill(lancet(0)); g.restore();
+  // border: blue band with white pearls, white fillet with a running vine
+  const ring = (d0, d1) => { const p = lancet(d0); lancet(d1, p); return p; };
+  g.save(); const band = ring(5, 29); g.clip(band, 'evenodd');
+  piece(g, rectP(0, 0, W, H), C.deep, 7, { lead: 0, mat: 0 }); g.restore();
+  for (const [x, y] of lancetPts(17, 30)) { if (y > 1830) continue; piece(g, ellP(x, y, 6.5, 6.5), '#dfe6d6', 8 + x, { lead: 2.6, tex: false }); }
+  g.save(); g.clip(ring(29, 41), 'evenodd'); piece(g, rectP(0, 0, W, H), '#d9dcc8', 9, { lead: 0, mat: 0 });
+  const vp = lancetPts(35, 6); g.strokeStyle = INK2; g.lineWidth = 2; g.beginPath();
+  vp.forEach((q, i) => { const o = Math.sin(i * .55) * 2.6; i ? g.lineTo(q[0] + o, q[1] + o) : g.moveTo(q[0], q[1]); }); g.stroke(); g.restore();
+  g.strokeStyle = LEAD; g.lineJoin = 'round'; g.lineWidth = 12; g.stroke(lancet(0)); g.lineWidth = 5; g.stroke(lancet(29)); g.lineWidth = 7; g.stroke(lancet(41));
+  // a medallion in the arch: an eight-petal rosette (murrey / green, gold eye)
+  const RC = [540, 172], R0 = 98;
+  piece(g, ellP(RC[0], RC[1], R0 + 10, R0 + 10), '#d9dcc8', 31, { lead: 6, mat: 8 });
+  for (let i = 0; i < 8; i++) { const a = i / 8 * TAU - Math.PI / 2, a1 = a - .36, a2 = a + .36;
+    const pts = [[RC[0] + Math.cos(a) * 30, RC[1] + Math.sin(a) * 30], [RC[0] + Math.cos(a1) * 70, RC[1] + Math.sin(a1) * 70], [RC[0] + Math.cos(a) * (R0 - 2), RC[1] + Math.sin(a) * (R0 - 2)], [RC[0] + Math.cos(a2) * 70, RC[1] + Math.sin(a2) * 70]];
+    piece(g, smoothP(pts), i % 2 ? C.green2 : '#5a2a5c', 40 + i, { lead: 4.5, mat: 8 }); }
+  piece(g, ellP(RC[0], RC[1], 30, 30), '#c99a3a', 52, { lead: 5, mat: 8, paint: q => { stroke(q, [[RC[0] - 12, RC[1]], [RC[0], RC[1] - 12], [RC[0] + 12, RC[1]], [RC[0], RC[1] + 12]], 2, INK2, true); } });
+  // iron saddle bar low in the window
+  for (const y of [1590]) { g.fillStyle = '#17171a'; g.fillRect(30, y - 5, W - 60, 11); g.fillStyle = 'rgba(150,150,160,.3)'; g.fillRect(30, y - 5, W - 60, 2); }
+  FRAME = c;
+}
+function buildBand() {                    // the inscription band: white glass in a lead frame, curled scroll ends painted on
+  const c = Pilot.canvas(W, H), g = c.getContext('2d');
+  g.save(); g.clip(lancet(41));
+  piece(g, rectP(40, BAND0, 1000, BAND1 - BAND0), C.label, 62, { lead: 6, mat: 22, ts: .9, vary: 0 });
+  g.strokeStyle = INK2; g.lineWidth = 2.2; g.strokeRect(PX0 + 16, BAND0 + 14, PX1 - PX0 - 32, BAND1 - BAND0 - 28);
+  g.restore();
+  g.strokeStyle = LEAD; g.lineWidth = 8; g.beginPath(); g.moveTo(40, BAND0); g.lineTo(1040, BAND0); g.moveTo(40, BAND1 + 2); g.lineTo(1040, BAND1 + 2);
+  g.save(); g.clip(lancet(36)); g.stroke(); g.restore();
+  BANDC = c;
+}
+
+// ---------------------------------------------------------------- the world panel (hills, road, ground, chasm, gate)
+const hillY = x => 1176 + 26 * Math.sin(x / 160 + .5) + 14 * Math.sin(x / 61 + 2.1);
+const cliffN = y => XN + 5 * Math.sin(y / 37) + Math.max(0, y - ROAD1) * .04;
+const cliffF = y => XF + 5 * Math.sin(y / 31 + 1) - Math.max(0, y - ROAD1) * .04;
+function buildWorld() {
+  const cv = Pilot.canvas(Math.ceil(WW * WS), Math.ceil(WH * WS)), g = cv.getContext('2d'), r = rng(5); let id = 100;
+  g.scale(WS, WS); g.translate(-WX0, -WY0);
+  const X1 = WX0 + WW, Y1 = WY0 + WH;
+  // far mountains (slate glass), then the hills
+  { const my = x => 1000 + 64 * Math.sin(x / 230 + 1) + 38 * Math.sin(x / 97 + .3) - 30 * Math.cos(x / 61);
+    const xs = [WX0]; while (xs[xs.length - 1] < X1) xs.push(xs[xs.length - 1] + 150 + r() * 110);
+    for (let i = 0; i < xs.length - 1; i++) { const a = xs[i], b = xs[i + 1], top = []; for (let k = 0; k <= 10; k++) { const x = lerp(a, b, k / 10); top.push([x, my(x)]); }
+      piece(g, polyP([...top, [b, 1240], [a, 1240]]), ['#45707e', '#566a92', '#3d6470'][i % 3], id++, { lead: 6, mat: 18, paint: q => {
+        q.strokeStyle = 'rgba(14,20,40,.4)'; q.lineWidth = 2.2; const x = (a + b) / 2, y = my(x); q.beginPath(); q.moveTo(x - 30, y + 30); q.lineTo(x, y + 60); q.lineTo(x + 22, y + 40); q.stroke();
+        q.fillStyle = 'rgba(235,240,245,.55)'; q.beginPath(); q.moveTo(x - 24, y + 14); q.lineTo(x, y + 2); q.lineTo(x + 26, y + 16); q.lineTo(x + 6, y + 24); q.fill(); } }); } }
+  // far hills (two tones, slanted cuts with shared vertices)
+  { const xs = [WX0]; while (xs[xs.length - 1] < X1) xs.push(xs[xs.length - 1] + 120 + r() * 90);
+    const sk = xs.map(() => (r() - .5) * 70), cols = [C.green, C.olive, C.green2, C.moss];
+    for (let i = 0; i < xs.length - 1; i++) { const a = xs[i], b = xs[i + 1], top = [];
+      for (let k = 0; k <= 8; k++) { const x = lerp(a, b, k / 8); top.push([x, hillY(x)]); }
+      const p = polyP([...top, [b + sk[i + 1], ROAD0 + 4], [a + sk[i], ROAD0 + 4]]);
+      piece(g, p, cols[i % 4], id++, { lead: 6, mat: 16, paint: q => { q.strokeStyle = 'rgba(30,40,10,.35)'; q.lineWidth = 2;
+        for (let k = 0; k < 3; k++) { const x = lerp(a, b, .2 + k * .3), y = hillY(x) + 40 + k * 18; q.beginPath(); q.moveTo(x - 26, y + 6); q.quadraticCurveTo(x, y - 8, x + 26, y + 6); q.stroke(); } } }); } }
+  // trees on the hills
+  for (const tx of [40, 300, 720, 960, 1210, 1960]) { const ty = hillY(tx);
+    piece(g, rectP(tx - 7, ty - 30, 14, 90), C.umber2, id++, { lead: 4, mat: 6 });
+    piece(g, smoothP([[tx, ty - 98], [tx + 40, ty - 70], [tx + 34, ty - 30], [tx, ty - 22]]), C.green2, id++, { lead: 5, mat: 12 });
+    piece(g, smoothP([[tx, ty - 98], [tx, ty - 22], [tx - 34, ty - 30], [tx - 40, ty - 70]]), '#2a6e44', id++, { lead: 5, mat: 12, paint: q => {
+      q.strokeStyle = 'rgba(20,30,10,.45)'; q.lineWidth = 2; for (let k = 0; k < 4; k++) { q.beginPath(); q.arc(tx - 14 + (k % 2) * 30, ty - 76 + k * 12, 9, .2, 2.9); q.stroke(); } } });
+  }
+  // gatehouse on the far side: ashlar courses of grey-violet glass, crenellations
+  { const x0 = DOOR.x - 88, x1 = DOOR.x + 90, yT = 1046;
+    const merl = []; for (let x = x0; x < x1; x += 44) merl.push([x, yT - 26], [x + 22, yT - 26], [x + 22, yT], [Math.min(x + 44, x1), yT]);
+    const wall = polyP([[x0, ROAD0 + 2], [x0, yT - 26], ...merl, [x1, yT - 26], [x1, ROAD0 + 2]]);
+    g.save(); g.clip(wall);
+    for (let y = yT - 26, row = 0; y < ROAD0; y += 42, row++) for (let x = x0 - (row % 2) * 34; x < x1; x += 68)
+      piece(g, rectP(x, y, 68, 42), [C.stone, C.stone2, C.stone3][(row + Math.round(x / 68)) % 3], id++, { lead: 5, mat: 10 });
+    g.restore(); g.strokeStyle = LEAD; g.lineWidth = 6; g.stroke(wall);
+    // the door: pointed arch of the brightest white glass, two dark leaves ajar
+    const { x, hw, base, spring, apex } = DOOR;
+    const arch = smoothP([[x - hw, base, 1], [x - hw, spring], [x - hw * .55, apex + 18], [x, apex, 1], [x + hw * .55, apex + 18], [x + hw, spring], [x + hw, base, 1]], true, .5);
+    piece(g, arch, C.white, id++, { lead: 6, mat: 0, vary: 0, ts: 1.2 });
+    piece(g, polyP([[x - hw + 3, base], [x - hw + 3, spring + 6], [x - 18, spring + 14], [x - 18, base]]), C.umber, id++, { lead: 5, mat: 8, paint: q => { stroke(q, [[x - 32, spring + 20], [x - 32, base]], 2, INK2); } });
+    piece(g, polyP([[x + hw - 3, base], [x + hw - 3, spring + 6], [x + 18, spring + 14], [x + 18, base]]), C.umber2, id++, { lead: 5, mat: 8, paint: q => { stroke(q, [[x + 32, spring + 20], [x + 32, base]], 2, INK2); } });
+  }
+  // road: buff flagstones; broken by the chasm; pale light spilled in front of the door
+  const roadPart = (xa, xb) => { const xs = [xa]; while (xs[xs.length - 1] < xb - 40) xs.push(Math.min(xb, xs[xs.length - 1] + 70 + r() * 60)); xs[xs.length - 1] = xb;
+    const sk = xs.map((_, i) => i === 0 || i === xs.length - 1 ? 0 : (r() - .5) * 30), ym = x => 1344 + 7 * Math.sin(x / 37);
+    const bx = (i, y) => xs[i] + sk[i] * (y - ROAD0) / (ROAD1 - ROAD0);
+    for (let i = 0; i < xs.length - 1; i++) {
+      const m0 = ym(xs[i]), m1 = ym(xs[i + 1]), lit = (xs[i] > DOOR.x - 100 && xs[i] < DOOR.x + 100) ? 1 : 0;
+      piece(g, polyP([[bx(i, ROAD0), ROAD0], [bx(i + 1, ROAD0), ROAD0], [bx(i + 1, m1), m1], [bx(i, m0), m0]]), lit ? '#ddd3aa' : [C.buff, C.buff2, C.buff3][i % 3], id++, { lead: 5, mat: 10 });
+      piece(g, polyP([[bx(i, m0), m0], [bx(i + 1, m1), m1], [bx(i + 1, ROAD1), ROAD1], [bx(i, ROAD1), ROAD1]]), lit ? '#d6cba0' : [C.buff2, C.buff3, C.buff][i % 3], id++, { lead: 5, mat: 10 });
+    } };
+  roadPart(WX0, XN); roadPart(XF, X1);
+  // ground below the road: hand-cut umber rocks (jittered grid with shared vertices), clipped to each side of the chasm
+  const ground = (xa, xb, side) => {
+    const cols = Math.ceil((xb - xa) / 150), rows = Math.ceil((Y1 - ROAD1) / 140);
+    const V = (i, j) => { const edge = i === 0 || i === cols, x = lerp(xa, xb, i / cols), y = ROAD1 + j * 140;
+      const jx = edge ? 0 : (h2(i + side * 97, j) - .5) * 70, jy = j === 0 ? 0 : (h2(i + 7, j + side * 13) - .5) * 60;
+      const yy = y + jy, xx = x + jx; if (side === 0 && i === cols) return [cliffN(yy), yy]; if (side === 1 && i === 0) return [cliffF(yy), yy]; return [xx, yy]; };
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
+      const depth = clamp(j / rows), col = [C.umber, C.earth, C.umber2, '#704622'][(i + j * 3) % 4];
+      piece(g, polyP([V(i, j), V(i + 1, j), V(i + 1, j + 1), V(i, j + 1)]), col, id++, { lead: 6, mat: 18, paint: q => {
+        q.fillStyle = `rgba(10,6,4,${.12 + depth * .5})`; q.fillRect(WX0, WY0, WW, WH);
+        const [x, y] = V(i, j); q.strokeStyle = 'rgba(30,16,6,.5)'; q.lineWidth = 2.2;
+        for (let k = 0; k < 2; k++) { q.beginPath(); q.moveTo(x + 20, y + 40 + k * 40); q.quadraticCurveTo(x + 70, y + 26 + k * 40, x + 120, y + 46 + k * 40); q.stroke(); } } });
+    } };
+  ground(WX0, XN, 0); ground(XF, X1, 1);
+  // the chasm: an unlit band — dark, milky, no light comes through it
+  { const ys = [ROAD0 - 2, 1440, 1560, 1720, 1940, Y1];
+    for (let i = 0; i < ys.length - 1; i++) { const a = ys[i], b = ys[i + 1];
+      const pts = [[cliffN(a), a], [lerp(cliffN(a), cliffF(a), .5), a + (i ? 18 : 0)], [cliffF(a), a], [cliffF(b), b], [lerp(cliffN(b), cliffF(b), .5), b + 18], [cliffN(b), b]];
+      piece(g, polyP(pts), C.chasm[i], id++, { lead: 6, mat: 22, vary: .03 }); }
+    // the cliff faces: jagged umber lips
+    for (const side of [0, 1]) { const f = side ? cliffF : cliffN, s = side ? -1 : 1, pts = [];
+      for (let y = ROAD0; y <= 1700; y += 34) pts.push([f(y) + s * (y === ROAD0 ? 0 : 6 + 10 * h2(y, side)), y]);
+      for (let y = 1700; y >= ROAD0; y -= 34) pts.push([f(y) - s * 2, y]);
+      piece(g, polyP(pts), '#4a2e14', id++, { lead: 5, mat: 6 }); }
+  }
+  WORLD = cv;
+}
+
+// ---------------------------------------------------------------- crosses
+// o: { fx, fy: foot (axis) point; ang: foot→head direction; len: how much is left (u); col; segs; fore: crossbar foreshortening; id; dim }
+function drawCross(c, o) {
+  c.save(); c.translate(o.fx, o.fy); c.rotate(o.ang);
+  const Lx = o.len * L, segs = o.segs, lead = o.lead ?? 4.5;
+  for (let i = 0; i < segs.length - 1; i++) { const u0 = segs[i], u1 = Math.min(segs[i + 1], o.len); if (u0 >= o.len - 1e-6) break;
+    piece(c, rectP((o.len - u1) * L, -BW / 2, (u1 - u0) * L, BW), o.col, o.id + i, { lead, mat: 9, ts: .55 }); }
+  const cx = Lx - CB, f = o.fore ?? 1;
+  piece(c, polyP([[cx - BW / 2, -CBW / 2 * f], [cx + BW / 2, -CBW / 2 * f], [cx + BW / 2, CBW / 2 * f], [cx - BW / 2, CBW / 2 * f]]), o.col, o.id + 9, { lead, mat: 9, ts: .55 });
+  if (o.glow) { c.globalCompositeOperation = 'lighter'; c.fillStyle = o.glow; c.fillRect(0, -BW / 2, Lx, BW); c.fillRect(cx - BW / 2, -CBW / 2 * f, BW, CBW * f); c.globalCompositeOperation = 'source-over'; }
+  c.restore();
+}
+// a cross carried on the shoulder: junction on the (far) shoulder, the foot drags if it can reach the ground, else rides at 30°
+function carry(f, len) {
+  const lean = f.lean || 0, cs = Math.cos(lean), sn = Math.sin(lean);
+  const lx = -8 * f.s, ly = -200 * f.s * (1 - .16 * (f.crouch || 0));
+  const cx = f.x + f.dir * (lx * cs - ly * sn), cy = f.y + (lx * sn + ly * cs);
+  const dist = len * L - CB, h = f.y - cy; let th;
+  if (dist >= h + 2) th = Math.asin(h / dist); else th = 1.0;
+  const fx = cx - f.dir * Math.cos(th) * dist, fy = cy + Math.sin(th) * dist;
+  const ang = f.dir > 0 ? -th : Math.PI + th;
+  const gd = Math.max(6, dist - 75), grip = [fx + Math.cos(ang) * gd, fy + Math.sin(ang) * gd];
+  return { fx, fy, ang, len, fore: 1, grip, front: [fx + Math.cos(ang) * (dist + 34), fy + Math.sin(ang) * (dist + 34)], drag: dist >= h + 2 };
+}
+const along = (cr, d) => [cr.fx + Math.cos(cr.ang) * d, cr.fy + Math.sin(cr.ang) * d];
+const lerpCross = (a, b, k) => ({ ...b, fx: lerp(a.fx, b.fx, k), fy: lerp(a.fy, b.fy, k), ang: lerp(a.ang, b.ang, k), fore: lerp(a.fore ?? 1, b.fore ?? 1, k) });
+
+// ---------------------------------------------------------------- figures (rigid leaded pieces)
+const MECOL = { robe: '#9db0ae', robe2: '#7d908e', hood: '#53657a' };
+const OTH = [
+  { x0: 610, lane: 0, s: .93, col: { robe: '#2f6f3a', robe2: '#245a2f', hood: '#6b7a22' }, cross: C.amber, id: 300 },
+  { x0: 370, lane: 1, s: .96, col: { robe: '#632a63', robe2: '#4c2a5e', hood: '#7a4e24' }, cross: C.clear, id: 400 },
+  { x0: 250, lane: 2, s: .99, col: { robe: '#6b7a22', robe2: '#56621c', hood: '#2f6f86' }, cross: C.amber, id: 500 },
+];
+// world point → the figure's local frame (feet at 0, facing +x, unit scale)
+function toLocal(f, P, bob) {
+  const dx = (P[0] - f.x) / (f.s * f.dir), dy = (P[1] - f.y) / f.s, cs = Math.cos(-f.lean), sn = Math.sin(-f.lean);
+  return [dx * cs - dy * sn, dx * sn + dy * cs - bob];
+}
+// profile figure facing +x (dir mirrors). f: x,y,s,dir,lean,phase,stand,crouch,col,id,hand (world point or null),alpha
+function drawProfile(c, f) {
+  const sw = f.stand ? 0 : Math.sin(f.phase), amp = f.amp ?? 18, bob = f.stand ? 0 : -3 * Math.abs(Math.cos(f.phase)), cr = f.crouch || 0, id = f.id;
+  c.save(); c.translate(f.x, f.y); c.scale(f.s * f.dir, f.s); c.rotate(f.lean); c.translate(0, bob); c.scale(1, 1 - .16 * cr);
+  if (!f.armOnly) {
+  if (f.farHand) {                         // the far arm reaches up to the beam in front of the shoulder (drawn behind the body)
+    const T2 = toLocal(f, f.farHand, bob); T2[1] /= (1 - .16 * cr);
+    const [E2, W2] = ik([-4, -196], T2, 52, 48, 1), a2 = Math.atan2(W2[1] - E2[1], W2[0] - E2[0]), dk = '#' + Pilot.mix(Pilot.hex(f.col.robe2), [20, 20, 30], .3).map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+    piece(c, limbP([-4, -196], E2, 22, 18), dk, id + 20, { lead: 4, mat: 7 });
+    piece(c, limbP(E2, W2, 18, 23), dk, id + 21, { lead: 4, mat: 7 });
+    piece(c, ellP(W2[0] + Math.cos(a2) * 7, W2[1] + Math.sin(a2) * 7, 10, 8.5, a2), '#9a684c', id + 22, { lead: 3.5, mat: 4 });
+  }
+  const foot = (dx, k) => piece(c, smoothP([[dx - 12, -1], [dx - 11, -11], [dx + 6, -13], [dx + 19, -7], [dx + 21, -1]]), C.shoe, id + k, { lead: 3.5, mat: 0, tex: false });
+  foot(-amp * sw - 2, 1); foot(amp * sw + 2, 2);
+  const h = 5 * sw;
+  const robe = smoothP([[-14, -206], [8, -208], [22, -198], [27, -168], [26, -128], [32, -70], [38 + h, -13], [28 + h, -6], [2 + h * .6, -4], [-28 + h * .3, -6], [-38 - h * .5, -13], [-33, -70], [-29, -128], [-26, -180]]);
+  piece(c, robe, f.col.robe, id + 3, { lead: 4.5, mat: 14, paint: q => {
+    brush(q, [[2, -118], [4 + h * .4, -60], [8 + h, -10]], 4, INK2); brush(q, [[-14, -116], [-18, -60], [-22 - h * .3, -10]], 4, INK2);
+    brush(q, [[14, -110], [20, -60], [26 + h, -14]], 3, INK2);
+    q.fillStyle = 'rgba(46,26,10,.22)'; q.fillRect(-40, -206, 22, 210); } });            // matting on the back side
+  piece(c, smoothP([[-30, -133], [27, -133], [28, -122], [-30, -122]], true, .2), '#4e3418', id + 4, { lead: 3.5, mat: 0, tex: false });
+  // hood + face (profile): almond eye, heavy lid, brow flowing into the nose
+  piece(c, smoothP([[-28, -196], [-31, -226], [-23, -253], [-4, -267], [14, -267], [26, -255], [29, -236], [23, -212], [10, -201]]), f.col.hood, id + 5, { lead: 4.5, mat: 10, paint: q => {
+    brush(q, [[-20, -246], [-24, -224], [-22, -202]], 3, INK2); } });
+  const look = f.look || 0;   // 0 ahead, 1 down
+  piece(c, smoothP([[8, -253], [18, -255], [25, -248], [27, -240], [33, -233, 1], [27, -229], [27, -223], [22, -215], [13, -212], [7, -226]]), C.flesh, id + 6, { lead: 3.5, mat: 6, paint: q => {
+    brush(q, [[12, -248], [19, -249.5], [26, -246], [30, -237]], 2.6);                    // brow → nose
+    q.fillStyle = INK; q.beginPath(); q.ellipse(20, -240 + look * 1.5, 4.6, 2.3, look * .3, 0, TAU); q.fill();
+    q.fillStyle = 'rgba(232,210,190,.9)'; q.beginPath(); q.ellipse(18.5, -240.3 + look * 1.5, 1.4, 1, 0, 0, TAU); q.fill();
+    brush(q, [[14, -243.5 + look], [20, -245 + look], [25, -242.5 + look]], 2.4);           // heavy upper lid
+    brush(q, [[21, -221], [26, -222.5]], 2.2); } });
+  }
+  if (f.noArm) { c.restore(); return; }
+  // near arm: shoulder → elbow → wrist; the hand grips its target (or hangs)
+  const Sh = [3, -194], T = f.hand ? toLocal(f, f.hand, bob) : [13, -108];
+  if (f.hand) T[1] /= (1 - .16 * cr);
+  const [E, Wr] = ik(Sh, T, 52, 48, f.elbowUp ? -1 : 1);
+  piece(c, limbP(Sh, E, 23, 19), f.col.robe2, id + 7, { lead: 4, mat: 7 });
+  piece(c, limbP(E, Wr, 19, 25), f.col.robe2, id + 8, { lead: 4, mat: 7 });
+  const ha = Math.atan2(Wr[1] - E[1], Wr[0] - E[0]);
+  if (f.saw) {                             // the saw hangs from the near hand: handle in the fist, blade down and forward
+    const G = [Wr[0] + Math.cos(ha) * 7, Wr[1] + Math.sin(ha) * 7], d = [Math.cos(1.15), Math.sin(1.15)], n = [-d[1], d[0]];
+    const P = (u, v) => [G[0] + d[0] * u + n[0] * v, G[1] + d[1] * u + n[1] * v], tooth = [];
+    for (let u = 12; u <= 112; u += 6) tooth.push(P(u, 8), P(u + 3, 13));
+    piece(c, polyP([P(12, -10), P(112, -6), ...tooth.reverse()]), '#9fabae', id + 30, { lead: 3, mat: 6 });
+    const hp = smoothP([[-14, -16], [16, -14], [18, 12], [-10, 16], [-20, 2]].map(([u, v]) => P(u, v)), true, .4);
+    piece(c, hp, C.wood, id + 31, { lead: 3, mat: 0, tex: false });
+  }
+  piece(c, ellP(Wr[0] + Math.cos(ha) * 7, Wr[1] + Math.sin(ha) * 7, 10, 8.5, ha), C.flesh, id + 9, { lead: 3.5, mat: 4, paint: q => {
+    for (let k = -1; k <= 1; k++) brush(q, [[Wr[0] + Math.cos(ha) * 7 + Math.cos(ha + 1.57) * k * 4, Wr[1] + Math.sin(ha) * 7 + Math.sin(ha + 1.57) * k * 4], [Wr[0] + Math.cos(ha) * 14 + Math.cos(ha + 1.57) * k * 4, Wr[1] + Math.sin(ha) * 14 + Math.sin(ha + 1.57) * k * 4]], 1.6); } });
+  c.restore();
+}
+// frontal kneeling body (hunched over the work). origin = knees on the road
+function kneelGeo(f) { const sh = -112; return { R: [f.x - 30 * f.s, f.y + sh * f.s], Lh: [f.x + 30 * f.s, f.y + sh * f.s] }; }
+function drawKneelBody(c, f) {
+  const id = f.id; c.save(); c.translate(f.x, f.y); c.scale(f.s, f.s);
+  piece(c, smoothP([[-31, -118], [31, -118], [42, -80], [54, -10], [26, -2], [-26, -2], [-54, -10], [-42, -80]]), f.col.robe, id + 13, { lead: 4.5, mat: 14, paint: q => {
+    brush(q, [[-10, -100], [-16, -50], [-24, -6]], 3.5, INK2); brush(q, [[10, -100], [16, -50], [24, -6]], 3.5, INK2); } });
+  piece(c, smoothP([[-37, -72], [37, -72], [38, -61], [-38, -61]], true, .2), '#4e3418', id + 16, { lead: 3.5, mat: 0, tex: false });
+  piece(c, ellP(0, -136, 26, 27), f.col.hood, id + 14, { lead: 4.5, mat: 9 });
+  piece(c, smoothP([[0, -156], [13, -150], [16, -136], [11, -120], [0, -114], [-11, -120], [-16, -136], [-13, -150]]), C.flesh, id + 15, { lead: 3.5, mat: 6, paint: q => {
+    // eyes lowered to the saw: heavy lids, pupils low
+    for (const s of [-1, 1]) { brush(q, [[s * 2.5, -143], [s * 7, -145], [s * 12, -142.5]], 2.4);
+      q.fillStyle = INK; q.beginPath(); q.ellipse(s * 7, -138.6, 3.6, 2, 0, 0, TAU); q.fill();
+      brush(q, [[s * 2.5, -139.5], [s * 7, -141.2], [s * 11.5, -139]], 2.2); }
+    brush(q, [[1.5, -142], [2.5, -131], [-1.5, -128]], 2); brush(q, [[-4, -122], [4, -122]], 2.2); } });
+  c.restore();
+}
+function drawArm(c, Sh, T, s, col, id, down, hand = true) {
+  const [E, Wr] = ik(Sh, T, 56 * s, 54 * s, down);
+  piece(c, limbP(Sh, E, 23 * s, 19 * s), col, id, { lead: 4, mat: 7 });
+  piece(c, limbP(E, Wr, 19 * s, 24 * s), col, id + 1, { lead: 4, mat: 7 });
+  const ha = Math.atan2(Wr[1] - E[1], Wr[0] - E[0]);
+  if (hand) piece(c, ellP(Wr[0] + Math.cos(ha) * 7 * s, Wr[1] + Math.sin(ha) * 7 * s, 10.5 * s, 8.5 * s, ha), C.flesh, id + 2, { lead: 3.5, mat: 4, paint: q => {
+    for (let k = -1; k <= 1; k++) brush(q, [[Wr[0] + Math.cos(ha) * 8 * s + Math.cos(ha + 1.57) * k * 4, Wr[1] + Math.sin(ha) * 8 * s + Math.sin(ha + 1.57) * k * 4], [Wr[0] + Math.cos(ha) * 15 * s + Math.cos(ha + 1.57) * k * 4, Wr[1] + Math.sin(ha) * 15 * s + Math.sin(ha + 1.57) * k * 4]], 1.6); } });
+  return Wr;
+}
+// the saw (world coords): teeth edge from the heel to the toe along d; G = the handle's grip point
+const SAWD = (() => { const v = [-36, 76], l = Math.hypot(v[0], v[1]); return [v[0] / l, v[1] / l]; })(), SAWN = [-SAWD[1], SAWD[0]];
+const sawPt = (G, u, v) => [G[0] + SAWD[0] * u + SAWN[0] * v, G[1] + SAWD[1] * u + SAWN[1] * v];
+function drawSawBlade(c, G) {
+  c.save(); c.beginPath(); c.rect(G[0] - 300, G[1] - 300, 600, MEY - BW + 2 - (G[1] - 300)); c.clip();      // the toe is inside the kerf, behind the beam
+  const tooth = []; for (let u = 14; u <= 140; u += 6) tooth.push(sawPt(G, u, 0), sawPt(G, u + 3, -5));
+  piece(c, polyP([...tooth, sawPt(G, 140, 0), sawPt(G, 140, 14), sawPt(G, 14, 24)]), '#9fabae', 801, { lead: 3, mat: 6 });
+  c.restore();
+}
+function drawSawHandle(c, G) {
+  const pts = [[16, -4], [16, 30], [-4, 40], [-24, 34], [-30, 10], [-18, -8], [0, -6]].map(([u, v]) => sawPt(G, u, v));
+  const hole = [[-2, 8], [-4, 24], [-15, 25], [-18, 11], [-10, 5]].map(([u, v]) => sawPt(G, u, v));
+  const p = smoothP(pts, true, .4); smoothP(hole, true, .5, p);
+  c.save(); c.fillStyle = vary(C.wood, 811); c.fill(p, 'evenodd'); c.strokeStyle = LEAD; c.lineWidth = 3.5; c.lineJoin = 'round'; c.stroke(p); c.restore();
+}
+
+// ---------------------------------------------------------------- the timeline: me
+let PLAN = null;
+function plan() {
+  const P = {}; P.x0 = 490; P.vS = 28; P.stop = P.x0 + P.vS * 3.0;
+  const f1 = { x: P.stop, y: MEY, s: ME_S, dir: 1, lean: .12 };
+  P.fx = [carry(f1, 1).fx]; P.xc = [P.fx[0] + CUTLEN[0]]; P.bx = [P.xc[0] + KX];
+  P.runTo = 1060; P.stop2 = 1076;
+  const f2 = { x: P.stop2, y: MEY, s: ME_S, dir: 1, lean: .1 };
+  P.fx[1] = carry(f2, S.left[1]).fx; P.xc[1] = P.fx[1] + CUTLEN[1]; P.bx[1] = P.xc[1] + KX;
+  P.fx[2] = P.xc[1]; P.xc[2] = P.xc[1] + CUTLEN[2]; P.bx[2] = P.xc[2] + KX;
+  P.lip = 1252; P.watch = 1192; P.plant = 1222;
+  // where each offcut comes to rest on the road, and its slot in my whole cross over the gap (head on the near lip, the
+  // cut foot reaching out: the missing span is exactly the foot, piece by piece in the order it was cut off)
+  P.piece = [0, 1, 2].map(k => ({ x0: P.fx[k] - 9, x1: P.xc[k] - 9, rot: [-.05, .06, -.035][k], u0: S.left[k + 1], u1: S.left[k] }));
+  let x = FOOT0 + S.left[3] * L;
+  for (const k of [2, 1, 0]) { const w = CUTLEN[k]; P.piece[k].slot = [x, x + w]; x += w; }
+  PLAN = P;
+}
+const dropT = k => B.saw[k] + .8;
+function meLen(t) { let len = S.left[0]; for (let k = 0; k < 3; k++) if (t >= dropT(k)) len = S.left[k + 1]; return len; }
+const groundCross = (fx, len) => ({ fx, fy: MEY - BW / 2, ang: 0, len, fore: .32 });
+// a cross given by its head point H and direction a (foot → head)
+const byHead = (H, a, len, fore) => ({ fx: H[0] - Math.cos(a) * len * L, fy: H[1] - Math.sin(a) * len * L, ang: a, len, fore });
+const MY_H = [FOOT0 + 4, MEY - BW / 2];                    // my head end resting on the near lip
+function meState(t) {
+  const P = PLAN, sw = B.saw, len = meLen(t), f = { x: P.x0, y: MEY, s: ME_S, dir: 1, lean: .1, phase: 0, stand: true, crouch: 0, col: MECOL, id: 900, amp: 18 };
+  const st = { f, cross: null, kneel: null, len };
+  const carryAt = () => { st.cross = carry(f, len); f.hand = st.cross.grip; };
+  const lower = (x, k, q) => {                // put the cross down on the road (stepped)
+    q = Math.floor(clamp(q) * 3) / 3; f.x = x; f.crouch = .55 * q; f.lean = .1 + .25 * q;
+    const a = carry({ ...f, crouch: 0, lean: .1 }, len), b = groundCross(a.fx, len);
+    st.cross = lerpCross(a, b, q); f.hand = along(st.cross, lerp(Math.max(6, len * L - CB - 75), x - a.fx + 30, q));
+  };
+  const rise = (k, q) => {                    // pick it up again (stepped)
+    q = Math.floor(clamp(q) * 3) / 3; f.x = P.bx[k]; f.crouch = .55 * (1 - q); f.lean = .1 + .25 * (1 - q);
+    const b = carry({ ...f, crouch: 0, lean: .1 }, len), a = groundCross(P.xc[k], len);
+    st.cross = lerpCross(a, b, q); f.hand = along(st.cross, lerp(f.x - P.xc[k] + 30, Math.max(6, len * L - CB - 75), q));
+  };
+  const kneel = (k, bx, t0) => {             // kneel behind the cross and saw its foot off
+    const foot = t >= dropT(k) ? P.xc[k] : P.fx[k];
+    st.cross = groundCross(foot, len);
+    const sa = clamp((t - t0 - .25) / .5), stroke = sa > 0 && sa < 1 ? 22 * Math.sin(Math.floor((t - t0 - .25) * 16) / 16 * TAU * 6) : 0;
+    const cut = [P.xc[k], MEY - BW], G = [cut[0] - SAWD[0] * (86 + stroke), cut[1] - SAWD[1] * (86 + stroke)];
+    st.kneel = { x: bx, y: MEY - 6, s: ME_S, col: MECOL, id: 900, G, kerf: t >= dropT(k) ? 0 : sa, cutX: P.xc[k], press: [bx - 6, MEY - BW + 3] };
+  };
+  const sawInHand = () => { st.cross = carry(f, len); f.farHand = st.cross.front; f.hand = null; f.saw = true; };
+  if (t < 3.0) { f.x = P.x0 + P.vS * t; f.stand = false; f.phase = t * TAU * .55; f.lean = .17 + .07 * Math.sin(t * TAU * 1.1); f.look = .6; sawInHand(); }
+  else if (t < sw[0]) { f.x = P.stop; f.lean = .13; f.look = .8; sawInHand(); }
+  else if (t < sw[0] + .2) lower(P.stop, 0, (t - sw[0]) / .2 + .34);
+  else if (t < sw[0] + .9) kneel(0, P.bx[0], sw[0]);
+  else if (t < sw[0] + 1.3) rise(0, (t - sw[0] - .9) / .4 + .34);
+  else if (t < B.run[0]) { f.x = P.bx[0]; f.lean = .06; carryAt(); }
+  else if (t < B.run[1]) { const k = (t - B.run[0]) / (B.run[1] - B.run[0]); f.x = lerp(P.bx[0], P.runTo, k * k * (3 - 2 * k) * .35 + k * .65);
+    f.stand = false; f.phase = f.x / 50 * Math.PI; f.amp = 34; f.lean = .26; carryAt(); }        // big quick strides
+  else if (t < sw[1]) { f.x = lerp(P.runTo, P.stop2, (t - B.run[1]) / (sw[1] - B.run[1])); f.stand = false; f.phase = f.x / 34 * Math.PI; f.lean = .1; carryAt(); }
+  else if (t < sw[1] + .2) lower(P.stop2, 1, (t - sw[1]) / .2 + .34);
+  else if (t < sw[2] - .3) kneel(1, P.bx[1], sw[1]);
+  else if (t < sw[2]) { const q = Math.floor(clamp((t - sw[2] + .3) / .2) * 2) / 2; kneel(2, lerp(P.bx[1], P.bx[2], q), sw[2]); st.kneel.G = null; }
+  else if (t < sw[2] + .9) kneel(2, P.bx[2], sw[2]);
+  else if (t < sw[2] + 1.3) rise(2, (t - sw[2] - .9) / .4 + .34);
+  else if (t < 12.5) { const k = (t - sw[2] - 1.3) / (12.5 - sw[2] - 1.3); f.x = lerp(P.bx[2], P.lip, eo(k)); f.stand = k >= 1; f.phase = f.x / 34 * Math.PI; f.lean = .08; carryAt(); }
+  else if (t < 13.0) { f.x = P.lip; f.lean = -.12 + .07 * Math.sin((t - 12.5) * TAU * 2.2) * (1 - (t - 12.5) * 1.6); carryAt(); }
+  else if (t < 13.5) { f.x = lerp(P.lip, P.watch, eio((t - 13) / .5)); f.stand = false; f.phase = -f.x / 30 * Math.PI; f.lean = -.04; carryAt(); }
+  else if (t < 17.5) { f.x = P.watch; f.lean = .02; carryAt(); }
+  else if (t < 17.9) { f.x = lerp(P.watch, P.plant, (t - 17.5) / .4); f.stand = false; f.phase = f.x / 30 * Math.PI; f.lean = .05; carryAt(); }
+  else if (t < B.mine) {                     // lift it off the shoulder upright by its head, then swing the cut foot out over the gap
+    st.front = true; f.x = P.plant;
+    const c0 = carry(f, len), H0 = along(c0, len * L), Hup = [f.x + 34, MEY - 300];
+    if (t < 18.26) { const q = Math.floor(clamp((t - 17.9) / .2) * 3) / 3; st.cross = byHead([lerp(H0[0], Hup[0], q), lerp(H0[1], Hup[1], q)], lerp(c0.ang, -Math.PI / 2, q), len, 1); }
+    else { const q = t < 18.33 ? .5 : 1, a = q < 1 ? -Math.PI * .86 : -Math.PI;    // one quick swing: upright → almost flat → laid
+      st.cross = byHead([lerp(Hup[0], MY_H[0], q), lerp(Hup[1], MY_H[1], q)], a, len, lerp(1, .32, q)); f.crouch = .4 * q; f.lean = .1 + .2 * q; }
+    f.hand = along(st.cross, len * L - 8); f.elbowUp = t < 18.26;
+  }
+  else if (t < B.tip) {                      // it lies across the empty gap — short. I hold its head end down on the lip.
+    st.front = true; f.x = P.plant; f.crouch = .4; f.lean = .3;
+    const tr = .01 * Math.sin(Math.floor(t * 24) / 24 * TAU * 5) * ss(18.6, 18.9, t);
+    st.cross = byHead(MY_H, -Math.PI + tr, len, .32); f.hand = along(st.cross, len * L - 10); st.outline = ss(18.6, 18.9, t);
+  }
+  else if (t < B.fall) {                     // it tips: the far end dips over the lip, it slides out of my hands
+    st.front = true; f.x = P.plant; f.crouch = .5; f.lean = .36; st.outline = 1;
+    const q = Math.floor(clamp((t - B.tip) / (B.fall - B.tip)) * 4) / 4; st.cross = tipCross(q); f.hand = [MY_H[0] + 4, MY_H[1] - 6 + 10 * q];
+  }
+  else if (t < B.back) { f.x = P.plant; f.crouch = .6; f.lean = .38; f.hand = [XN + 4, MEY + 6]; f.look = 1; st.fall = t - B.fall; st.outline = 1 - ss(B.fall + .3, B.fall + .8, t); }
+  else { const q = Math.floor(clamp((t - B.back) / .2) * 2) / 2; f.x = P.plant; f.crouch = .6 * (1 - q); f.lean = .38 * (1 - q) + .02;
+    f.dir = t < B.fill[1] + .1 ? -1 : 1; if (q < 1) f.dir = 1; f.hand = null; f.look = .3; }
+  return st;
+}
+function tipCross(q) {                      // rotate about the lip edge: the far (foot) end goes down
+  const len = S.left[3], piv = [XN, MEY - BW / 2], d = .6 * q * q, base = byHead([MY_H[0] + 22 * q, MY_H[1]], -Math.PI, len, .32);
+  const rot = ([x, y]) => [piv[0] + (x - piv[0]) * Math.cos(d) - (y - piv[1]) * Math.sin(d), piv[1] + (x - piv[0]) * Math.sin(d) + (y - piv[1]) * Math.cos(d)];
+  const F = rot([base.fx, base.fy]); return { fx: F[0], fy: F[1], ang: -Math.PI + d, len, fore: .32 };
+}
+// ---------------------------------------------------------------- the others: lay it → walk over → pull it back → carry it into the light
+const arrT = k => B.bridges[k] - .85;
+const othX = (o, t) => o.x0 + 30 * Math.min(t, B.run[0]) + 20 * Math.max(0, t - B.run[0]);   // they slow under the weight
+const BANNER = f => ({ fx: f.x + 18 * f.s, fy: f.y - 26, ang: -1.42, len: 1, fore: 1 });    // carried upright before them
+function othState(k, t) {
+  const o = OTH[k], bk = B.bridges[k], ly = LANES[o.lane], arr = arrT(k), x12 = othX(o, 12), xFar = XF + 22;
+  const f = { x: 0, y: ly, s: o.s, dir: 1, lean: .06, phase: 0, stand: false, crouch: 0, col: o.col, id: o.id, amp: 17 };
+  const st = { f, cross: null, alpha: 1, laid: t >= bk && t < bk + .9 };
+  const base = { len: 1, segs: SEG_OT, col: o.cross, id: o.id + 50 };
+  if (t < 12) { f.x = othX(o, t); f.phase = f.x / 26 * Math.PI; }
+  else if (t < arr) { f.x = lerp(x12, 1236, (t - 12) / (arr - 12)); f.phase = f.x / 34 * Math.PI; f.amp = 22; f.lean = .1; }
+  else if (t < bk + .3) { f.x = 1236; f.stand = true; }
+  else if (t < bk + .9) { f.x = lerp(1236, xFar, (t - bk - .3) / .6); f.phase = f.x / 40 * Math.PI; f.amp = 26; f.lean = .1;
+    if (f.x > XN - 30 && f.x < XF + 10) f.y = ly - BW * .75; }
+  else if (t < bk + 1.4) { f.x = xFar; f.stand = true; }
+  else { f.x = lerp(xFar, DOOR.x - 8, (t - bk - 1.4) / .4); f.phase = f.x / 34 * Math.PI; st.alpha = 1 - ss(bk + 1.45, bk + 1.8, t); st.glow = ss(bk + 1.3, bk + 1.7, t); }
+  if (t < arr) { st.cross = { ...base, ...carry(f, 1) }; f.hand = st.cross.grip; }
+  else if (t < bk - .18) { const q = Math.floor(clamp((t - arr) / .45) * 4) / 4, a = carry(f, 1), b = { fx: FOOT0, fy: ly, ang: -Math.PI / 2, len: 1, fore: 1 };
+    st.cross = { ...base, ...lerpCross(a, b, q) }; f.hand = along(st.cross, lerp(L - CB - 75, 150, q)); f.elbowUp = q > .5; }
+  else if (t < bk) { const q = Math.floor(clamp((t - bk + .18) / .18) * 4) / 4;
+    st.cross = { ...base, fx: FOOT0, fy: lerp(ly, ly - BW / 2, q * q), ang: -Math.PI / 2 * (1 - q * q), fore: lerp(1, .32, q * q) }; f.hand = null; }
+  else if (t < bk + .9) { /* lying across: the bridge (drawn with the light) */ }
+  else if (t < bk + 1.2) {                  // from the far side: hauls it over the far lip (the near end drops off the near lip, he levers it)
+    f.dir = -1; const q = Math.floor(clamp((t - bk - .9) / .3) * 5) / 5, d = 150 * q, piv = [XF, ly - BW / 2], sd = (XF - FOOT0) - d, a = -.32 * ss(32, 150, d);
+    st.cross = { ...base, fx: piv[0] - Math.cos(a) * sd, fy: piv[1] - Math.sin(a) * sd, ang: a, fore: .32 }; f.hand = along(st.cross, sd + 12); f.crouch = .25; f.lean = .12;
+  }
+  else if (t < bk + 1.4) {                  // …and lifts it upright to carry it
+    const q = Math.floor(clamp((t - bk - 1.2) / .2) * 3) / 3, d = 150, a0 = -.32, sd = (XF - FOOT0) - d;
+    const p0 = { fx: XF - Math.cos(a0) * sd, fy: ly - BW / 2 - Math.sin(a0) * sd, ang: a0, len: 1, fore: .32 };
+    f.dir = q < .5 ? -1 : 1; st.cross = { ...base, ...lerpCross(p0, BANNER(f), q) }; f.hand = along(st.cross, 150); f.elbowUp = true;
+  }
+  else { st.cross = { ...base, ...BANNER(f) }; f.hand = along(st.cross, 150); f.elbowUp = true; }
+  return st;
+}
+const bridgeOf = k => ({ fx: FOOT0, fy: LANES[OTH[k].lane] - BW / 2, ang: 0, len: 1, fore: .32, segs: SEG_OT, col: OTH[k].cross, id: OTH[k].id + 50 });
+// my cross shatters as it drops off the lip: its ruby pieces scatter and fall into the dark
+let SHARDS = null;
+function makeShards() {
+  const r = rng(44), len = S.left[3], Lx = len * L, cols = 8, T = [], Bt = [];
+  for (let i = 0; i <= cols; i++) { const x = Lx * i / cols + (i && i < cols ? (r() - .5) * 12 : 0); T.push([x, -BW / 2]); Bt.push([x + (i && i < cols ? (r() - .5) * 12 : 0), BW / 2]); }
+  const tri = []; for (let i = 0; i < cols; i++) { tri.push([T[i], T[i + 1], Bt[i]]); tri.push([T[i + 1], Bt[i + 1], Bt[i]]); }
+  const cx = Lx - CB, h = CBW / 2 * .32; tri.push([[cx - BW / 2, -h], [cx + BW / 2, -h], [cx, 0]], [[cx - BW / 2, h], [cx + BW / 2, h], [cx, 0]]);
+  SHARDS = tri.map((pts, i) => ({ pts, c: [(pts[0][0] + pts[1][0] + pts[2][0]) / 3, (pts[0][1] + pts[1][1] + pts[2][1]) / 3], vx: -40 + r() * 220, vy: -320 * r() + 20, sp: (r() - .5) * 14, id: 1000 + i }));
+}
+function drawShatter(c, u) {
+  const P = tipCross(1), cs = Math.cos(P.ang), sn = Math.sin(P.ang);
+  c.save(); c.beginPath(); c.rect(XN - 20, WY0, XF - XN + 40, WH); c.clip();
+  for (const sh of SHARDS) { const wx = P.fx + sh.c[0] * cs - sh.c[1] * sn, wy = P.fy + sh.c[0] * sn + sh.c[1] * cs;
+    const x = wx + sh.vx * u, y = wy + sh.vy * u + .5 * 2300 * u * u; if (y > 2000) continue;
+    c.save(); c.translate(x, y); c.rotate(P.ang + sh.sp * u); c.translate(-sh.c[0], -sh.c[1]);
+    const dk = ss(1450, 1850, y); c.globalAlpha = 1 - dk * .9;
+    piece(c, polyP(sh.pts), dk > .5 ? C.rubyDim : C.ruby, sh.id, { lead: 2.5, mat: 0, ts: .5 }); c.restore(); }
+  c.restore();
+  const fl = 1 - ss(0, .35, u);                                                                   // the hit: a ruby flash where it broke
+  if (fl > 0) { const x = XN + 40, y = MEY - 10; c.save(); c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(x, y, 0, x, y, 260);
+    g.addColorStop(0, `rgba(255,236,220,${.95 * fl})`); g.addColorStop(.25, `rgba(255,70,60,${.6 * fl})`); g.addColorStop(1, 'rgba(255,40,40,0)');
+    c.fillStyle = g; c.fillRect(x - 260, y - 260, 520, 520); c.restore(); }
+}
+// the dashed outline of my whole cross lying across the gap (head on the near lip)
+function outline(c, a) {
+  if (a <= 0) return; const y0 = MEY - BW, x0 = FOOT0, bx = x0 + CB, h = CBW / 2 * .32;
+  const p = new Path2D(); p.rect(x0, y0, L, BW); p.rect(bx - BW / 2, MEY - BW / 2 - h, BW, 2 * h);
+  c.save(); c.globalAlpha = a; c.lineJoin = 'round'; c.setLineDash([12, 9]);
+  c.strokeStyle = 'rgba(20,10,8,.8)'; c.lineWidth = 6; c.stroke(p); c.strokeStyle = '#ffe9be'; c.lineWidth = 3; c.stroke(p); c.restore();
+}
+
+// light pouring across a bridge from the far (gate) end, then a residual glow
+function lightFlow(c, cr, t0, t, tint = '255,226,170') {
+  const q = (t - t0) / .45; if (q < 0) return;
+  c.save(); c.translate(cr.fx, cr.fy); c.rotate(cr.ang); c.globalCompositeOperation = 'lighter';
+  const Lx = cr.len * L, f = cr.fore ?? 1, bx = Lx - CB;
+  c.beginPath(); c.rect(0, -BW / 2, Lx, BW); c.rect(bx - BW / 2, -CBW / 2 * f, BW, CBW * f);
+  if (q < 1.2) { const x = Lx * (1 - q), g = c.createLinearGradient(x - 90, 0, x + 90, 0);
+    g.addColorStop(0, 'rgba(255,240,200,0)'); g.addColorStop(.5, 'rgba(255,244,214,.85)'); g.addColorStop(1, 'rgba(255,240,200,0)'); c.fillStyle = g; c.fill(); }
+  c.fillStyle = `rgba(${tint},${.2 * ss(0, 1, q)})`; c.fill();
+  c.restore();
+}
+// ---------------------------------------------------------------- camera
+const CAMK = [ // t, x, y, zoom, easing into this key
+  [0, 505, 1215, 2.4], [1.3, 505, 1215, 2.4], [2.7, 530, 1150, 1.6, eio], [4.5, 545, 1150, 1.6], [8.6, 1010, 1150, 1.6, eio], [11.4, 1075, 1150, 1.6],
+  [12.8, 1475, 1110, 1.4, eio], [19.55, 1475, 1110, 1.4], [19.7, 1410, 1250, 1.75, eo], [21.1, 1414, 1254, 1.72], [21.8, 1110, 1150, 1.5, eio],
+  [22.4, 1120, 1150, 1.5], [23.3, 1430, 1140, 1.5, eio], [26.0, 1430, 1150, 1.55], [99, 1430, 1150, 1.55]];
+function cam(t) {
+  let i = 0; while (i < CAMK.length - 2 && t > CAMK[i + 1][0]) i++;
+  const a = CAMK[i], b = CAMK[i + 1], k = (b[4] || eio)(clamp((t - a[0]) / (b[0] - a[0])));
+  const c = { x: lerp(a[1], b[1], k), y: lerp(a[2], b[2], k), z: lerp(a[3], b[3], k) };
+  if (t >= B.fall && t < B.fall + .07) { const fr = Math.floor((t - B.fall) * 30); c.x += [11, -9, 6][fr] || 0; c.y += [-8, 7, -4][fr] || 0; }   // 2-frame shake
+  return c;
+}
+const toScreen = (cm, x, y) => [540 + (x - cm.x) * cm.z, 1100 + (y - cm.y) * cm.z];
+
+// ---------------------------------------------------------------- cracks (in the window's glass, screen space)
+let CRACKS = null, CR_O = [400, 1210]; const CRASH = 19.2;
+function makeCracks() {
+  const r = rng(91); CRACKS = []; const cm = cam(19.32); CR_O = toScreen(cm, XN, MEY - 6);
+  for (let i = 0; i < 7; i++) { let a = -Math.PI * .95 + i / 6 * Math.PI * 1.9 + (r() - .5) * .3, p = [...CR_O], pts = [p], len = 0; const max = 150 + r() * 220;
+    while (len < max) { a += (r() - .5) * .7; const s = 26 + r() * 34; p = [p[0] + Math.cos(a) * s, p[1] + Math.sin(a) * s]; pts.push(p); len += s; }
+    CRACKS.push({ pts, len });
+    if (i % 3 === 1) { const j = 2 + Math.floor(r() * (pts.length - 3)); let q = pts[j], b = a + (r() > .5 ? .9 : -.9), bp = [q], bl = 0;
+      while (bl < 90) { b += (r() - .5) * .6; const s = 22 + r() * 20; q = [q[0] + Math.cos(b) * s, q[1] + Math.sin(b) * s]; bp.push(q); bl += s; } CRACKS.push({ pts: bp, len: bl, delay: .08 }); } }
+}
+function crackPath(cr, frac) {
+  const p = new Path2D(); let left = cr.len * frac; p.moveTo(cr.pts[0][0], cr.pts[0][1]);
+  for (let i = 1; i < cr.pts.length && left > 0; i++) { const a = cr.pts[i - 1], b = cr.pts[i], s = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.min(1, left / s);
+    p.lineTo(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k); left -= s; }
+  return p;
+}
+function drawCracks(c, t) {
+  if (t < CRASH) return;
+  if (t > 22.6) return; const mend = 0, gone = 1 - ss(21.3, 22.4, t), hot = 1 - ss(CRASH + .12, CRASH + .6, t), calm = (1 - .55 * ss(CRASH + .5, CRASH + 1.6, t)) * gone;
+  c.save(); c.beginPath(); c.rect(PX0, PY0, PX1 - PX0, PY1 - PY0); c.clip(); c.lineCap = 'round'; c.lineJoin = 'round';
+  for (const cr of CRACKS) { const p = crackPath(cr, eo((t - CRASH - (cr.delay || 0)) / .26));
+    if (mend < 1) { c.globalCompositeOperation = 'lighter';
+      c.strokeStyle = `rgba(255,248,230,${(.12 + .25 * hot) * (1 - mend) * calm})`; c.lineWidth = 6 + 8 * hot; c.stroke(p);
+      c.strokeStyle = `rgba(255,252,240,${(.5 + .5 * hot) * (1 - mend) * calm})`; c.lineWidth = 2.2; c.stroke(p); c.globalCompositeOperation = 'source-over'; }
+    if (mend > 0) { c.globalAlpha = mend * .85; c.strokeStyle = LEAD; c.lineWidth = 3.2; c.stroke(p); c.globalAlpha = 1; } }
+  const fl = 1 - ss(CRASH, CRASH + .3, t);                                                     // the flash from the break
+  if (fl > 0) { c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(CR_O[0], CR_O[1], 0, CR_O[0], CR_O[1], 520);
+    g.addColorStop(0, `rgba(255,250,235,${.9 * fl})`); g.addColorStop(.35, `rgba(255,240,220,${.35 * fl})`); g.addColorStop(1, 'rgba(255,240,220,0)');
+    c.fillStyle = g; c.fillRect(PX0, PY0, PX1 - PX0, PY1 - PY0); }
+  c.restore();
+}
+
+// ---------------------------------------------------------------- the panel: everything that lives in the world
+function spark(c, x, y, k, s = 1) {       // a weld spark: a small star that flares and fades
+  if (!(k > 0 && k < 1)) return; const a = Math.sin(k * Math.PI), R = (18 + 40 * k) * s;
+  c.save(); c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(x, y, 0, x, y, R);
+  g.addColorStop(0, `rgba(255,250,230,${a})`); g.addColorStop(.3, `rgba(255,200,140,${.5 * a})`); g.addColorStop(1, 'rgba(255,180,120,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, R, 0, TAU); c.fill();
+  c.strokeStyle = `rgba(255,248,225,${a})`; c.lineWidth = 2.5 * s; c.beginPath();
+  for (let i = 0; i < 4; i++) { const an = i * Math.PI / 4 + .3; c.moveTo(x - Math.cos(an) * R * .9, y - Math.sin(an) * R * .9); c.lineTo(x + Math.cos(an) * R * .9, y + Math.sin(an) * R * .9); }
+  c.stroke(); c.restore();
+}
+const FS = [23.66, 22.93, 22.2], DONE = B.fill[1];               // fill start per piece (nearest first)
+function pieceState(k, t) {
+  const P = PLAN, pc = P.piece[k], td = dropT(k); if (t < td) return null;
+  const hop = Math.floor(clamp((t - td) / .16) * 2) / 2, rest = { x: pc.x0 + 9 * hop - 9, y: MEY + 6 - BW / 2 - 8 * Math.sin(hop * Math.PI), rot: pc.rot * hop };
+  const t0 = FS[k]; if (t < t0) return { ...rest, pc, glow: ss(B.back + .2, B.back + .8, t) * (.55 + .25 * Math.sin((t - B.back) * 5 + k)) };
+  const lift = ss(t0, t0 + .15, t), q = eio(clamp((t - t0 - .15) / .45)), dq = Math.floor(clamp((t - t0 - .6) / .13) * 2) / 2, sy = MEY - BW / 2;
+  return { x: lerp(rest.x, pc.slot[0], q), y: lerp(rest.y - 40 * lift, sy - 30, q) - 90 * Math.sin(q * Math.PI) + 30 * dq, rot: lerp(rest.rot, 0, q), pc,
+    arrive: t0 + .73, moving: dq < 1, glow: dq < 1 ? .7 : .25 * (1 - ss(DONE, DONE + .4, t)), trail: q > 0 && q < 1 ? q : 0, from: rest };
+}
+function drawPiece(c, ps, col = C.ruby, glow = 0) {
+  const w = (ps.pc.u1 - ps.pc.u0) * L;
+  c.save(); c.translate(ps.x, ps.y); c.rotate(ps.rot);
+  piece(c, rectP(0, -BW / 2, w, BW), col, 700 + Math.round(ps.pc.u0 * 100), { lead: 4.5, mat: 9, ts: .55 });
+  if (glow > 0) { c.globalCompositeOperation = 'lighter'; c.fillStyle = `rgba(255,120,110,${glow})`; c.fillRect(0, -BW / 2, w, BW); }
+  c.restore();
+}
+function drawPanel(c, t, tf, cm) {
+  c.drawImage(WORLD, WX0, WY0, WW, WH);
+  // gate light (behind the figures, in front of the wall): it leaks, and grows with each one who goes in
+  const nIn = [0, 1, 2].reduce((s, k) => s + ss(B.bridges[k] + 1.45, B.bridges[k] + 1.8, t), 0), gl = .55 + .22 * nIn;
+  { c.save(); c.globalCompositeOperation = 'lighter'; const g = c.createRadialGradient(DOOR.x, DOOR.base - 70, 10, DOOR.x, DOOR.base - 70, 330);
+    g.addColorStop(0, `rgba(255,250,232,${.55 * gl})`); g.addColorStop(.3, `rgba(255,236,200,${.22 * gl})`); g.addColorStop(1, 'rgba(255,230,190,0)');
+    c.fillStyle = g; c.fillRect(DOOR.x - 340, DOOR.base - 420, 680, 640); c.restore(); }
+  const oth = OTH.map((_, k) => othState(k, tf));
+  const pcs = [0, 1, 2].map(k => pieceState(k, t));
+  const me = meState(tf);
+  // the others (back lanes): a bridge while it is laid, else the cross they carry; then the figure
+  for (let k = 0; k < 3; k++) { const s = oth[k];
+    if (s.laid) { const br = bridgeOf(k); drawCross(c, br); lightFlow(c, br, B.bridges[k], t); }
+    if (s.alpha <= 0) continue;
+    c.save(); c.globalAlpha = s.alpha;
+    if (s.cross) drawCross(c, { ...s.cross, segs: SEG_OT, col: OTH[k].cross, id: OTH[k].id + 50 });
+    drawProfile(c, s.f); c.restore();
+    if (s.glow > 0) { c.save(); c.globalCompositeOperation = 'lighter'; const x = s.f.x, y = s.f.y - 130 * s.f.s, g = c.createRadialGradient(x, y, 0, x, y, 170);
+      g.addColorStop(0, `rgba(255,248,226,${.8 * s.glow * (s.alpha + .2)})`); g.addColorStop(1, 'rgba(255,240,210,0)'); c.fillStyle = g; c.fillRect(x - 170, y - 170, 340, 340); c.restore(); }
+  }
+  // the outline of my whole cross; the ghost of what is left of it; the offcuts filling the missing span
+  outline(c, Math.max(me.outline || 0, ss(B.back + .3, B.back + .8, t) * (1 - ss(DONE + .2, DONE + .6, t))));
+  const ghostA = ss(B.back + .3, B.back + .8, t), lit = ss(DONE, DONE + .3, t);
+  if (ghostA > 0) { c.save(); c.globalAlpha = ghostA;
+    if (lit > .5) drawCross(c, { fx: FOOT0 + L, fy: MEY - BW / 2, ang: Math.PI, len: 1, fore: .32, segs: SEG_ME, id: 950, col: C.ruby });
+    else drawCross(c, { ...byHead(MY_H, -Math.PI, S.left[3], .32), segs: SEG_ME, id: 950, col: C.rubyDim });
+    c.restore(); }
+  for (let k = 0; k < 3; k++) { const ps = pcs[k]; if (!ps || (lit > .5 && !ps.moving)) continue;
+    if (ps.trail > 0) for (let j = 1; j <= 3; j++) { const qq = Math.max(0, ps.trail - j * .07); c.save(); c.globalAlpha = .22 / j;
+      drawPiece(c, { ...ps, x: lerp(ps.from.x, ps.pc.slot[0], qq), y: lerp(ps.from.y, MEY - BW / 2 - 30, qq) - 90 * Math.sin(qq * Math.PI) }, C.ruby, .6); c.restore(); }
+    drawPiece(c, ps, C.ruby, .5 * (ps.glow || 0));
+    if (ps.glow > .05) { c.save(); c.globalCompositeOperation = 'lighter'; const x = ps.x + 30, g = c.createRadialGradient(x, ps.y, 0, x, ps.y, 120);
+      g.addColorStop(0, `rgba(255,90,80,${.6 * ps.glow})`); g.addColorStop(1, 'rgba(255,60,60,0)'); c.fillStyle = g; c.fillRect(x - 120, ps.y - 120, 240, 240); c.restore(); }
+    spark(c, ps.pc.slot[0], MEY - BW / 2, (t - ps.arrive) / .35, 1.3);
+  }
+  if (t >= DONE) lightFlow(c, { fx: FOOT0 + L, fy: MEY - BW / 2, ang: Math.PI, len: 1, fore: .32 }, DONE + .05, t, '255,120,110');
+  // me
+  if (me.kneel) { const k = me.kneel;
+    drawKneelBody(c, k);
+    if (k.G) drawSawBlade(c, k.G);
+    drawCross(c, { ...me.cross, segs: SEG_ME, col: C.ruby, id: 920 });
+    if (k.kerf > 0) { c.fillStyle = 'rgba(20,4,6,.9)'; c.fillRect(k.cutX - 2, MEY - BW, 4, BW * k.kerf); }
+    const g = kneelGeo(k);
+    drawArm(c, g.Lh, k.press, k.s, MECOL.robe2, 930, 1);                                             // left hand holds the cross down
+    if (k.G) { const grip = sawPt(k.G, -9, 16); drawSawHandle(c, k.G); drawArm(c, g.R, grip, k.s, MECOL.robe2, 940, -1);
+      const th = sawPt(k.G, -3, 33); piece(c, ellP(th[0], th[1], 8, 4.5, Math.atan2(SAWD[1], SAWD[0])), C.flesh, 945, { lead: 3, mat: 0, tex: false }); } // thumb on top
+    else drawArm(c, g.R, [k.x - 50, MEY - BW + 2], k.s, MECOL.robe2, 940, 1);
+  } else {
+    const mc = me.cross && !me.fall ? { ...me.cross, segs: SEG_ME, col: C.ruby, id: 920 } : null;
+    if (me.front && mc) { drawProfile(c, { ...me.f, noArm: true }); drawCross(c, mc); drawProfile(c, { ...me.f, armOnly: true }); }
+    else { if (mc) drawCross(c, mc); drawProfile(c, me.f); }
+  }
+  for (let k = 0; k < 3; k++) { const ps = pcs[k]; if (ps && ps.moving && t >= FS[k]) drawPiece(c, ps, C.ruby, .5); }
+  if (me.fall != null) drawShatter(c, me.fall);      // the hit: my ruby cross breaks off the lip and falls into the dark
+  return me;
+}
+
+// ---------------------------------------------------------------- bloom (on small buffers)
+function bloom(ctx, amt) {
+  const src = ctx.canvas;
+  BL1.ctx.globalCompositeOperation = 'copy'; BL1.ctx.filter = 'none'; BL1.ctx.drawImage(src, 0, 0, BL1.width, BL1.height);
+  BL1.ctx.globalCompositeOperation = 'multiply'; BL1.ctx.drawImage(BL1, 0, 0); BL1.ctx.drawImage(BL1, 0, 0);   // keep only the bright glass
+  BL2.ctx.globalCompositeOperation = 'copy'; BL2.ctx.filter = 'blur(3px)'; BL2.ctx.drawImage(BL1, 0, 0);
+  BL3.ctx.globalCompositeOperation = 'copy'; BL3.ctx.filter = 'blur(5px)'; BL3.ctx.drawImage(BL1, 0, 0, BL3.width, BL3.height);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = .7 * amt; ctx.drawImage(BL2, 0, 0, W, H); ctx.globalAlpha = .55 * amt; ctx.drawImage(BL3, 0, 0, W, H); ctx.restore();
+}
+
+// ---------------------------------------------------------------- init + draw
+async function init() {
+  makeTex(); buildSky(); buildFrame(); buildBand(); buildWorld(); plan(); makeShards();
+  const mk = (w, h) => { const c = Pilot.canvas(w, h); c.ctx = c.getContext('2d'); return c; };
+  BL1 = mk(180, 320); BL2 = mk(180, 320); BL3 = mk(90, 160);
+  // the end-card plate: white glass in lead, a painted rule
+  PLATE = Pilot.canvas(W, H); const g = PLATE.getContext('2d');
+  piece(g, smoothP([[118, 584, 1], [962, 584, 1], [962, 1150, 1], [118, 1150, 1]]), C.label, 77, { lead: 9, mat: 26, ts: .9, vary: .02 });
+  g.strokeStyle = INK2; g.lineWidth = 2.2; g.strokeRect(140, 606, 800, 522); g.lineWidth = 1.4; g.strokeRect(150, 616, 780, 502);
+}
+function captionY(line) { const two = line[2].includes('\n'); return line[3] ? 418 : two ? 432 : 478; }
+const FIT = new Map();
+function srcFit(ctx, s) { if (!FIT.has(s)) { ctx.save(); ctx.font = `400 28px ${SANS}`; ctx.letterSpacing = '1px'; FIT.set(s, Math.min(1, 800 / ctx.measureText(Pilot.tr(s)).width)); ctx.restore(); } return FIT.get(s); }
+function draw(ctx, t) {
+  const tf = q12(t), cm = cam(t);
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  ctx.drawImage(SKY, 0, 0);
+  // the living panel
+  ctx.save(); ctx.beginPath(); ctx.rect(PX0, PY0, PX1 - PX0, PY1 - PY0); ctx.clip();
+  ctx.translate(540, 1100); ctx.scale(cm.z, cm.z); ctx.translate(-cm.x, -cm.y);
+  drawPanel(ctx, t, tf, cm);
+  ctx.restore();
+  // light: brightest in the middle of the lancet, falling off to the lead border; dims a little after the fall
+  const dim = 1 - .2 * ss(B.fall, B.fall + .3, t) * (1 - ss(21.0, 21.8, t));
+  { const g = ctx.createRadialGradient(540, 1180, 220, 540, 1180, 1050), v = Math.round(255 * dim), e = Math.round(140 * dim);
+    g.addColorStop(0, `rgb(${v},${v},${v})`); g.addColorStop(1, `rgb(${e},${e},${e + 18})`);
+    ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = g; ctx.fillRect(PX0, PY0, PX1 - PX0, PY1 - PY0); ctx.restore(); }
+  ctx.drawImage(FRAME, 0, 0);
+  bloom(ctx, 1);
+  // the inscription band and its words (never under glare: the band is drawn after the bloom)
+  ctx.drawImage(BANDC, 0, 0);
+  const CO = { font: SERIF, srcFont: SANS, color: '#2a160a', srcColor: '#4d3219', shadow: 'rgba(255,250,236,.7)', shadowBlur: 6 };
+  for (const ln of S.lines) {
+    Story.captions(ctx, t, [[ln[0], ln[1], ln[2]]], { ...CO, y: captionY(ln) });
+    if (ln[3]) { const ys = 562, k = srcFit(ctx, ln[3]); ctx.save(); ctx.translate(540, ys); ctx.scale(k, k); ctx.translate(-540, -ys);
+      Story.captions(ctx, t, [[ln[0], ln[1], '', ln[3]]], { ...CO, y: ys - 76 }); ctx.restore(); }
+  }
+  // end: a cloud covers the sun — every pane goes unlit — and the card is painted on a white-glass plate
+  const u = ss(B.end, B.end + .45, t);
+  if (u > 0) {
+    ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = Pilot.rgb(Pilot.mix([255, 255, 255], [62, 70, 96], u)); ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(52,56,72,${.35 * u})`; ctx.fillRect(PX0, PY0 - 280, PX1 - PX0, PY1 - PY0 + 280); ctx.restore();
+    const lit = ss(B.end + .1, B.end + .5, t);
+    ctx.save(); ctx.globalAlpha = lit; ctx.drawImage(PLATE, 0, 0); ctx.restore();
+    Story.endCard(ctx, t, S.endCard, B.end, { font: SERIF, srcFont: SANS, color: '#2a160a', srcColor: '#4d3219', titleShadow: 'rgba(255,250,236,.6)' });
+  }
+}
+Pilot.run({ audio: (Pilot.cut ? 'cross-glass-' + Pilot.cut + '.m4a' : 'soundtrack.m4a'), W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["600 54px 'Noto Serif KR'", "700 72px 'Noto Serif KR'", "400 28px 'Noto Sans KR'", "500 34px 'Noto Sans KR'"], init, draw });
+</script>
+<script>window.POSTER_T = 19.4;</script>
+    <style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+    border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+    #pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+    border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}#pv-play[hidden]{display:none}</style>
+    <button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+    <script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+    if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+    </body>
+</html>

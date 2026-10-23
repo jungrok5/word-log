@@ -1,0 +1,295 @@
+{
+ "duration": 30.5,
+ "note": "ONE soundtrack for all four style versions (blueprint / ukiyo-e / paper-cut / stained glass): cues follow script.js beats. Key centre D throughout (weary D/A → stride D major → bridge motif G-A-D → realize D major). Flow UsNtilXvM5TsVi89LWfU, 4 takes per node.",
+ "music": [
+  {
+   "id": "m1",
+   "src": "weary",
+   "at": 0.0,
+   "len": 4.9,
+   "db": -5,
+   "fout": 0.45,
+   "note": "take 3 of 4 (D/A, plain), first 0.30 s of pre-roll silence trimmed so it sounds on frame 0",
+   "prompt": "Sparse uneasy slow instrumental in D minor: a low sustained cello drone and a few heavy, hesitant low piano notes, weary and burdened, slow plodding pulse like tired steps, starts immediately at full presence, no drums, no vocals"
+  },
+  {
+   "id": "m2",
+   "src": "stride",
+   "at": 4.6,
+   "len": 7.4,
+   "db": -5,
+   "fin": 0.06,
+   "fout": 0.03,
+   "note": "take 2 of 4 (D major, 120 bpm, accents every 0.5 s from 4.6); from file 4.3 s (= 8.9, '한 번만 더') highpassed 350 Hz and ramped -5 dB so it thins; cut dead at 12.0 (the gap)",
+   "prompt": "Light bouncy playful instrumental in D major: pizzicato strings and light marimba, quick skipping rhythm around 120 bpm, carefree and a little smug, starts right away; in the last third it thins out to a few sparse plucks with a slightly uneasy, hesitant hint, no drums, no vocals"
+  },
+  {
+   "id": "m3",
+   "src": "realize",
+   "at": 21.2,
+   "len": 9.3,
+   "db": -1,
+   "fin": 0.35,
+   "fout": 2.2,
+   "note": "take 4 of 4 from file 0.95 s: piano re-attacks at 21.75 / 22.25 / 23.75, D-major string swell peaks 24.31 (last piece lands); decays to quiet for the loop",
+   "prompt": "Quiet aching realization turning warm, in D major: slow solo felt piano, soft strings enter and swell gently to a warm resolved chord around the third second, then settle calmly and fade to quiet at the end, slow 60 bpm, intimate and tender, no drums, no vocals"
+  }
+ ],
+ "sfx": [
+  {
+   "id": "bed",
+   "src": "wind",
+   "at": 0.0,
+   "len": 30.5,
+   "db": 16,
+   "loop": true,
+   "note": "take 3 of 4 (steadiest), rotated to start 5 s in so its quiet loop seam falls under music (10.0, 25.0), not on frame 0 / the loop; very quiet as generated, so +16 dB; 15 s seamless loop",
+   "prompt": "Quiet open outdoor wind on a high empty mountain road, soft steady breeze, gentle moving air, no birds, no voices"
+  },
+  {
+   "id": "hv1",
+   "src": "heavy",
+   "at": 0.0,
+   "len": 1.9,
+   "db": -9,
+   "fout": 0.4,
+   "note": "take 2 of 4 (most even steps + creak)",
+   "prompt": "Heavy slow weary footsteps on a dirt and gravel road, a man trudging under a heavy wooden beam on his shoulder, the wood creaking under the weight with each step, close"
+  },
+  {
+   "id": "hv2",
+   "src": "heavy-b",
+   "at": 1.5,
+   "len": 1.6,
+   "db": -11,
+   "fin": 0.1,
+   "fout": 0.4,
+   "note": "take 4 of the heavy node, overlapping so the trudge carries to ~3.0 (each take decays after ~1.5 s)"
+  },
+  {
+   "id": "sw1",
+   "src": "saw",
+   "at": 3.2,
+   "len": 0.45,
+   "db": -7,
+   "fout": 0.06,
+   "note": "take 4 of 4: two clear rasp strokes in the first 0.45 s",
+   "prompt": "Two quick hard hand saw strokes cutting through a thick wooden beam, rasping teeth on wood, close and dry"
+  },
+  {
+   "id": "dr1",
+   "src": "drop",
+   "at": 3.96,
+   "len": 0.8,
+   "db": -9,
+   "fout": 0.2,
+   "note": "take 2 of 4 (clatter with a bounce); file peak 0.043 s → 4.0 (beat + 0.8)",
+   "prompt": "A small block of wood dropping onto a dirt road, one short hollow wooden clatter"
+  },
+  {
+   "id": "lt",
+   "src": "light",
+   "at": 4.6,
+   "len": 4.1,
+   "db": 3,
+   "loop": true,
+   "fin": 0.15,
+   "fout": 0.5,
+   "note": "take 4 of 4 (most even for a loop)",
+   "prompt": "Quick light footsteps striding briskly on a dirt road, light springy fast steps, one person walking fast"
+  },
+  {
+   "id": "sw2",
+   "src": "saw-b",
+   "at": 9.0,
+   "len": 0.45,
+   "db": -4,
+   "fout": 0.06,
+   "note": "take 3 of the saw node, so the repeat is not identical"
+  },
+  {
+   "id": "dr2",
+   "src": "drop",
+   "at": 9.76,
+   "len": 0.8,
+   "db": -10,
+   "fout": 0.2
+  },
+  {
+   "id": "sw3",
+   "src": "saw",
+   "at": 10.4,
+   "len": 0.45,
+   "db": -7,
+   "fout": 0.06
+  },
+  {
+   "id": "dr3",
+   "src": "drop",
+   "at": 11.16,
+   "len": 0.8,
+   "db": -11,
+   "fout": 0.2
+  },
+  {
+   "id": "ab",
+   "src": "abyss",
+   "at": 11.98,
+   "len": 10.6,
+   "db": -11,
+   "loop": true,
+   "fin": 0.08,
+   "fout": 2.0,
+   "note": "take 3 of 4 (D-centred), rotated to start 3 s in so its natural dip falls at ~20.5-21.4 (the hush after the fall), never silent",
+   "prompt": "Deep low hollow drone rising from a deep chasm, distant cavernous wind moaning far below, dark, empty and tense, steady"
+  },
+  {
+   "id": "hm",
+   "src": "hum",
+   "at": 12.1,
+   "len": 10.0,
+   "db": -3,
+   "loop": true,
+   "fin": 1.2,
+   "fout": 1.6,
+   "note": "take 1 of 4 (warm, E/D = sus2 colour of D)",
+   "prompt": "Soft warm shimmering hum of glowing light, gentle ethereal sustained tone, airy and calm, steady"
+  },
+  {
+   "id": "th1",
+   "src": "thunk",
+   "at": 14.16,
+   "len": 0.9,
+   "db": -5,
+   "fout": 0.2,
+   "note": "take 1 of 4 (wood click + body), file peak 0.04 s",
+   "prompt": "A heavy wooden beam laid down across a rock ledge, one solid deep wooden thunk, firm"
+  },
+  {
+   "id": "tl1",
+   "src": "thunk-lo",
+   "at": 14.173,
+   "len": 0.9,
+   "db": -5,
+   "fout": 0.3,
+   "note": "take 3 of the thunk node (deep, centroid 170 Hz) layered for weight, peaks aligned"
+  },
+  {
+   "id": "gl1",
+   "src": "swell-g",
+   "at": 14.8,
+   "len": 2.0,
+   "db": -14,
+   "fin": 0.25,
+   "fout": 0.7,
+   "note": "take 2 of 4 (C major) pitched to G / A / D: three rising steps of one motif (IV-V-I), peak ≈ beat + 1.1 as each walks into the light",
+   "prompt": "One soft warm swelling major chord of light, gentle string pad rising then fading, heavenly glow, single sustained chord"
+  },
+  {
+   "id": "th2",
+   "src": "thunk",
+   "at": 15.36,
+   "len": 0.9,
+   "db": -5,
+   "fout": 0.2
+  },
+  {
+   "id": "tl2",
+   "src": "thunk-lo",
+   "at": 15.373,
+   "len": 0.9,
+   "db": -5,
+   "fout": 0.3
+  },
+  {
+   "id": "gl2",
+   "src": "swell-a",
+   "at": 16.0,
+   "len": 2.0,
+   "db": -13,
+   "fin": 0.25,
+   "fout": 0.7
+  },
+  {
+   "id": "th3",
+   "src": "thunk",
+   "at": 16.56,
+   "len": 0.9,
+   "db": -5,
+   "fout": 0.2
+  },
+  {
+   "id": "tl3",
+   "src": "thunk-lo",
+   "at": 16.573,
+   "len": 0.9,
+   "db": -5,
+   "fout": 0.3
+  },
+  {
+   "id": "gl3",
+   "src": "swell-d",
+   "at": 17.2,
+   "len": 2.0,
+   "db": -12,
+   "fin": 0.25,
+   "fout": 0.8
+  },
+  {
+   "id": "kn",
+   "src": "knock",
+   "at": 18.373,
+   "len": 0.9,
+   "db": -8,
+   "fout": 0.2,
+   "note": "take 2 of 4: single hollow knock (centroid 700 Hz), file peak 0.027 s",
+   "prompt": "A short wooden beam tapping against the edge of a rock ledge, one hollow empty wooden knock, short"
+  },
+  {
+   "id": "tp",
+   "src": "tip",
+   "at": 19.25,
+   "len": 0.45,
+   "db": -6,
+   "fout": 0.1,
+   "note": "take 3 of 4: creak + scrape building into the fall",
+   "prompt": "A wooden beam creaking and scraping as it tips and slips off a rocky edge"
+  },
+  {
+   "id": "hit",
+   "src": "boom",
+   "at": 19.54,
+   "len": 4.0,
+   "db": 0,
+   "fout": 1.2,
+   "note": "take 4 of 4 (deepest, centroid 330 Hz), file peak 0.06 s → 19.60; tail to ~23",
+   "prompt": "One deep heavy cinematic impact boom, then a long low rumbling tail falling away and fading into a deep empty abyss"
+  },
+  {
+   "id": "ch1",
+   "src": "chime-g",
+   "at": 22.88,
+   "len": 1.48,
+   "db": 15,
+   "fout": 0.5,
+   "note": "take 3 of 4 (clean C+E dyad, very quiet as generated) pitched to G / A / D — the bridge motif again, rising; the last on the realize swell at 24.3",
+   "prompt": "A single soft glowing chime with a warm shimmer, magical light settling into place, gentle bell tone with a soft reverb tail"
+  },
+  {
+   "id": "ch2",
+   "src": "chime-a",
+   "at": 23.58,
+   "len": 1.48,
+   "db": 15,
+   "fout": 0.5
+  },
+  {
+   "id": "ch3",
+   "src": "chime-d",
+   "at": 24.27,
+   "len": 1.48,
+   "db": 13,
+   "fout": 0.6
+  }
+ ]
+}
