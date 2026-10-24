@@ -1,0 +1,115 @@
+{
+ "title": "잘라 낸 건 다리였다 — 17개 스타일",
+ "source": "ko",
+ "scenes": [
+  {
+   "id": "cs-fogforest",
+   "label": "01 안개 숲 실루엣 (kvacm풍)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-fogforest.wav"
+  },
+  {
+   "id": "cs-spiritglow",
+   "label": "02 어두운 숲 빛나는 영혼 (페인터리)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-spiritglow.wav"
+  },
+  {
+   "id": "cs-cavesil",
+   "label": "03 동굴 실루엣·빛줄기 (GRIS풍 게임)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-cavesil.wav"
+  },
+  {
+   "id": "cs-flatnight",
+   "label": "04 플랫 벡터 밤숲·붉은 등불",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-flatnight.wav"
+  },
+  {
+   "id": "cs-flatcamp",
+   "label": "05 플랫 기하 캠프파이어 (픽셀풍 플랫)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-flatcamp.wav"
+  },
+  {
+   "id": "cs-storybook",
+   "label": "06 그림책 과슈 (여우와 등불)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-storybook.wav"
+  },
+  {
+   "id": "cs-risoline",
+   "label": "07 리소 라인 + 노란 별 (파란 그레인)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-risoline.wav"
+  },
+  {
+   "id": "cs-monoroom",
+   "label": "08 보라 단색 방 + 노란 램프",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-monoroom.wav"
+  },
+  {
+   "id": "cs-minicat",
+   "label": "09 미니멀 선 + 파란 평면 (불꽃놀이 고양이)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-minicat.wav"
+  },
+  {
+   "id": "cs-pastelbook",
+   "label": "10 파스텔 색연필 그림책 풍경",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-pastelbook.wav"
+  },
+  {
+   "id": "cs-clover",
+   "label": "11 파스텔 클로버 피크닉 (수채 색연필) · 키아트",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-clover.wav"
+  },
+  {
+   "id": "cs-inkwash",
+   "label": "12 잉크 + 수채 + 색연필 스케치",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-inkwash.wav"
+  },
+  {
+   "id": "cs-graphite",
+   "label": "13 흑연·목탄 그림책 (손전등 유령)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-graphite.wav"
+  },
+  {
+   "id": "cs-pendoodle",
+   "label": "14 펜 낙서 + 손글씨 (비 오는 새)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-pendoodle.wav"
+  },
+  {
+   "id": "cs-brushline",
+   "label": "15 미니멀 붓선 (커피 곰)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-brushline.wav"
+  },
+  {
+   "id": "cs-inkcomic",
+   "label": "16 미니멀 잉크 만화 (UFO 곰)",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-inkcomic.wav"
+  },
+  {
+   "id": "cs-gamecartoon",
+   "label": "17 모바일 게임 광고 카툰 (셀 셰이딩) · 키아트",
+   "dur": 30.5,
+   "audio": "scenes/sound/cs-gamecartoon.wav"
+  }
+ ],
+ "poster": 19.4,
+ "fonts": {
+  "local": {
+   "Noto Serif KR": "NotoSerifKR[wght].ttf",
+   "Noto Sans KR": "NotoSansKR[wght].ttf"
+  }
+ }
+}
