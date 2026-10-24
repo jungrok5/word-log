@@ -479,7 +479,7 @@ function camAt(t) {
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1060, z: 1.0 }, eio((t - B.fall - .65) / .7));
   if (t >= B.back) { const zb = .95, px = (pieceX(CUTS[1]) + pieceX(CUTS[2])) / 2, xb = Math.max(px, E - 52 - 330 / zb);   // one move back down the road (me still in frame, right)
     c = mixCam(c, { x: xb, y: CYB, z: zb }, eio((t - 21.3) / .7)); }
-  if (t >= 22.15) c = mixCam(c, { x: E + 150, y: CYE, z: .86 }, eio((t - 22.15) / .65));   // …and back: me at the lip, the gap, the outline
+  if (t >= 22.15) c = mixCam(c, { x: E + 170, y: CYE, z: .98 }, eio((t - 22.15) / .65));   // …and back: me at the lip, the gap, the outline
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }

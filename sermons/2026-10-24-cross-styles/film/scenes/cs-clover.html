@@ -590,7 +590,6 @@ function buildSheets() {
     // a cold breath of mist low in the gully
     const mg = g.createLinearGradient(0, RT + 380, 0, RT + 620); mg.addColorStop(0, 'rgba(200,215,215,0)'); mg.addColorStop(.5, 'rgba(200,215,215,.14)'); mg.addColorStop(1, 'rgba(200,215,215,0)'); g.fillStyle = mg; g.fillRect(E - 40, RT + 380, G + 80, 240);
     // the brook
-    g.fillStyle = 'rgba(70,95,100,.6)'; g.fillRect(E + 150, WATER, G - 300, y1 - WATER);
   });
   // the arch on the far side: bent willow twig, a few leaves and white clover heads wound on it
   GX = E + G + 400; GAY = BY - 290;
@@ -807,7 +806,7 @@ async function init() {
   TX.plate = buildPlate();
   { const c = Pilot.canvas(400, 200), x = c.getContext('2d'); for (let i = 0; i < 24; i++) { const k = i / 23; x.fillStyle = `rgba(252,250,240,${.075})`; const p = new Path2D(), m = 4 + k * 70;
       p.roundRect(m * 1.6, m * .8, 400 - m * 3.2, 200 - m * 1.6, 100 - m * .8); x.fill(p); } TX.capGlow = c; }
-  { const p2 = CUTS[1].baseX + CUTS[1].u0; BACKC = { x: p2 + 230, y: 1150, z: 1.05 }; window.__dbg = { E, cuts: CUTS.map(c => [c.mx, c.cutX]), BACKC, BACKX }; }
+  { const p2 = CUTS[1].baseX + CUTS[1].u0; BACKC = { x: p2 + 320, y: 1150, z: 1.0 }; window.__dbg = { E, cuts: CUTS.map(c => [c.mx, c.cutX]), BACKC, BACKX }; }
 }
 Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 76px 'Hi Melody'", "400 28px 'Noto Sans KR'", "500 34px 'Noto Sans KR'", "600 32px 'Noto Sans KR'"], init, draw });
 </script>

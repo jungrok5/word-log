@@ -181,7 +181,7 @@ function sawSpec(c, t) {
   return { s, f, gy: FY, hip: [mx, FY - 84 * s], ang: f * 1.1, feet: [[mx + 74 * s, FY], [mx - 60 * s, FY]], hands: [st.grip, [c.cutX + 78 * s, c.y - PW / 2 - 3]],
     hand: ['fist', 'flat'], tilt: .32, eye: 'calm', sway: 0, farFront: true };
 }
-const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (16 + sw) * F.s, sh[1] + 128 * F.s]; };
+const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (64 + sw) * F.s, sh[1] + 118 * F.s]; };   // v2: the hanging hand sits at the sheet's front edge, not mid-body
 const rIdx = F => F.f > 0 ? 1 : 0, lIdx = F => F.f > 0 ? 0 : 1;
 
 function poseMe(t) {
@@ -291,7 +291,7 @@ function camAt(t) {
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1060, z: 1.0 }, eio((t - B.fall - .65) / .7));
   if (t >= B.back) { const zb = .95, px = (pieceX(CUTS[1]) + pieceX(CUTS[2])) / 2, xb = Math.max(px, E - 52 - 330 / zb);   // one move back down the road (me still in frame, right)
     c = mixCam(c, { x: xb, y: CYB, z: zb }, eio((t - 21.3) / .7)); }
-  if (t >= 22.15) c = mixCam(c, { x: E + 150, y: CYE, z: .86 }, eio((t - 22.15) / .65));   // …and back: me at the lip, the gap, the outline
+  if (t >= 22.15) c = mixCam(c, { x: E + 170, y: CYE, z: .98 }, eio((t - 22.15) / .65));   // …and back: me at the lip, the gap, the outline
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
@@ -373,7 +373,7 @@ function drawFig(ctx, F, mid, back) {
   const { up, fw, P } = frame(F), sd = F.seed || (me ? 7 : 3), SH = me ? [226, 222, 214] : (F.sheet || [170, 165, 158]);
   // soft charcoal shadow on the road
   ctx.save(); ctx.globalAlpha = al * .5; ctx.drawImage(TX.shad, F.hip[0] - 100 * s, F.gy - 16 * s, 200 * s, 34 * s); ctx.restore();
-  const sh = P(4, 136), shF = P(-3, 134);
+  const sh = P(40, 114), shF = P(30, 120);   // v2: sleeves grow out of the sheet's front side at the shoulder
   const elbowPick = (a, b) => (a[1] - f * a[0] * .35) > (b[1] - f * b[0] * .35) ? a : b, kneePick = (a, b) => f * a[0] > f * b[0] ? a : b;
   const outlineC = me ? PAT.mid : PAT.dark;
   const hand = (hd, el, type) => {
@@ -388,9 +388,12 @@ function drawFig(ctx, F, mid, back) {
   const arm = (S0, T, type) => {   // a sheet sleeve ending in a round mitten
     if (!T) T = [S0[0] - f * 8 * s, S0[1] + 140 * s];
     const [el, hd] = ik(S0, T, 78 * s, 74 * s, elbowPick), pts = HD.spline([S0, el, hd], 3);
-    HD.ink(ctx, pts, { w: 24 * s, mn: .62, ts: 4, te: 2, press: .05, rough: 0, col: me ? 'rgba(70,66,62,1)' : 'rgba(30,28,27,1)' });
-    HD.ink(ctx, pts, { w: 19 * s, mn: .62, ts: 4, te: 2, press: .05, rough: 0, col: rgba(SH, 1) });
-    ctx.save(); ctx.globalAlpha = al * .5; HD.ink(ctx, pts, { w: 19 * s, mn: .62, ts: 4, te: 2, press: .05, rough: 0, col: PAT.sheet }); ctx.restore();
+    const len = 152 * s, o1 = { w: 30 * s, mn: 1, mnE: .55, ts: 1, te: len, press: .04, rough: 0 };   // a sleeve: wide at the shoulder, narrowing to the wrist
+    HD.ink(ctx, pts, { ...o1, col: me ? 'rgba(70,66,62,1)' : 'rgba(30,28,27,1)' });
+    HD.ink(ctx, pts, { ...o1, w: 25 * s, col: rgba(SH, 1) });
+    ctx.save(); ctx.globalAlpha = al * .5; HD.ink(ctx, pts, { ...o1, w: 25 * s, col: PAT.sheet }); ctx.restore();
+    ctx.fillStyle = rgba(SH, 1); ctx.beginPath(); ctx.arc(S0[0], S0[1], 14 * s, 0, TAU); ctx.fill();   // the sleeve joins the sheet without a seam
+    HD.ink(ctx, HD.spline([[lerp(S0[0], el[0], .35), lerp(S0[1], el[1], .35)], el, [lerp(el[0], hd[0], .4), lerp(el[1], hd[1], .4)]], 3), { w: 2 * s, ts: 6, te: 10, mn: .2, press: .4, seed: sd + 70, col: PAT.mid });   // a fold at the elbow
     hand(hd, el, type);
   };
   const leg = T => {   // a thin dark stocking (mostly under the sheet) and a little shoe
@@ -715,7 +718,7 @@ async function init() {
     const z2 = 1 + (c.z - 1) * .5, hw2 = 540 / z2 + 40; fx0 = Math.min(fx0, c.x * .5 - hw2); fx1 = Math.max(fx1, c.x * .5 + hw2);
     const z3 = 1 + (c.z - 1) * 1.3, hw3 = 540 / z3 + 40; gx0 = Math.min(gx0, c.x * 1.3 - hw3); gx1 = Math.max(gx1, c.x * 1.3 + hw3); }
   PX0 = Math.floor(Math.min(x0, -560)); PX1 = Math.ceil(Math.max(x1, GX + 700)); FX0 = Math.floor(fx0); FX1 = Math.ceil(fx1); GX0 = Math.floor(gx0); GX1 = Math.ceil(gx1);
-  { const tt = 6.1, c = camAt(tt), z3 = 1 + (c.z - 1) * 1.3, ms = 540 + (meX(tt) - c.x) * c.z; TRUNKX = c.x * 1.3 + (ms - 540) / z3 + 60; }   // the trunk sweeps past while I run ahead
+  TRUNKX = -300;   // v2: the trunk frames the opening close-up on the left and leaves as the camera moves on — it never crosses me   // the trunk sweeps past while I run ahead
   TX.far = layerCanvas(FX0, FY0, FX1, FY1); buildFar(TX.far.g);
   TX.plate = layerCanvas(PX0, PY0, PX1, PY1); buildPlate(TX.plate.g);
   TX.fg = layerCanvas(GX0, GY0 - 1700, GX1, GY1); buildFG(TX.fg.g);
