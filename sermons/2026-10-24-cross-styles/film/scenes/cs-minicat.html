@@ -195,7 +195,7 @@ function drawCatRefl(ctx, F, Xs) {
   const al = (F.alpha ?? 1) * .95; if (al <= 0) return;
   ctx.save(); ctx.globalAlpha *= al; ctx.translate(0, 2 * F.gy + 6); ctx.scale(1, -1);
   const Fr = frameOf(F), { TF, HF } = Fr;
-  for (const X of Xs) if (X) drawCross(ctx, X.X, null, { refl: X.me ? C.reflW : C.refl2 });
+  ctx.save(); ctx.globalAlpha *= .55; for (const X of Xs) if (X) drawCross(ctx, X.X, null, { refl: X.me ? C.reflW : C.refl2 }); ctx.restore();
   ink(ctx, tube([TF(-6, 2), TF(-6, -34)], [24 * CS, 22 * CS]), { fill: C.refl2, lw: 0 });
   ink(ctx, [[-40, 0], [-44, 50], [-36, 84], [30, 86], [44, 52], [40, 0]].map(q => TF(q[0], q[1])), { fill: C.refl, lw: 3, part: [.5, 1.0] });
   ink(ctx, blobPts(Fr.hc[0], Fr.hc[1], 56 * CS, 46 * CS, 2, 14), { fill: C.refl2, lw: 3, part: [.45, .95] });
@@ -205,10 +205,8 @@ function drawCatRefl(ctx, F, Xs) {
 // ---------------- carrying ----------------
 // on the back: the strap holds the post at the back of the near shoulder; the post rises forward-up past the head, so the
 // crossbar stands clear above it; a whole cross drags its foot on the water; a shortened one hangs clear of it
-const BETA = 1.2;
-function backCarry(Fr, gy, u0) {
-  const { TF } = Fr, P0 = TF(-36, 74), P1 = TF(-36 + Math.cos(BETA) * 10, 74 + Math.sin(BETA) * 10);
-  const d = [(P1[0] - P0[0]) / (10 * CS), (P1[1] - P0[1]) / (10 * CS)], a = Math.atan2(d[1], d[0]);
+function backCarry(Fr, gy, u0) {   // the post stands nearly upright on my back (tilted a little forward): it must read as a cross, never an X
+  const { TF } = Fr, P0 = TF(-36, 74), tilt = .1 + Fr.a * .45, a = Fr.f > 0 ? -(Math.PI / 2 - tilt) : -(Math.PI / 2 + tilt), d = [Math.cos(a), Math.sin(a)];
   const reach = (gy - P0[1]) / Math.max(.2, -d[1]);   // along the post from the strap down to the water
   const sc = Math.max(reach, u0 + 32);
   return { x: P0[0] - d[0] * sc, y: P0[1] - d[1] * sc, a, k: 0, u0, u1: L };
@@ -225,9 +223,9 @@ const DT = 1 / 240, NT = Math.ceil((S.DUR + 1) / DT) + 2, MEX = new Float32Array
 function vMe(t) {
   if (t < 3.2) return 40 * (1 + .55 * Math.sin(t * TAU / 1.3 - 1));          // trudging, staggering
   if (t < 4.6) return 0;
-  if (t < 5.0) return 215 * eio((t - 4.6) / .4);                              // lighter: big quick hops
-  if (t < 8.3) return 215;
-  if (t < 8.6) return lerp(215, 90, (t - 8.3) / .3);
+  if (t < 5.0) return 190 * eio((t - 4.6) / .4);                              // lighter: big quick hops
+  if (t < 8.3) return 190;
+  if (t < 8.6) return lerp(190, 90, (t - 8.3) / .3);
   if (t < 9.0) return 90 * (1 - ss(8.6, 9.0, t));
   if (t < 9.95) return 0;
   if (t < 10.35) return 76 * Math.PI / (2 * .4) * Math.sin(Math.PI * (t - 9.95) / .4);   // scoot along the lying cross: exactly one more piece
@@ -251,12 +249,13 @@ function buildTimeline() {
   // cut 1: its own lying place; cuts 2 and 3: the cross stays down, I scoot along it
   CUTS[0].xl = CUTS[0].cutX - CUTS[0].u1; CUTS[1].xl = CUTS[1].cutX - CUTS[1].u1; CUTS[2].xl = CUTS[1].xl; CUTS[2].cutX = CUTS[2].xl + CUTS[2].u1;
   CUTS[2].mx = CUTS[2].cutX + HIPOFF;
-  PIECES = CUTS.map(c => ({ c, x: c.xl - 16, y: FY - LIE, a: -.05, u0: c.u0, u1: c.u1 }));
+  const OFF = [[-22, 6, -.05], [-50, 22, .06], [-14, 40, -.08]];
+  PIECES = CUTS.map((c, k) => ({ c, x: c.xl + OFF[k][0], y: FY - LIE + OFF[k][1], a: OFF[k][2], u0: c.u0, u1: c.u1 }));
   SAWLIE = { x: CUTS[2].cutX + 40, y: FY - LIE + 30 };
-  GX = E + G + 400;
+  GX = E + G + 360;
 }
 function pieceAt(P, t) {   // a cut piece floating where it fell; at the end it flies into its place in the outline
-  const c = P.c, k = eo((t - c.drop) / .3), base = { x: lerp(c.xl, P.x, k), y: P.y, a: P.a * k, k: 1, u0: P.u0, u1: P.u1 };
+  const c = P.c, k = eo((t - c.drop) / .3), base = { x: lerp(c.xl, P.x, k), y: lerp(FY - LIE, P.y, k), a: P.a * k, k: 1, u0: P.u0, u1: P.u1 };
   const [f0, f1] = FILL[c.k]; if (t <= f0) return base;
   const u = clamp((t - f0) / (f1 - f0)), e = eio(u), cu = (P.u0 + P.u1) / 2;
   const sx = base.x + cu, sy = base.y, tx = E - REST + cu, ty = FY - LIE, cx = lerp(sx, tx, e), cy = lerp(sy, ty, e) - (260 + 60 * (2 - c.k)) * Math.sin(Math.PI * u);
@@ -318,7 +317,7 @@ function poseMe(t) {
     return walkSpec(x, FY, 1, ph, 150, { stance: .4, lift: 26, bob: 18, lean: .2, head: 0, face: 'calm' });
   };
   // carried on the back (the saw in my near paw), until the second cut
-  const backed = (F, lu0) => { F.strap = 'wrap'; F.back = Fr => drawCross(ctxNow, backCarry(Fr, F.gy, lu0), HONEY); F.grip = true;
+  const backed = (F, lu0) => { F.strap = 'wrap'; F.backU0 = lu0; F.back = Fr => drawCross(ctxNow, backCarry(Fr, F.gy, lu0), HONEY); F.grip = true;
     F.mid = Fr => { const s = hangSaw(Fr, F); drawSaw(ctxNow, s.grip, s.ang); }; return F; };
   const sided = (F) => { const X = sideCarry(F, L * (1 - S.left[3])); F.hands = [null, xpt(X, X.u0 + 70 + 0 * F.f)]; F.mid = () => drawCross(ctxNow, X, HONEY); return F; };
   for (const c of CUTS) {
@@ -396,7 +395,7 @@ function fallX(t) {
 }
 
 // ---------------- the others: lay it across → walk over → pull it back from the far side → shoulder it → into the light ----------------
-const PIL = [{ x0: 330, ph: .1 }, { x0: 150, ph: .55 }, { x0: -220, ph: .8 }], PULL = 230;
+const PIL = [{ x0: 230, ph: .1 }, { x0: 110, ph: .55 }, { x0: -250, ph: .8 }], PULL = 230;
 function pilX(j, t) {
   const P = PIL[j], T = B.bridges[j], xa = E - 560 - 180 * j, x9 = P.x0 + 34 * 9;
   if (t <= 9) return P.x0 + 34 * t;
@@ -436,12 +435,12 @@ const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y:
 let BACKCAM = null;
 function camAt(t) {
   let c = { x: meX(t) + 170 * ss(4.3, 5.4, t) + 110, y: 1010, z: .9 };
-  c = mixCam({ x: meX(t) + 60, y: FY - 205, z: 1.9 }, c, eio((t - 1.2) / 1.4));        // the hook: close on me, the saw in my paw; widening by ~2.6
+  c = mixCam({ x: meX(t) + 50, y: FY - 317, z: 1.45 }, c, eio((t - 1.2) / 1.4));        // the hook: close on me, the saw in my paw; widening by ~2.6
   const at = cc => ({ x: cc.cutX + 70, y: FY - 140, z: 1.32 });
   c = mixCam(c, at(CUTS[0]), Pilot.win(t, CUTS[0].s - .05, CUTS[0].up1 + .25, .32, .35));
   c = mixCam(c, mixCam(at(CUTS[1]), at(CUTS[2]), eio((t - 9.9) / .55)), Pilot.win(t, CUTS[1].s - .1, CUTS[2].up1 + .2, .3, .4));
   if (t < 12.4) c.x = Math.min(c.x, E - 540 / c.z - 20 + 1500 * ss(11.5, 12.4, t) * ss(11.5, 12.4, t));   // the gap stays out of frame until I reach it
-  if (t >= 12) c = mixCam(c, { x: E + 250, y: 1000, z: .78 }, eio((t - 12.05) / .95));
+  if (t >= 12) c = mixCam(c, { x: E + 290, y: 1000, z: .78 }, eio((t - 12.05) / .95));
   if (t >= 18.1) c = mixCam(c, { x: E + 190, y: 1060, z: 1.02 }, eio((t - 18.1) / .5));
   if (t >= B.fall) c = mixCam(c, { x: E + 170, y: 1150, z: 1.36 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .6) c = mixCam(c, { x: E + 160, y: 1060, z: 1.02 }, eio((t - B.fall - .6) / .7));
@@ -478,7 +477,7 @@ function init() {
   for (let x = -600; x < E + 1600; x += 520 + r() * 200) { const cy = 1210 + (r() - .5) * 120; for (let i = 0; i < 6; i++) { const rx = 220 + i * 70 + r() * 30, big = rx > 420, span = .2 + r() * .3, a0 = big ? r() * TAU : .4 + r() * (Math.PI - .8 - span); ARCS.push([x, cy, rx, a0, span]); } }
   // the rift: a dark crack in the water, constant width across both lanes, receding into the distance above
   const lip = (x0, dir, seed) => { const q = rng(seed), o = []; for (let y = 5200; y >= 1060; y -= 40) o.push([x0 + dir * (q() * 10), y]);
-    for (let y = 1020; y >= 560; y -= 40) { const k = (1060 - y) / 500; o.push([x0 + dir * (q() * 8 + G * .5 * k * k * .9 + G * .5 * k * .1), y]); } return o; };
+    for (let y = 1020; y >= 420; y -= 40) o.push([x0 + dir * (q() * 10), y]); return o; };
   const Lp = lip(E, 1, 71), Rp = lip(E + G, -1, 73);
   RIFT = { body: pathOf(inkPts(Lp.concat(Rp.slice().reverse()), { smooth: false, step: 12 })), L: pathOf(inkPts(Lp, { closed: false, smooth: false, step: 12 }), false),
     R: pathOf(inkPts(Rp, { closed: false, smooth: false, step: 12 }), false) };
@@ -487,7 +486,7 @@ function init() {
   RIFT.hatch = []; for (let y = 1090; y < 2600; y += 46) RIFT.hatch.push([E + G - 22 + (rng(y)() - .5) * 6, y, 22 + rng(y + 1)() * 26]);
   RIFT.foam = []; for (const [x0, dir] of [[E, 1], [E + G, -1]]) for (let y = 1080; y < 2600; y += 64 + rng(y + x0)() * 30) RIFT.foam.push([x0 + dir * 4, y, dir]);
   // the door's light on the far side
-  BACKCAM = (() => { const x0 = PIECES[0].x + PIECES[0].u0 - 120, x1 = E + 60, z = clamp(1080 / (x1 - x0 + 160), .55, 1); return { x: (x0 + x1) / 2, y: 1080, z }; })();
+  BACKCAM = (() => { const x0 = PIECES[0].x + PIECES[0].u0 - 70, x1 = E - 40, z = clamp(1080 / (x1 - x0), .55, 1); return { x: (x0 + x1) / 2, y: FY - 120, z }; })();
   // footfall rings (sampled once)
   for (let i = 0; i <= S.DUR * 60; i++) {
     const t = i / 60; if (t > 26) break;
@@ -520,10 +519,11 @@ function drawRift(ctx, t) {
   ctx.fillStyle = gr; ctx.fill(RIFT.body);
   ctx.fillStyle = C.wall; ctx.fill(RIFT.wall);
   for (const [x, y, l] of RIFT.hatch) { ctx.strokeStyle = 'rgba(26,28,40,.75)'; ctx.lineWidth = 2 * LW; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 2, y + l); ctx.stroke(); }
-  // the far top fades into the water (the crack runs off into the distance)
-  const fg = ctx.createLinearGradient(0, 560, 0, 1060); fg.addColorStop(0, 'rgba(86,128,189,1)'); fg.addColorStop(.7, 'rgba(86,128,189,.35)'); fg.addColorStop(1, 'rgba(86,128,189,0)');
-  ctx.fillStyle = fg; ctx.fillRect(E - 40, 540, G + 80, 530);
-  stroke(ctx, RIFT.L, { lw: 3.2 }); stroke(ctx, RIFT.R, { lw: 3.2 });
+  // the far end fades into the water (the crack runs off into the distance) — inside the crack only
+  ctx.save(); ctx.clip(RIFT.body); const fg = ctx.createLinearGradient(0, 600, 0, 1080); fg.addColorStop(0, 'rgba(86,128,189,1)'); fg.addColorStop(.6, 'rgba(86,128,189,.5)'); fg.addColorStop(1, 'rgba(86,128,189,0)');
+  ctx.fillStyle = fg; ctx.fillRect(E - 40, 380, G + 80, 700); ctx.restore();
+  const sg = ctx.createLinearGradient(0, 700, 0, 1060); sg.addColorStop(0, 'rgba(26,28,40,0)'); sg.addColorStop(1, 'rgba(26,28,40,1)');
+  stroke(ctx, RIFT.L, { lw: 3.2, col: sg }); stroke(ctx, RIFT.R, { lw: 3.2, col: sg });
   // water spilling over both lips: short white arcs, sliding down slowly
   ctx.save(); ctx.globalAlpha = .85;
   for (const [x, y, dir] of RIFT.foam) { const s = (t * 26 + y * .37) % 30; ctx.strokeStyle = '#e9eefa'; ctx.lineWidth = 2 * LW; ctx.beginPath();
@@ -536,7 +536,7 @@ function drawRift(ctx, t) {
   ctx.globalAlpha = 1;
 }
 function drawDoor(ctx, t, behind) {
-  const x = GX, gy = BY - 40, w = 104, h = 330, inner = (cx, cy, rw, hh) => { const o = [[cx - rw, cy]]; for (let i = 0; i <= 16; i++) { const a = Math.PI + Math.PI * i / 16; o.push([cx + Math.cos(a) * rw, cy - hh + rw + Math.sin(a) * rw]); } o.push([cx + rw, cy]); return o; };
+  const x = GX, gy = BY - 40, w = 92, h = 330, inner = (cx, cy, rw, hh) => { const o = [[cx - rw, cy]]; for (let i = 0; i <= 16; i++) { const a = Math.PI + Math.PI * i / 16; o.push([cx + Math.cos(a) * rw, cy - hh + rw + Math.sin(a) * rw]); } o.push([cx + rw, cy]); return o; };
   if (behind) {   // the light itself (drawn before the figures who walk into it)
     ctx.save(); ctx.globalAlpha = .9; ctx.drawImage(GLOW, x - 300, gy - h * .55 - 300, 600, 600); ctx.globalAlpha = .5; ctx.drawImage(GLOW, x - 140, gy + 10, 280, 520); ctx.restore();   // its reflection
     ink(ctx, inner(x, gy, w, h), { fill: C.light, lw: 0 });
@@ -580,7 +580,7 @@ function world(ctx, t, cm) {
   // reflections (on the water only — never over the rift)
   ctx.save(); const clip = new Path2D(); clip.rect(-5000, -5000, E + 5000, 12000); clip.rect(E + G, -5000, 12000, 12000); ctx.clip(clip);
   for (const P of pils) if (!P.onBridge) drawCatRefl(ctx, P.F, P.Xb ? [{ X: backCarry(frameOf(P.F), P.F.gy, 0) }] : []);
-  if (M.F) drawCatRefl(ctx, M.F, []);
+  if (M.F) drawCatRefl(ctx, M.F, M.F.backU0 != null ? [{ X: backCarry(frameOf(M.F), M.F.gy, M.F.backU0), me: true }] : []);
   ctx.restore();
   // the back lane: bridges (only ever one, its owner's), the others (those inside the door behind its frame)
   for (const P of pils) if (P.bridge) drawCross(ctx, P.bridge, GREY);
@@ -588,7 +588,7 @@ function world(ctx, t, cm) {
   drawDoor(ctx, t, false);
   pils.filter(P => !P.F.inGate).sort((a, b) => a.F.x - b.F.x).forEach(P => drawCat(ctx, P.F));
   // the guide shows the missing span while my short cross hangs off the lip, and again when the pieces come back
-  if (t >= 18.8 && t < 19.75) guide(ctx, t, eio((t - 18.8) / .35), 1 - ss(19.4, 19.75, t), false);
+  if (t >= 18.65 && t < 19.75) guide(ctx, t, eio((t - 18.65) / .35), 1 - ss(19.4, 19.75, t), false);
   if (t >= B.fill[0] - .3) guide(ctx, t, eio((t - B.fill[0] + .3) / .5), 1, true);
   // the saw I left after the last cut
   const c3 = CUTS[2];

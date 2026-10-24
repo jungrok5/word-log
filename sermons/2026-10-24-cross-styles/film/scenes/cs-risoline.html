@@ -495,7 +495,7 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 160, y: 980, z: 1.2 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 130, y: 1090, z: 1.5 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 140, y: 980, z: 1.2 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 400, y: 1040, z: 1.38 }, eio((t - B.back) / .6));
+  if (t >= B.back) c = mixCam(c, { x: E - 400, y: 1040, z: 1.38 }, eio((t - B.back) / .42));
   if (t >= 22.6) c = mixCam(c, { x: E + 110, y: 980, z: 1.12 }, eio((t - 22.6) / 1.0));
   if (t >= 24.2) c = mixCam(c, { x: E + 150, y: 1010, z: 1.24 }, eio((t - 24.2) / 1.6));
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 16 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 12 * k * Math.sin(t * 131 + 1) : 0;
@@ -685,7 +685,7 @@ function panel(ctx, t) {
   const path = pathOf(resample(rect, true, 16).map(p => wob(p, 1.6)), true, false);
   ctx.save(); ctx.fillStyle = C.panel; ctx.fill(path); ctx.clip(path);
   const shock = ss(B.fall - .05, B.fall + .05, t), sad = ss(20.4, 20.6, t);
-  const ang = lerp(.42, -.1, shock) + sad * .3, hc = [x0 + 196, y0 + 166 - shock * 10];
+  const ang = lerp(.22, -.1, shock) + sad * .3, hc = [x0 + 196, y0 + 166 - shock * 10];
   const hu = [Math.sin(ang), -Math.cos(ang)], hf = [Math.cos(ang), Math.sin(ang)], HF = (u, v) => [hc[0] + 1.5 * (u * hf[0] + v * hu[0]), hc[1] + 1.5 * (u * hf[1] + v * hu[1])];
   ink(ctx, [[x0 + 20, y0 + h + 30], [x0 + 46, y0 + 226], [x0 + 130, y0 + 200], [x0 + 230, y0 + 200], [x0 + 300, y0 + 226], [x0 + 330, y0 + h + 30]], { fill: C.cream, lw: 7 });
   // the scarf at the neck

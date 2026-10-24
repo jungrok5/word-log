@@ -483,7 +483,7 @@ function buildGround() {
 }
 function drawEdges(ctx) {
   ctx.save(); ctx.strokeStyle = 'rgba(150,245,225,.7)'; ctx.lineWidth = 3; ctx.lineJoin = 'round';
-  for (const arr of VOIDEDGE) { ctx.beginPath(); ctx.moveTo(arr === VOIDEDGE[0] ? E : E + G, RT); for (const p of arr) { if (p[1] > RT + 500) break; ctx.lineTo(...p); } ctx.stroke(); }
+  for (const arr of VOIDEDGE) { ctx.beginPath(); ctx.moveTo(arr === VOIDEDGE[0] ? E : E + G, RT); for (const p of arr) { if (p[1] > RT + 280) break; ctx.lineTo(...p); } ctx.stroke(); }
   ctx.restore();
 }
 function putPlane(ctx, cm, P) { layer(ctx, cm, P.p, () => ctx.drawImage(P.c, P.x0, P.y0, P.w, P.h)); }

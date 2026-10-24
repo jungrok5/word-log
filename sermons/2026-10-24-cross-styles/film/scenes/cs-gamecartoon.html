@@ -677,7 +677,7 @@ function endCard(ctx, t) {
   const k = ss(B.end - .2, B.end + .4, t); if (k <= 0) return;
   ctx.save(); ctx.globalAlpha = .62 * k; ctx.fillStyle = '#1a1030'; ctx.fillRect(0, 0, W, H); ctx.restore();
   const o = { font: FONT, srcFont: FONT, y: 860, titleShadow: '' };
-  for (let i = 0; i < 12; i++) { const an = i / 12 * TAU; ctx.save(); ctx.translate(Math.cos(an) * 6, Math.sin(an) * 6); Story.endCard(ctx, t, S.endCard, B.end, { ...o, color: INK, srcColor: INK }); ctx.restore(); }
+  for (let i = 0; i < 8; i++) { const an = i / 8 * TAU; ctx.save(); ctx.translate(Math.cos(an) * 6, Math.sin(an) * 6); Story.endCard(ctx, t, S.endCard, B.end, { ...o, color: INK, srcColor: INK }); ctx.restore(); }
   Story.endCard(ctx, t, S.endCard, B.end, { ...o, color: '#fff6dc', srcColor: '#ffe3a0' });
 }
 
