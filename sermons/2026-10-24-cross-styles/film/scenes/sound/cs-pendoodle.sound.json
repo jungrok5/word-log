@@ -69,13 +69,13 @@
   },
   {
    "id": "steps",
-   "src": "cs-f-steps",
+   "src": "cs-w-steps",
    "at": 0.0,
    "len": 3.15,
-   "db": 0.20000000000000018,
+   "db": -10.4,
    "fout": 0.3,
-   "note": "f-steps take 1 of 4: dry close trudge, steps ≈0.28/1.10/1.43/2.15/2.46",
-   "prompt": "Slow heavy footsteps on a dry dirt path, close and dry, a wooden beam on the shoulder creaking softly with each step, intimate, no reverb"
+   "note": "w-steps take 3 of 4, low: soft wet steps through the puddles",
+   "prompt": "Slow heavy footsteps through still ankle-deep shallow water, soft splashes with each step, close"
   },
   {
    "id": "sw1",
@@ -108,15 +108,15 @@
   },
   {
    "id": "st",
-   "src": "cs-f-strides",
+   "src": "cs-w-strides",
    "at": 4.6,
    "len": 4.1,
-   "db": 16.5,
+   "db": -4.0,
    "loop": true,
    "fin": 0.15,
    "fout": 0.5,
-   "note": "f-strides take 2 of 4 (dry hurried steps ≈ every 0.33 s)",
-   "prompt": "Fast hurried footsteps on a dry dirt path, close and dry, one person rushing ahead with long strides, no reverb"
+   "note": "w-strides take 2 of 4, low: quick wet steps",
+   "prompt": "Fast hurried footsteps splashing through still shallow water, quick soft splashes, one person rushing, close"
   },
   {
    "id": "sw2",

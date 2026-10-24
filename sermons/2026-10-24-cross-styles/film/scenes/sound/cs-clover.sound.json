@@ -182,6 +182,18 @@
    "prompt": "Deep low hollow drone rising from a deep chasm, distant cavernous wind moaning far below, dark, empty and tense, steady"
   },
   {
+   "id": "brk",
+   "src": "cs-bed-brook",
+   "at": 12.0,
+   "len": 10.0,
+   "db": 3.5,
+   "loop": true,
+   "fin": 0.8,
+   "fout": 1.5,
+   "note": "bed-brook take 3 of 4: soft trickle in the gully, 12–22",
+   "prompt": "A small brook trickling gently over stones in a narrow gully, soft steady running water, no birds, no voices"
+  },
+  {
    "id": "hm",
    "src": "hum",
    "at": 12.4,
@@ -312,22 +324,22 @@
    "id": "fl",
    "src": "fall",
    "at": 19.56,
-   "len": 2.0,
+   "len": 0.48,
    "db": -8,
    "fin": 0.05,
-   "fout": 0.8,
-   "note": "take 4 of 4: hollow falling whoosh (swells to ≈20.2, drops away by ≈21.0)",
+   "fout": 0.12,
+   "note": "v2 fall whoosh, cut where the cross meets the water",
    "prompt": "A heavy wooden cross tumbling down into a deep ravine, a long hollow falling whoosh and the wood scraping and knocking against rock as it drops away, getting more distant"
   },
   {
-   "id": "cs",
-   "src": "crash",
-   "at": 20.8,
-   "len": 3.0,
-   "db": -6,
-   "fout": 1.0,
-   "note": "take 4 of 4 (distant, dark): the crash far below at ≈20.95 with canyon echo",
-   "prompt": "A distant heavy wooden crash far below at the bottom of a deep canyon, splintering impact with a long echoing reverb tail rolling off the rock walls"
+   "id": "spl",
+   "src": "cs-splash-brook",
+   "at": 19.91,
+   "len": 1.8,
+   "db": -4.699999999999999,
+   "fout": 0.8,
+   "note": "splash-brook take 3 of 4: onset (file 0.07) at 19.98 where the cross meets the water; replaces v2 crash",
+   "prompt": "A wooden beam falling into a small shallow brook, one soft heavy water splash with a few drips after"
   },
   {
    "id": "rs1",

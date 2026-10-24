@@ -59,13 +59,13 @@
  "sfx": [
   {
    "id": "bed",
-   "src": "cs-bed-room",
+   "src": "cs-bed-storm",
    "at": 0.0,
    "len": 30.5,
-   "db": 24.4,
+   "db": -14.2,
    "loop": true,
-   "note": "bed-room take 1 (placed ≈ -39 dB RMS; v2 wind -37.8)",
-   "prompt": "Quiet close room tone, a soft low air hum in a small still room, intimate, near silence, no voices, no clock ticking"
+   "note": "bed-storm take 2 of 4 (steady rain + gusting wind — the picture is a storm outdoors) (placed ≈ -33 dB RMS; v2 wind -37.8)",
+   "prompt": "Steady heavy rain outdoors with strong gusting wind bending trees, slanting rain hissing and splashing into puddles, no thunder, no voices"
   },
   {
    "id": "steps",
@@ -288,6 +288,16 @@
    "db": -4,
    "fout": 0.1,
    "note": "reused v1 creak + scrape"
+  },
+  {
+   "id": "thd",
+   "src": "cs-thunder",
+   "at": 19.51,
+   "len": 4.0,
+   "db": -4.1,
+   "fout": 1.5,
+   "note": "thunder take 1 of 4: crack (file 0.05) at 19.56 with the bleach, rolling rumble under the fall",
+   "prompt": "A close lightning strike: one sharp violent thunder crack followed by a deep heavy rolling thunder rumble"
   },
   {
    "id": "hit",
