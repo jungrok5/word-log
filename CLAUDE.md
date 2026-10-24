@@ -60,6 +60,8 @@
    4. **시청자 에이전트 리뷰**(`tools/REVIEW.md`): `python3 tools/review-pack.py sermons/<폴더>` → 크리스천 2·비크리스천 2
       에이전트가 블라인드로 보고 → 의도를 읽고 차이를 적는다 → 공통 지적을 고친 뒤 `reviews/<날짜>-<폴더>-vN.md`에 기록.
       사용자에게 보여 주기 전에 한 번은 거친다(점수·공통 지적·고친 것을 함께 알린다).
+      **몸 점검도 같이**(REVIEW.md 4): `python3 tools/body-check.py sermons/<폴더> --scene <id>` → 새 에이전트가 관절·손·잡은 물건만
+      본다(코드로 그린 팔·손이 물리적으로 불가능하게 꺾이는 일이 많다 — 사용자 지적). HIGH는 전부 고치고 다시 확인.
    5. `python3 tools/preview.py sermons/<폴더> --note "무엇을 바꿨나"` (소리 전에는 `--mute`) → 커밋 → **main에 바로 푸시**(사이트는 main의 `/docs`에서
       배포된다 — 미리보기를 만들 때는 작업 브랜치와 함께 main에도 바로 합쳐도 된다, 사용자 허락) → **미리보기 링크**
       `https://jungrok5.github.io/word-log/previews/<폴더>/` 를 보낸다(인코딩 없음).
