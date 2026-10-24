@@ -122,23 +122,25 @@ HD.multiply = (ctx, c, x = 0, y = 0, w = W, h = H, a = 1) => { ctx.save(); ctx.s
 HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for (let i = 1; i <= n; i++) { const u = i / n; s += 1 - ss(1 - dec, 1, u); tab.push(s); }
   return t => { if (t <= 0) return x0 + (t / T) * n * (x1 - x0) / tab[n]; if (t >= T) return x1; const f = t / T * n, i = Math.floor(f), k = f - i; return x0 + (x1 - x0) * lerp(tab[i], tab[Math.min(n, i + 1)], k) / tab[n]; }; };
 
-/* cs-inkcomic — 잘라 낸 건 다리였다 in the style lab's minimal ink comic (lab-inkcomic.html, ref 16): a wobbly, slightly
-   blobby black marker line on white paper, lots of white, deadpan. Bears plod along a road, each with a wooden cross
-   strapped upright on its back like a mast. I am the bear in black line; the others are drawn in a grey line (quieter).
-   My cross is the one colour on the page — the lab's pale-warm beam yellow; the only other colour is the door's light
-   across the gap. I hold a saw in my teeth from frame 0. Sawing is done the deadpan bear way: the cross tipped off onto
-   the road, a forepaw pinning it, the saw in my teeth, the whole bear rocking along the blade. A shorter cross stands
-   visibly lower on my back. The road ends at a gap drawn as the road simply stopping and two cliff lines going down;
-   the others tip their crosses forward across it like drawbridges, walk over, bite the end, haul it back, flip it up
-   and walk into the door. Mine tips forward — short. At the end the pieces on the road light up (beam yellow, pulse
-   ticks) and fly into a dashed outline of my cross. Poses on 12 fps, drawings boil on 8 fps, camera on ones. */
+/* cs-inkcomic v2 — 잘라 낸 건 다리였다 in the style lab's minimal ink comic (lab-inkcomic.html, ref 16): a wobbly, slightly
+   blobby black marker line on white paper, lots of white, deadpan. Bears plod along a road on all fours, each with a long
+   wooden cross lying along its back — the crossbar over the shoulders, the top end over the neck, the long post trailing
+   far behind the rump — tied on with a strap round the belly; the load presses each bear down. I am the bear in black line;
+   the others are drawn in a grey line (quieter). My cross is the one colour on the page — the lab's pale-warm beam yellow;
+   the only other colour is the door's light across the gap. My saw is tucked in my strap. To saw, I sit up like a bear does,
+   the cross across my lap, one forepaw pinning it and the other working the saw; the piece drops to the road and stays.
+   The road ends at a gap drawn as the road simply stopping and two cliff lines going down. The others sit at the lip and
+   push their crosses out across it, walk over, sit and haul them back, and walk into the door. Mine reaches only part way.
+   At the end I stay at the lip and look back; the camera travels back down the road where the pieces glow, then returns:
+   the dashed outline of my whole cross over the gap lights slot by slot — the gap stays open.
+   Poses on 12 fps, drawings boil on 8 fps, camera on ones. */
 const INK = '#141414', GREYI = '#9a9a9a', PAPER = '#ffffff', WARM = '#f7d27a', WARMF = '#e9b955', LIGHT = 'rgba(253,226,140,';
 const bf = t => Math.floor(t * 8 + 1e-6) % 3;
 const t12 = t => Math.floor(t * 12 + 1e-6) / 12;
 const frac = x => x - Math.floor(x);
 const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
 const TX = {};
-let MW = 9, ZK = 1, CAM = HD.mat(0, 0), GREY = false, F8 = 0;   // marker width (screen px), camera matrix, current line colour
+let MW = 9, ZK = 1, CAM = HD.mat(0, 0), GREY = false, F8 = 0;
 const cam = pts => HD.xf(pts, CAM);
 function mk(g, pts, seed, o = {}) { if (pts.length < 2) return; HD.ink(g, HD.boil(HD.wob(pts, seed, o.wob ?? 3, 150), seed, F8, o.boil ?? 1.6, 90),
   { w: MW, ts: 6, te: 8, mn: .78, press: .16, pw: 110, rough: .07, seed, col: GREY ? GREYI : INK, blob: .58, ...o, w: (o.w ?? 9) * MW / 9 }); }
@@ -151,15 +153,15 @@ function tubeNear(g, pts, w, seed, clipOut) { const q = HD.boil(HD.spline(pts, 3
   HD.ink(g, q, { w, ts: 2, te: 2, mn: 1, press: .02, rough: 0, seed: seed + 1, col: PAPER }); }
 
 // ---------------- the world's measures ----------------
-const SC = .95;                                        // the lab's bear, a touch smaller
-const L = 420, PW = 26, CBX = 300, CBH = 80, CBW = 26;  // a cross: post length/width, crossbar at CBX from the foot
-const PWL = 12, PFACE = 8, CBHL = 26;                  // lying flat on the road (seen a little from above)
-const REST = 30, GAP = L - 2 * REST;                   // a whole cross rests 30 on each lip
-const FY = 1388, BY = 1322, G1 = 1404, GB = 1286;      // my feet, the others' feet; the road's front and back edges
+const SC = .95;
+const L = 560, PW = 30, CBX = 440, CBH = 84, CBW = 30;   // a cross: post length/width, crossbar at CBX from the foot
+const PWL = 18, PFACE = 9, CBHL = 30;                   // lying flat on the road (seen a little from above)
+const REST = 30, GAP = L - 2 * REST;                    // a whole cross rests 30 on each lip
+const FY = 1388, BY = 1322, G1 = 1404, GB = 1286;       // my feet, the others' feet; the road's front and back edges
+const LIEY = FY + 2;                                     // a cross laid on the road / across the gap in my lane
 let E = 1500, GX = 0;
 
 // ---------------- crosses ----------------
-// X = { x, y, a, k, u0, u1 } — (x, y) the foot end, a the post's angle (foot → top), k 0 upright … 1 lying flat
 function crossLocal(u0, u1, k) {
   const hb = lerp(CBH, CBHL, k), pw = lerp(PW, PWL, k) / 2, bar = u0 < CBX - CBW / 2 && u1 > CBX + CBW / 2, o = [[u0, -pw]];
   if (bar) o.push([CBX - CBW / 2, -pw], [CBX - CBW / 2 - k * 10, -hb], [CBX + CBW / 2 - k * 10, -hb], [CBX + CBW / 2, -pw]);
@@ -171,53 +173,67 @@ const xpt = (X, u, v = 0) => { const c = Math.cos(X.a), s = Math.sin(X.a); retur
 function drawCross(g, X, mine, o = {}) {
   const u0 = X.u0 || 0, u1 = X.u1 ?? L; if (u1 - u0 < 1) return;
   const k = X.k || 0, pts = crossLocal(u0, u1, k).map(([u, v]) => xpt(X, u, v)), sd = (o.seed || 500) + (mine ? 0 : 40);
+  const was = GREY; GREY = !mine;
   if (k > .05) { const fr = pts.map(p => [p[0], p[1] + PFACE * k]); fillC(g, cam(fr), sd + 1, mine ? WARMF : PAPER); mk(g, HD.poly(cam(fr), true, 5), sd + 2, { w: 7, mn: .9 }); }
   fillC(g, cam(pts), sd + 3, mine ? WARM : PAPER);
   mk(g, HD.poly(cam(pts), true, 5), sd + 4, { w: 8, mn: .9 });
-  // a knot and a grain line on the post
-  for (const [ua, ub] of [[50, 120], [190, 250]]) if (ua > u0 + 8 && ub < u1 - 8) mk(g, cam([xpt(X, ua, -PW * .12 * (1 - k * .5)), xpt(X, ub, PW * .1 * (1 - k * .5))]), sd + ua, { w: 4, mn: .4, blob: 0 });
+  for (const [ua, ub] of [[60, 140], [230, 310]]) if (ua > u0 + 8 && ub < u1 - 8) mk(g, cam([xpt(X, ua, -PW * .12 * (1 - k * .5)), xpt(X, ub, PW * .1 * (1 - k * .5))]), sd + ua, { w: 4, mn: .4, blob: 0 });
+  GREY = was;
 }
 function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
-const mixX = (A, Bx, k) => { if (k <= 0) return A; if (k >= 1) return Bx; let b = Bx.a; while (b - A.a > Math.PI) b -= TAU; while (b - A.a < -Math.PI) b += TAU;   // the short way round
+const mixX = (A, Bx, k) => { if (k <= 0) return A; if (k >= 1) return Bx; let b = Bx.a; while (b - A.a > Math.PI) b -= TAU; while (b - A.a < -Math.PI) b += TAU;
   return { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, b, k), k: lerp(A.k || 0, Bx.k || 0, k) }; };
 const lying = (x, y, u0 = 0, u1 = L, a = 0) => ({ x, y, a, k: 1, u0, u1 });
 
-// ---------------- the bear (the lab's bear, any pose) ----------------
-// F = { x, gy, f, rot, sag, head (nose-down rotation), ph (walk phase), stride, lift, legs: [4 world feet] | null, pin (world point for the near
-//       forepaw), face: 'calm'|'strain'|'shock'|'look'|'happy'|'down', grey, alpha, saw: { ang } (in the mouth), back: { u0 } (cross on the back) }
+// ---------------- the bear (the lab's bear, on four legs or sitting up) ----------------
+// F = { x, gy, f, rot, sag, head, sit (0 on all fours … 1 sitting up), sq (turn squash), ph, stride, moving, legs: [4 world feet/paws] | null,
+//       face, sweat, grey, alpha, back: { u0 } (cross on the back), saw: 'strap' | null, behind(), preNear() }
 const BODY = HD.spline([[156, 6], [96, 48], [0, 56], [-100, 50], [-162, 10], [-176, -44], [-140, -104], [-40, -128], [60, -126], [118, -94]], 4);
 const HEAD = HD.spline([[112, -96], [150, -122], [204, -112], [244, -80], [272, -62], [268, -36], [238, -24], [200, -6], [156, 6]], 3);
-const LEGX = [92, 112, -100, -78];                    // near fore, far fore, near hind, far hind (body-local x of the hip)
-function bodyM(F) { return HD.mul(HD.mat(F.x, F.gy - 150 * SC + (F.sag || 0) - (F.lift || 0), (F.rot || 0) * F.f), HD.mat(0, 0, 0, F.f * SC, SC)); }
-function headM(Mb, F) { return HD.mul(Mb, HD.mul(HD.mat(126, -48, F.head || 0), HD.mat(-126, 48))); }
-const MOUTH = [244, -22], BACKPT = [-24, -124];
-function mouthAt(F) { return HD.pt(headM(bodyM(F), F), MOUTH[0], MOUTH[1]); }
-function backCross(F, u0) {   // the cross strapped upright on the back, leaning back a little; a cut cross stands lower
-  const p = HD.pt(bodyM(F), BACKPT[0], BACKPT[1] + 6), a = -Math.PI / 2 - F.f * (.07 + (F.rot || 0) * .5);
-  return { x: p[0] - Math.cos(a) * u0, y: p[1] - Math.sin(a) * u0, a, k: 0, u0, u1: L };
+const LEGX = [92, 112, -100, -78];                     // near fore, far fore, near hind, far hind (body-local x of the hip)
+const PV = [-150, 40], SIT_ROT = -1.12, SIT_SAG = 78;   // sitting: the body rotates up about the rump
+function bodyM(F) { const s = F.sit || 0;
+  return HD.mul(HD.mat(F.x, F.gy - 150 * SC + (F.sag || 0) + SIT_SAG * s - (F.lift || 0), 0, F.f * SC * (F.sq ?? 1), SC),
+    HD.mul(HD.mat(PV[0], PV[1], (F.rot || 0) + SIT_ROT * s), HD.mat(-PV[0], -PV[1]))); }
+function headM(Mb, F) { return HD.mul(Mb, HD.mul(HD.mat(126, -48, (F.head || 0) - SIT_ROT * (F.sit || 0) * .92), HD.mat(-126, 48))); }
+const legRoot = (F, k) => { const s = F.sit || 0; if (k < 2 && s > 0) return [lerp(LEGX[k], k ? 78 : 58, s), lerp(8, 30, s)]; return [LEGX[k], 8]; };
+// the cross lying along the back: crossbar over the shoulders, top end over the neck, the post trailing past the rump
+const JB = [70, -142], BANG = .14;
+function backCross(F, u0) {
+  const Mb = bodyM(F), J = HD.pt(Mb, JB[0], JB[1]), Q = HD.pt(Mb, JB[0] + Math.cos(BANG) * 20, JB[1] - Math.sin(BANG) * 20), a = Math.atan2(Q[1] - J[1], Q[0] - J[0]);
+  return { x: J[0] - Math.cos(a) * CBX, y: J[1] - Math.sin(a) * CBX, a, k: 0, u0, u1: L };
 }
-function footOf(F, k) {   // walk cycle → world foot
+function strapSaw(F) {   // the saw tucked in my strap: handle up behind the shoulders, the blade along my flank
+  const Mb = bodyM(F), p = HD.pt(Mb, -2, -150), q = HD.pt(Mb, -60, -40); return { grip: p, ang: Math.atan2(q[1] - p[1], q[0] - p[0]) };
+}
+function footOf(F, k) {
   if (F.legs) return F.legs[k];
   const pp = (F.ph || 0) * TAU + (k === 1 || k === 2 ? Math.PI : 0), A = (F.stride || 22), dx = F.moving ? A * Math.sin(pp) : 0, ly = F.moving ? (F.liftLeg ?? 14) * Math.max(0, Math.cos(pp)) : 0;
-  return [F.x + F.f * (LEGX[k] + dx) * SC, F.gy - ly];
+  return [F.x + F.f * (F.sq ?? 1) * (LEGX[k] + dx) * SC, F.gy - ly];
 }
-function drawSaw(g, grip, ang, seed = 900) {
+function drawSaw(g, grip, ang, seed = 900) {   // the handle at `grip` (where the paw closes on it), the blade along `ang`
   const d = [Math.cos(ang), Math.sin(ang)], n = [-d[1], d[0]], P = (u, v) => [grip[0] + d[0] * u + n[0] * v, grip[1] + d[1] * u + n[1] * v];
   const handle = [P(-26, -16), P(14, -18), P(20, 16), P(-22, 18)];
   fillC(g, cam(handle), seed, PAPER); mk(g, HD.poly(cam(handle), true, 4), seed + 1, { w: 7 });
   const blade = [P(18, -12), P(190, -6), P(190, 10)]; for (let u = 190; u >= 18; u -= 12) blade.push(P(u, (u / 12 | 0) % 2 ? 12 : 18));
   fillC(g, cam(blade), seed + 2, PAPER); mk(g, HD.poly(cam(blade), true, 4), seed + 3, { w: 6.5, mn: .9 });
 }
+function paw(g, at, seed, dir) {   // a forepaw end: a round pad with three claw ticks
+  const c = cam([at])[0]; fillC(g, HD.arc(c[0], c[1], 17 * ZK, 14 * ZK, 0, TAU, 3), seed); mk(g, HD.arc(c[0], c[1], 17 * ZK, 14 * ZK, 0, TAU, 3), seed + 1, { w: 6, blob: 0, mn: 1 });
+  for (let i = 0; i < 3; i++) mk(g, [[c[0] + dir * (8 + i * 6) * ZK, c[1] + (i - 1) * 6 * ZK], [c[0] + dir * (16 + i * 6) * ZK, c[1] + (i - 1) * 7 * ZK]], seed + 3 + i, { w: 3.5, blob: 0, mn: .5 });
+}
 function drawBear(g, F) {
   const al = F.alpha ?? 1; if (al <= 0) return;
-  GREY = !!F.grey; const seed = F.grey ? 2000 + (F.id || 0) * 300 : 0;
+  const was = GREY; GREY = !!F.grey; const seed = F.grey ? 2000 + (F.id || 0) * 300 : 0, s = F.sit || 0;
+  if (al < 1) { g.save(); g.globalAlpha = al; }
   const Mb = HD.mul(CAM, bodyM(F)), P = pts => HD.xf(pts, Mb), Mh = HD.mul(CAM, headM(bodyM(F), F)), Hp = pts => HD.xf(pts, Mh);
-  // the cross on my back stands behind me (drawn first); the strap is drawn over the body
-  if (F.back) drawCross(g, backCross(F, F.back.u0), !F.grey, { seed: seed + 600 });
   if (F.behind) F.behind();
-  const legAt = (k, w) => { const xb = LEGX[k], top = HD.pt(Mb, xb, 8), ft = cam([footOf(F, k)])[0], fy = ft[1] - 12 * ZK;
-    return [top, [lerp(top[0], ft[0], .5) + 2, lerp(top[1], fy, .5)], [ft[0], fy]]; };
+  const legAt = k => { const r = legRoot(F, k), top = HD.pt(Mb, r[0], r[1]), ft = cam([footOf(F, k)])[0], arm = k < 2 && s > .3, fy = arm ? ft[1] : ft[1] - 12 * ZK;
+    // a bent joint: the knee/elbow sits off the straight line (forward for knees, back for a sitting bear's elbows)
+    const mx = lerp(top[0], ft[0], .5), my = lerp(top[1], fy, .5), bend = arm ? -F.f * 14 * ZK : 2;
+    return [top, [mx + bend, my], [ft[0], fy]]; };
   for (const k of [1, 3]) tube(g, legAt(k), 40 * SC * ZK, seed + 200 + k * 3);
+  if (s > .3) paw(g, footOf(F, 1), seed + 290, -F.f);
   fillC(g, P(BODY), seed + 210);
   { const a = P([BODY[BODY.length - 1]])[0], b = Hp([HEAD[0]])[0], c = P([BODY[0]])[0], d = Hp([HEAD[HEAD.length - 1]])[0], m = P([[110, -40]])[0]; HD.fillPts(g, [a, b, Hp([[150, -40]])[0], d, c, m], PAPER); }
   mk(g, P(BODY), seed + 211, { w: 10 });
@@ -225,37 +241,41 @@ function drawBear(g, F) {
   mk(g, Hp(HEAD), seed + 213, { w: 9.5 });
   { const a = P([BODY[BODY.length - 1]])[0], b = Hp([HEAD[0]])[0], c = P([BODY[0]])[0], d = Hp([HEAD[HEAD.length - 1]])[0];
     if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 3) mk(g, HD.seg(a, b, 2), seed + 214, { w: 9.5, blob: 0 }); if (Math.hypot(c[0] - d[0], c[1] - d[1]) > 3) mk(g, HD.seg(c, d, 2), seed + 215, { w: 9.5, blob: 0 }); }
-  for (const [ex, ey, s] of [[152, -120, 220], [182, -120, 222]]) { const e = HD.arc(ex, ey, 12, 11, Math.PI * 1.05, Math.PI * 1.98, 2); fillC(g, Hp(HD.arc(ex, ey, 12, 11, Math.PI, TAU, 2)), seed + s); mk(g, Hp(e), seed + s + 1, { w: 7.5 }); }
+  for (const [ex, ey, sd] of [[152, -120, 220], [182, -120, 222]]) { const e = HD.arc(ex, ey, 12, 11, Math.PI * 1.05, Math.PI * 1.98, 2); fillC(g, Hp(HD.arc(ex, ey, 12, 11, Math.PI, TAU, 2)), seed + sd); mk(g, Hp(e), seed + sd + 1, { w: 7.5 }); }
   HD.fillPts(g, HD.boil(Hp(HD.arc(266, -50, 10, 8, 0, TAU, 2)), seed + 230, F8, .6, 12), GREY ? GREYI : INK);
   const fc = F.face || 'calm';
   if (fc === 'happy' || fc === 'down') mk(g, Hp(HD.arc(214, fc === 'happy' ? -76 : -84, 7, 5, fc === 'happy' ? Math.PI * 1.1 : .2, fc === 'happy' ? Math.PI * 1.9 : Math.PI - .2, 2)), seed + 231, { w: 4.5, blob: 0 });
   else { const r = fc === 'shock' ? 8 : 5.5; HD.fillPts(g, HD.boil(Hp(HD.arc(214, -80, r, r * 1.1, 0, TAU, 2)), seed + 231, F8, .5, 10), GREY ? GREYI : INK);
-    if (fc === 'shock') { fillC(g, Hp(HD.arc(216, -82, 3, 3, 0, TAU, 2)), seed + 233); } }
-  if (fc === 'strain' || fc === 'shock') mk(g, Hp(HD.seg([200, -98], [224, -94], 2)), seed + 234, { w: 4.5, blob: 0, mn: .5 });   // a worried brow
-  if (!F.saw) mk(g, Hp(HD.spline([[246, -30], [234, -24]], 2)), seed + 232, { w: 4.5, blob: 0 });
-  // sweat drops while it plods (heavy) / when it's shocked
+    if (fc === 'shock') fillC(g, Hp(HD.arc(216, -82, 3, 3, 0, TAU, 2)), seed + 233); }
+  if (fc === 'strain' || fc === 'shock') mk(g, Hp(HD.seg([200, -98], [224, -94], 2)), seed + 234, { w: 4.5, blob: 0, mn: .5 });
+  mk(g, Hp(HD.spline([[246, -30], [234, -24]], 2)), seed + 232, { w: 4.5, blob: 0 });
   if (F.sweat) mk(g, Hp(HD.spline([[180, -128], [172, -114], [176, -104], [186, -108], [184, -118], [180, -128]], 2)), seed + 240, { w: 4.5, blob: 0 });
-  // the strap round the belly that holds the cross on the back
-  if (F.back) { mk(g, P(HD.spline([[-34, -126], [-44, -40], [-38, 52]], 4)), seed + 250, { w: 6.5, mn: .6, blob: 0 }); mk(g, P(HD.spline([[-14, -128], [-18, -40], [-10, 55]], 4)), seed + 251, { w: 6.5, mn: .6, blob: 0 }); }
+  // the cross on my back lies on the near side of the body; the strap round the belly holds it (and the saw)
+  if (F.back) { drawCross(g, backCross(F, F.back.u0), !F.grey, { seed: seed + 600 }); GREY = !!F.grey;
+    mk(g, P(HD.spline([[-6, -150], [-14, -40], [-4, 55]], 4)), seed + 250, { w: 7, mn: .7, blob: 0 }); mk(g, P(HD.spline([[14, -152], [8, -40], [16, 56]], 4)), seed + 251, { w: 7, mn: .7, blob: 0 });
+    if (F.saw === 'strap') { const sv = strapSaw(F); drawSaw(g, sv.grip, sv.ang, seed + 950); } }
+  if (F.mid) { F.mid(); GREY = !!F.grey; }
   const bodyW = P(BODY), clipOut = new Path2D(); clipOut.rect(-4000, -4000, 9000, 9000); clipOut.addPath(HD.pathOf(bodyW));
-  for (const k of [2, 0]) { const Lg = legAt(k); Lg[0] = HD.pt(Mb, LEGX[k], 10); tubeNear(g, Lg, 42 * SC * ZK, seed + 260 + k * 3, clipOut);
-    const ft = Lg[2], dir = F.f; for (let i = 0; i < 3; i++) mk(g, HD.seg([ft[0] + dir * (8 + i * 8) * ZK, ft[1] + 16 * ZK], [ft[0] + dir * (8 + i * 8) * ZK, ft[1] + 26 * ZK], 2), seed + 270 + k * 5 + i, { w: 3.5, blob: 0, mn: .5 }); }
-  if (F.saw) drawSaw(g, mouthAt(F), F.saw.ang, seed + 900);
-  if (F.front) F.front();
-  GREY = false;
+  if (F.preNear) { F.preNear(); GREY = !!F.grey; }
+  for (const k of [2, 0]) { const Lg = legAt(k); const r = legRoot(F, k); Lg[0] = HD.pt(Mb, r[0], r[1] + 2); tubeNear(g, Lg, 42 * SC * ZK, seed + 260 + k * 3, clipOut);
+    if (k === 0 && s > .3) paw(g, footOf(F, 0), seed + 280, -F.f);
+    else { const ft = Lg[2], dir = F.f; for (let i = 0; i < 3; i++) mk(g, HD.seg([ft[0] + dir * (8 + i * 8) * ZK, ft[1] + 16 * ZK], [ft[0] + dir * (8 + i * 8) * ZK, ft[1] + 26 * ZK], 2), seed + 270 + k * 5 + i, { w: 3.5, blob: 0, mn: .5 }); } }
+  if (F.front) { F.front(); }
+  if (al < 1) g.restore();
+  GREY = was;
 }
 
 // ---------------- my path (integrated once), the cuts ----------------
 const DT = 1 / 240, NT = Math.ceil((S.DUR + 1) / DT) + 2, MEX = new Float32Array(NT), MEP = new Float32Array(NT);
 function vMe(t) {
-  if (t < 3.2) return 42 * (1 + .55 * Math.sin(t * TAU / 1.3 - 1));          // plodding, staggering
+  if (t < 3.2) return 42 * (1 + .55 * Math.sin(t * TAU / 1.3 - 1));
   if (t < 4.6) return 0;
-  if (t < 5.0) return 200 * eio((t - 4.6) / .4);                              // lighter: a bouncy gallop
+  if (t < 5.0) return 200 * eio((t - 4.6) / .4);
   if (t < 8.3) return 200;
   if (t < 8.6) return lerp(200, 90, (t - 8.3) / .3);
   if (t < 9.0) return 90 * (1 - ss(8.6, 9.0, t));
   if (t < 9.95) return 0;
-  if (t < 10.35) return -58 * Math.PI / (2 * .4) * Math.sin(Math.PI * (t - 9.95) / .4);   // shuffle forward along the lying cross (it points back): exactly one more piece
+  if (t < 10.35) return -(L * (S.left[2] - S.left[3])) * Math.PI / (2 * .4) * Math.sin(Math.PI * (t - 9.95) / .4);   // shuffle (sitting) along the cross: one more piece
   if (t < 11.35) return 0;
   if (t < 12.0) return 520 * Math.sin(Math.PI * (t - 11.35) / .65);
   return 0;
@@ -265,31 +285,34 @@ const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); 
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
 const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.4 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
-const FILL = [[22.2, 23.25], [22.65, 23.7], [23.1, 24.2]];
-const CUTOFF = 230;   // while sawing I stand facing the foot end, my body centre CUTOFF right of the cut
-const LIEY = FY + 6;  // my cross lying on the road, just in front of my feet
-const CUT_ANG = Math.PI - 1.0;   // the blade, pointing down-left from my mouth into the post
-let PIECES = [], STEPS = [], BACKCAM = null, SAWLIE = null;
+const SLOTS = [22.9, 23.6, 24.3];
+const CUT_ANG = Math.PI - .55;   // the blade, pointing down-left from my paw across the post on my lap
+let PIECES = [], BACKCAM = null, TRAVEL = null, SAWLIE = null;
+// sitting to saw (facing left): my rump at mx; the cross across my lap, its foot end out in front of me; the cut just past my lap
+const LAPX = 150, LAPH = 84;
+function lapCross(mx, u0, u1cut) {   // the cut point sits LAPX left of my rump, LAPH above the road; the post runs back down behind me
+  const cut = [mx - LAPX, FY - LAPH], a = Math.atan2(LAPH + 10, L - u1cut - 40);
+  return { x: cut[0] - Math.cos(a) * u1cut, y: cut[1] - Math.sin(a) * u1cut, a, k: .15, u0, u1: L, cut };
+}
 function buildTimeline() {
   let x = 0, p = 0;
   for (let i = 0; i < NT; i++) { const t = i * DT; MEX[i] = x; MEP[i] = p; const v = vMe(t); x += v * DT; p += v / strideMe(t) * DT; }
   E = meX(12) + 175;
-  // the cross lies pointing back down the road (foot towards me): cut point = foot − u1 … I stand right of it
   CUTS.forEach((c, k) => { c.k = k; c.mx = meX(c.s); c.u0 = L * (1 - S.left[k]); c.u1 = L * (1 - S.left[k + 1]); });
-  for (const k of [0, 1]) { const c = CUTS[k]; c.cutX = c.mx - CUTOFF; c.xf = c.cutX + c.u1; }
-  CUTS[2].xf = CUTS[1].xf; CUTS[2].cutX = CUTS[2].xf - CUTS[2].u1; CUTS[2].mx = CUTS[2].cutX + CUTOFF;
-  const OFF = [[16, 4, .04], [40, -4, -.05], [8, 12, .06]];
-  PIECES = CUTS.map((c, k) => ({ c, x: c.xf + OFF[k][0], y: LIEY + OFF[k][1], a: Math.PI + OFF[k][2], u0: c.u0, u1: c.u1 }));
-  SAWLIE = { x: CUTS[2].cutX + 120, y: LIEY + 14 };
-  GX = E + GAP + 340;
+  CUTS[2].mx = meX(10.4);
+  CUTS.forEach(c => { c.X = lapCross(c.mx, c.u0, c.u1); c.cutX = c.X.cut[0]; });
+  // each piece drops off my lap to the road just below and stays there
+  PIECES = CUTS.map((c, k) => { const X = c.X, p0 = xpt(X, c.u0), p1 = xpt(X, c.u1), cx = (p0[0] + p1[0]) / 2 - 20 - k * 6;
+    return { c, x: cx - (c.u0 + c.u1) / 2 * Math.cos(Math.PI), y: LIEY + [0, 6, -4][k], a: Math.PI + [.04, -.05, .06][k], u0: c.u0, u1: c.u1, from: X }; });
+  SAWLIE = { x: CUTS[2].cutX - 40, y: LIEY + 12 };
+  GX = E + GAP + 330;
 }
-function pieceAt(P, t) {   // a cut piece where it fell; at the end it flies into its place in the outline
-  const c = P.c, k = eo((t - c.drop) / .25), base = { x: lerp(c.xf, P.x, k), y: lerp(LIEY, P.y, k), a: lerp(Math.PI, P.a, k), k: 1, u0: P.u0, u1: P.u1 };
-  const [f0, f1] = FILL[c.k]; if (t <= f0) return base;
-  const u = clamp((t - f0) / (f1 - f0)), e = eio(u), cu = (P.u0 + P.u1) / 2, s0 = xpt(base, cu);
-  const tx = E - REST + cu, ty = LIEY, cx = lerp(s0[0], tx, e), cy = lerp(s0[1], ty, e) - (300 + 60 * (2 - c.k)) * Math.sin(Math.PI * u);
-  let a = lerp(base.a, Math.PI * 2, e) + Math.sin(u * Math.PI * 2) * .4 * (1 - u); if (P.a > Math.PI * .5) a = lerp(base.a, Math.PI * 2, e);
-  return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, k: lerp(1, .5, Math.sin(Math.PI * u)), u0: P.u0, u1: P.u1, fly: u };
+function pieceAt(P, t) {   // from my lap to the road (a short drop with a bounce), then it stays
+  const c = P.c, u = clamp((t - c.drop) / .3), lieA = { x: P.x, y: P.y, a: P.a, k: 1, u0: P.u0, u1: P.u1 };
+  if (u >= 1) return lieA;
+  const from = { ...c.X, u0: P.u0, u1: P.u1 }, cu = (P.u0 + P.u1) / 2, s = xpt(from, cu), e = xpt(lieA, cu), k = u * u;
+  const a = lerp(from.a, P.a - (P.a - from.a > Math.PI ? TAU : 0), u), cx = lerp(s[0], e[0], u), cy = lerp(s[1], e[1], k) - Math.sin(Math.PI * u) * 10;
+  return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, k: lerp(from.k, 1, u), u0: P.u0, u1: P.u1 };
 }
 
 // ---------------- poses ----------------
@@ -297,153 +320,166 @@ function walkSpec(x, gy, f, ph, o = {}) { const bob = (o.bob ?? 5) * Math.pow(Ma
   return { x, gy, f, ph, moving: true, stride: o.stride ?? 22, liftLeg: o.lift ?? 14, sag: (o.sag ?? 0) + bob, rot: o.rot ?? 0, head: o.head ?? .16, face: o.face || 'calm', sweat: !!o.sweat }; }
 function standSpec(x, gy, f, o = {}) { return { x, gy, f, moving: false, sag: o.sag ?? 0, rot: o.rot ?? 0, head: o.head ?? .1, face: o.face || 'calm' }; }
 function legsOf(F) { return [0, 1, 2, 3].map(k => footOf(F, k)); }
+// sitting up, facing f, rump at x: hind feet forward on the road, forepaws where asked
+function sitSpec(x, gy, f, paws, o = {}) { const F = { x, gy, f, moving: false, sit: o.sit ?? 1, sag: o.sag ?? 0, rot: o.rot ?? 0, head: o.head ?? .25, face: o.face || 'calm' };
+  const rump = x + f * PV[0] * SC; F.legs = [paws[0], paws[1], [rump + f * 150, gy], [rump + f * 118, gy]]; return F; }
 function mixSpec(A, Bs, k) {
   if (k <= 0) return A; if (k >= 1) return Bs;
-  const pick = k < .5 ? A : Bs, la = A.legs || legsOf(A), lb = Bs.legs || legsOf(Bs);
+  const pick = k < .5 ? A : Bs, flip = A.f !== Bs.f, la = A.legs || legsOf(A), lb0 = Bs.legs || legsOf(Bs);
+  // turning round on the spot: each foot stays near where it stands (fore ↔ hind swap sides), the body squashes to a front view
+  const lb = flip ? [lb0[2], lb0[3], lb0[0], lb0[1]] : lb0, m = la.map((p, i) => lerp2(p, lb[i], k)), legs = flip && k >= .5 ? [m[2], m[3], m[0], m[1]] : m;
   return { ...pick, x: lerp(A.x, Bs.x, k), gy: lerp(A.gy, Bs.gy, k), sag: lerp(A.sag || 0, Bs.sag || 0, k), rot: lerp(A.rot || 0, Bs.rot || 0, k), head: lerp(A.head || 0, Bs.head || 0, k),
-    legs: la.map((p, i) => lerp2(p, lb[i], k)), moving: false };
+    sit: lerp(A.sit || 0, Bs.sit || 0, k), sq: flip ? Math.max(.34, Math.abs(1 - 2 * k)) : 1, legs, moving: false };
 }
-// sawing: facing left, forepaw on the post, head down, the saw in my teeth; the body rocks along the blade
-function sawSpec(c, t, xf) {
-  const st = sawState(c, t), F = { ...standSpec(0, FY, -1, { head: .62, rot: .12, sag: 10 }), face: 'calm' };
-  F.x = 0; const m0 = mouthAt(F), grip = st.grip; F.x = grip[0] - m0[0]; F.sag += 0;
-  const dy = grip[1] - m0[1]; F.sag += dy; F.gy = FY;
-  const base = legsOf({ ...F, moving: false });
-  F.legs = base.map((p, i) => i === 0 ? [c.cutX + 100, LIEY - PWL / 2 - 2] : [p[0], FY]);
-  F.saw = { ang: CUT_ANG }; return F;
+function sawState(c, t, mx) {   // the stroke: the near paw works the saw along its own length across the kerf
+  const kp = clamp((t - c.saw0) / (c.drop - .06 - c.saw0)), on = t >= c.saw0 - .05 && t < c.drop + .02, osc = on ? 24 * Math.sin(TAU * 3.2 * (t - c.saw0)) : 0;
+  const X = mx == null ? c.X : lapCross(mx, c.u0, c.u1), K0 = X.cut, n = [-Math.sin(X.a), Math.cos(X.a)], K = [K0[0] + n[0] * (-PW / 2 + kp * PW * .9), K0[1] + n[1] * (-PW / 2 + kp * PW * .9)];
+  const d = [Math.cos(CUT_ANG), Math.sin(CUT_ANG)], uc = 110 + osc;
+  return { kp, K, X, grip: [K[0] - d[0] * uc, K[1] - d[1] * uc] };
 }
-function sawState(c, t) {
-  const kp = clamp((t - c.saw0) / (c.drop - .06 - c.saw0)), on = t >= c.saw0 - .05 && t < c.drop + .02, osc = on ? 20 * Math.sin(TAU * 3.2 * (t - c.saw0)) : 0;
-  const d = [Math.cos(CUT_ANG), Math.sin(CUT_ANG)], K = [c.cutX, LIEY - PWL / 2 + kp * (PWL + PFACE) * .85], uc = 160 + osc;
-  return { kp, K, grip: [K[0] - d[0] * uc, K[1] - d[1] * uc] };
+function sawSit(c, t, mx = c.mx) {   // sitting, facing left: far paw pins the post past the cut, near paw on the saw
+  const st = sawState(c, t, mx), pin = xpt(st.X, c.u1 + 46, -PW / 2 - 2);
+  const F = sitSpec(mx, FY, -1, [st.grip, pin], { head: .32, rot: -.06 }); F.face = 'calm';
+  F.preNear = () => drawSaw(INKG, st.grip, CUT_ANG); return { F, st };
 }
-const HANG = f => f > 0 ? .8 : Math.PI - .8;   // the saw hangs from my mouth, blade down and a little forward
+
 function poseMe(t) {
   const tp = Math.max(0, t12(t)), dx = meX(t) - meX(tp), u0 = L * (1 - leftAt(t));
   const walk = (tt, xx) => {
     const x = xx ?? meX(tt) + dx, ph = meP(tt);
-    if (tt < 3.2) return walkSpec(x, FY, 1, ph, { sag: 10 + 4 * Math.sin(tt * TAU / 1.3), head: .3, face: 'strain', sweat: Math.floor(tt * 3) % 2 === 0, stride: 18 });
+    if (tt < 3.2) return walkSpec(x, FY, 1, ph, { sag: 14 + 4 * Math.sin(tt * TAU / 1.3), head: .3, face: 'strain', sweat: Math.floor(tt * 3) % 2 === 0, stride: 18 });
     const k = ss(4.6, 5.1, tt);
-    return walkSpec(x, FY, 1, ph, { stride: lerp(18, 40, k), lift: lerp(12, 34, k), bob: lerp(5, 22, k), sag: lerp(8, -6, k), head: lerp(.25, -.1, k), rot: -.05 * k, face: k > .5 ? 'happy' : 'calm' });
+    return walkSpec(x, FY, 1, ph, { stride: lerp(18, 40, k), lift: lerp(12, 34, k), bob: lerp(5, 22, k), sag: lerp(12, -4, k), head: lerp(.25, -.1, k), rot: -.05 * k, face: k > .5 ? 'happy' : 'calm' });
   };
-  const carry = (F, lu0, saw = true) => { F.back = { u0: lu0 }; if (saw) F.saw = { ang: HANG(F.f) }; return F; };
+  const carry = (F, lu0, saw) => { F.back = { u0: lu0 }; F.saw = saw ? 'strap' : null; return F; };
   for (const c of CUTS) {
     if (t < c.s || t >= c.up1) continue;
-    const xf = c.xf, lieX = (a0) => lying(xf, LIEY, a0, L, Math.PI);
-    if (c.k === 2) {
-      if (t < c.drop) { const F = sawSpec(c, tp); return { F, lie: lieX(CUTS[1].u1), c, kerf: t >= c.saw0 ? sawState(c, t).kp : 0 }; }
-      const k = eio((tp - c.drop) / (c.up1 - c.drop)), A = sawSpec(c, c.drop - .01), Bw = carry(walk(c.up1, c.mx), c.u1), F = mixSpec(A, Bw, k);
-      F.f = k < .5 ? -1 : 1; F.saw = k < .5 ? A.saw : null; F.behind = () => drawCross(INKG, mixX(lieX(c.u1), backCross(Bw, c.u1), k), true);
-      return { F, c };
+    if (c.k === 2) {   // still sitting from cut 2: saw again, then down on all fours with the short cross, the saw left on the road
+      if (t < c.drop) { const { F, st } = sawSit(c, tp); return { F, lie: { ...st.X, u0: CUTS[1].u1 }, c, kerf: t >= c.saw0 ? st.kp : 0 }; }
+      const k = eio((tp - c.drop) / (c.up1 - c.drop)), { F: A, st } = sawSit(c, c.drop - .01), Bw = carry(walk(c.up1, c.mx), c.u1, false), F = mixSpec(A, { ...Bw, back: null }, k);
+      const Xm = mixX({ ...c.X, u0: c.u1 }, backCross(Bw, c.u1), k); const cp = xpt(Xm, lerp(c.u1 + 46, CBX - 40, k)); if (F.f < 0) F.legs[1] = cp; else F.legs[0] = cp;
+      if (k > .75) { const lw = legsOf(Bw); F.legs = F.legs.map((p, i) => lerp2(p, lw[i], (k - .75) / .25)); }
+      F.mid = () => drawCross(INKG, Xm, true); return { F, c };
     }
-    const W0 = carry(walk(c.s, c.mx), c.u0), XB = backCross(W0, c.u0), XL = lieX(c.u0);
-    if (t < c.s + c.d) {   // tip it off my back onto the road behind me, turn round to its foot
-      const k = eio((tp - c.s) / c.d), SP = sawSpec(c, c.saw0), F = mixSpec({ ...W0, back: null }, SP, k);
-      F.f = k < .5 ? 1 : -1; F.saw = { ang: lerp(HANG(F.f), CUT_ANG, k) };
-      F.behind = () => drawCross(INKG, mixX(XB, XL, k), true); return { F, c };
+    const W0 = carry(walk(c.s, c.mx), c.u0, true);
+    if (t < c.s + c.d) {   // sit up and turn round, slide the cross off my back across my lap, draw the saw from the strap
+      const k = eio((tp - c.s) / c.d), { F: SP } = sawSit(c, c.saw0), F = mixSpec({ ...W0, back: null, saw: null }, SP, k);
+      const Xm = mixX(backCross(W0, c.u0), { ...c.X, u0: c.u0 }, k), sv = strapSaw(W0), sg = sawState(c, c.saw0).grip, sw = lerp2(sv.grip, sg, k), sa = lerp(sv.ang, CUT_ANG, k);
+      const crossPaw = xpt(Xm, lerp(CBX - 40, c.u1 + 46, k));
+      F.legs[1] = k < .5 ? sw : crossPaw; F.legs[0] = k < .5 ? crossPaw : sw;   // the near/far slots swap as the body turns
+      if (k < .25) { F.legs[0] = lerp2(legsOf(W0)[0], F.legs[0], k / .25); F.legs[1] = lerp2(legsOf(W0)[1], F.legs[1], k / .25); }
+      F.mid = () => drawCross(INKG, Xm, true); if (k < .5) F.behind = () => drawSaw(INKG, sw, sa); else F.preNear = () => drawSaw(INKG, sw, sa); return { F, c };
     }
-    if (t < c.drop) { const F = sawSpec(c, t); return { F, lie: XL, c, kerf: t >= c.saw0 ? sawState(c, t).kp : 0 }; }
-    if (c.k === 1) {   // after the second cut: shuffle along it for one more
-      const sx = meX(t) - c.mx, F = sawSpec(CUTS[2], CUTS[2].saw0 - .3); F.x += sx - (CUTS[2].mx - c.mx) + (CUTS[2].mx - c.mx) * 0;
-      const ph = meP(tp); F.legs = F.legs.map((p, i) => [p[0] + sx - (CUTS[2].mx - c.mx) + (i === 0 ? 0 : 0), p[1] - (i % 2 === (Math.floor(ph * 4) % 2) ? 8 : 0)]);
-      F.legs[0] = [F.legs[0][0], LIEY - PWL / 2 - 10];
-      return { F, lie: lieX(c.u1) };
+    if (t < c.drop) { const { F, st } = sawSit(c, tp); return { F, lie: { ...st.X, u0: c.u0 }, c, kerf: t >= c.saw0 ? st.kp : 0 }; }
+    if (c.k === 1) {   // after cut 2: stay sitting and shuffle forward along the post for one more
+      const mx = meX(t), { F } = sawSit(CUTS[2], CUTS[2].saw0 - .2, mx); const ph = meP(tp);
+      F.legs[2] = [F.legs[2][0], FY - Math.max(0, Math.sin(ph * TAU * 2)) * 10];
+      return { F, lie: { ...lapCross(mx, c.u1, CUTS[2].u1), u0: c.u1 } };
     }
-    // pick it up again (cut 1): flip it back up onto my back, turn back to the road
-    const k = eio((tp - c.drop) / (c.up1 - c.drop)), A = sawSpec(c, c.drop - .01), Bw = carry(walk(c.up1, c.mx), c.u1), F = mixSpec(A, { ...Bw, back: null }, k);
-    F.f = k < .5 ? -1 : 1; F.saw = { ang: lerp(CUT_ANG, HANG(F.f), k) };
-    F.behind = () => drawCross(INKG, mixX(lieX(c.u1), backCross(Bw, c.u1), k), true);
-    return { F, c };
+    // cut 1 done: put the saw back in the strap, slide the cross up onto my back, down on all fours, turn back to the road
+    const k = eio((tp - c.drop) / (c.up1 - c.drop)), { F: A } = sawSit(c, c.drop - .01), Bw = carry(walk(c.up1, c.mx), c.u1, true), F = mixSpec(A, { ...Bw, back: null, saw: null }, k);
+    const Xm = mixX({ ...c.X, u0: c.u1 }, backCross(Bw, c.u1), k), sv = strapSaw(Bw), sg = sawState(c, c.drop - .01).grip, sw = lerp2(sg, sv.grip, k), sa = lerp(CUT_ANG, sv.ang, k);
+    const crossPaw = xpt(Xm, lerp(c.u1 + 46, CBX - 40, k));
+    F.legs[0] = k < .5 ? sw : crossPaw; F.legs[1] = k < .5 ? crossPaw : sw;
+    if (k > .75) { const lw = legsOf(Bw); F.legs[0] = lerp2(F.legs[0], lw[0], (k - .75) / .25); F.legs[1] = lerp2(F.legs[1], lw[1], (k - .75) / .25); }
+    F.mid = () => drawCross(INKG, Xm, true); if (k < .5) F.preNear = () => drawSaw(INKG, sw, sa); else F.behind = () => drawSaw(INKG, sw, sa); return { F, c };
   }
-  if (t < 12) { const F = carry(walk(tp), u0, t < CUTS[2].drop); return { F }; }
+  if (t < 12) return { F: carry(walk(tp), u0, t < CUTS[2].drop) };
   // at the edge: a sudden stop (my nose over the gap), back off for the others, come forward again to lay mine
   const EX = E - 175;
   if (t < 18.4) {
     const bx = -190 * eio((tp - 12.9) / .7) + 190 * eio((tp - 17.6) / .7), x = EX + bx;
     const moving = (tp > 12.9 && tp < 13.6) || (tp > 17.6 && tp < 18.3);
-    const F = moving ? walkSpec(x, FY, 1, x / 110, { stride: 14, head: .1 }) : standSpec(x, FY, 1, { head: tp < 12.9 ? -.12 : .05 + .05 * Math.sin(tp * 1.4) });
-    if (tp < 12.9) { F.rot = .06 * Math.sin(Math.PI * clamp((tp - 12) / .4)); F.face = tp < 12.75 ? 'shock' : 'look'; F.sweat = tp < 12.75; } else if (!moving) F.face = 'look';
+    const F = moving ? walkSpec(x, FY, 1, x / 110, { stride: 14, head: .1, sag: 6 }) : standSpec(x, FY, 1, { head: tp < 12.9 ? -.12 : .05 + .05 * Math.sin(tp * 1.4), sag: 6 });
+    if (tp < 12.9) { F.rot = .05 * Math.sin(Math.PI * clamp((tp - 12) / .4)); F.face = tp < 12.75 ? 'shock' : 'look'; F.sweat = tp < 12.75; } else if (!moving) F.face = 'look';
     return { F: carry(F, u0, false) };
   }
-  const XLay = lying(E - REST, LIEY, u0, L, 0); XLay.x = E - REST - u0;
-  const LAY = { ...standSpec(EX, FY, 1, { head: .45, rot: .1, sag: 12 }), face: 'calm' };
-  LAY.legs = legsOf(LAY); LAY.legs[0] = [E - REST + 8, LIEY - PWL / 2 - 2];   // a forepaw holds the foot end down on the lip
+  // lay mine: sit up at the lip and push it out across the gap with both forepaws on its cut end
+  const XLay = lying(E - REST - u0, LIEY, u0, L, 0), SX = E - REST + 140;
+  const LAY = sitSpec(SX, FY, 1, [xpt(XLay, u0 + 30), xpt(XLay, u0 + 80)], { head: .3, sit: .45 });
   if (t < B.tip) {
-    if (t < 18.8) { const ST = carry(standSpec(EX, FY, 1), u0, false), k = eio((tp - 18.4) / .4), F = mixSpec({ ...ST, back: null }, LAY, k);
-      F.behind = () => drawCross(INKG, mixX(backCross(ST, u0), XLay, k), true); return { F }; }
+    if (t < 18.8) { const ST = carry(standSpec(EX, FY, 1, { sag: 6 }), u0, false), k = eio((tp - 18.4) / .4), F = mixSpec({ ...ST, back: null }, LAY, k), Xm = mixX(backCross(ST, u0), XLay, k);
+      F.legs[0] = xpt(Xm, lerp(CBX - 40, u0 + 30, k)); F.legs[1] = xpt(Xm, lerp(CBX - 80, u0 + 80, k)); if (k < .2) { const lw = legsOf(ST); F.legs[0] = lerp2(lw[0], F.legs[0], k / .2); F.legs[1] = lerp2(lw[1], F.legs[1], k / .2); }
+      F.mid = () => drawCross(INKG, Xm, true); return { F }; }
     return { F: { ...LAY, face: t > 19.0 ? 'strain' : 'calm', sweat: t > 19.05 }, X: XLay };
   }
-  const REACH = { ...LAY, head: .2, rot: .02, sag: 0, face: 'shock', sweat: true };
-  REACH.legs = legsOf({ ...REACH, legs: null }); REACH.legs[0] = [E - 6, FY - 40];
-  if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.face = tp > 20.5 ? 'down' : 'shock'; F.sweat = tp < 20.4; if (tp > 20.5) F.head = .5; return { F }; }
-  const BACK = { ...standSpec(EX - 30, FY, -1, { head: -.05 }), face: 'look' }, FWD = { ...standSpec(EX - 30, FY, 1, { head: .02 }), face: 'look' };
-  if (t < 23.3) return { F: mixSpec({ ...REACH, face: 'down' }, BACK, eio((tp - B.back) / .3)) };
-  return { F: { ...mixSpec(BACK, FWD, eio((tp - 23.3) / .3)), face: tp > 24.3 ? 'calm' : 'look' } };
+  const REACH = sitSpec(SX, FY, 1, [[E + 30, FY - 130], [E - 4, FY - 100]], { head: .1, rot: .05, sit: .6 }); REACH.face = 'shock'; REACH.sweat = true;
+  if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.face = tp > 20.5 ? 'down' : 'shock'; F.sweat = tp < 20.4;
+    if (tp > 20.4) { const k2 = eio((tp - 20.4) / .45), DN = standSpec(EX + 40, FY, 1, { head: .45, sag: 8 }); return { F: { ...mixSpec(REACH, DN, k2), face: 'down' } }; }
+    return { F }; }
+  // I stay at the lip: turn round (four feet planted) and look back down the road; then turn back to the gap
+  const x0 = EX + 40, DN = standSpec(x0, FY, 1, { head: .45, sag: 8 }), BACK = { ...standSpec(x0, FY, -1, { head: -.05, sag: 6 }), face: 'look' }, FWD = { ...standSpec(x0, FY, 1, { head: .12, sag: 6 }), face: 'look' };
+  if (t < 22.5) return { F: { ...mixSpec(DN, BACK, eio((tp - B.back) / .4)), face: 'look' } };
+  return { F: { ...mixSpec(BACK, FWD, eio((tp - 22.5) / .4)), face: tp > 24.6 ? 'down' : 'look' } };
 }
 function fallX(t) {
   if (t < B.tip) return null;
-  const u0 = L * (1 - S.left[3]), pv = [E, LIEY], X0 = { ...lying(E - REST - u0, LIEY, u0, L, 0) };
+  const u0 = L * (1 - S.left[3]), pv = [E, LIEY], X0 = lying(E - REST - u0, LIEY, u0, L, 0);
   if (t < B.fall) return { X: rotAbout(X0, pv, .5 * Math.pow((t - B.tip) / (B.fall - B.tip), 2)), s: 1, al: 1 };
   const u = t - B.fall, X1 = rotAbout(X0, pv, .5), cu = (u0 + L) / 2, c0 = xpt(X1, cu);
   const cx = c0[0] + 60 * u, cy = c0[1] + 260 * u + 1300 * u * u, a = X1.a + 2.4 * u + 1.2 * u * u, s = 1 / (1 + 2.2 * u);
-  return { X: { ...X1, x: cx - Math.cos(a) * cu * s, y: cy - Math.sin(a) * cu * s, a }, s, c: [cx, cy], al: 1 - ss(B.fall + .6, B.fall + 1.0, t) };
+  return { X: { ...X1, x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a }, s, c: [cx, cy], al: 1 - ss(B.fall + .6, B.fall + 1.0, t) };
 }
 
-// ---------------- the others: tip it across like a drawbridge → walk over → bite the end and haul it back → flip it up → into the light ----------------
-const PIL = [{ x0: 300, ph: .1 }, { x0: 170, ph: .55 }, { x0: -330, ph: .8 }], PULL = 100;
+// ---------------- the others: sit and push it across → walk over → sit and haul it back → onto the back → into the light ----------------
+const PIL = [{ x0: 300, ph: .1 }, { x0: 170, ph: .55 }, { x0: -330, ph: .8 }], PULL = 300;
 function pilX(j, t) {
   const P = PIL[j], T = B.bridges[j], x46 = P.x0 + 36 * 4.6, xb = x46 + 15 * (11.4 - 4.6);
   if (t <= 4.6) return P.x0 + 36 * t;
   if (t <= 11.4) return x46 + 15 * (t - 4.6);
-  const k = clamp((t - 11.4) / (T - .35 - 11.4)); return lerp(xb, E - 175, k * k * (1.6 - .6 * k));
+  const k = clamp((t - 11.4) / (T - .3 - 11.4)); return lerp(xb, E - 175, k * k * (1.6 - .6 * k));
 }
 function pilState(j, t) {
   const tp = t12(t), P = PIL[j], T = B.bridges[j], yb = BY + 4, EX = E - 175;
   const tag = F => { F.grey = true; F.id = j; return F; };
-  const carry = (x, o = {}) => { const F = tag(walkSpec(x, BY, 1, P.ph + x / 110, { stride: 20, sag: 8, head: .26, ...o })); F.back = { u0: 0 }; return F; };
-  if (t < T - .35) { const x = pilX(j, tp); return { F: carry(x, tp > 11.4 ? { stride: 30, head: .12 } : { sweat: Math.floor(tp * 3 + j) % 2 === 0 }) }; }
-  const XB = lying(E - REST, yb, 0, L, 0);
-  const LAY = tag({ ...standSpec(EX, BY, 1, { head: .45, rot: .1, sag: 12 }) }); LAY.legs = legsOf(LAY); LAY.legs[0] = [E - REST + 8, yb - PWL / 2 - 2];
-  if (t < T) { const F0 = carry(EX), k = eio((tp - T + .35) / .35), F = tag(mixSpec({ ...F0, back: null }, LAY, k)); F.behind = () => drawCross(INKG, mixX(backCross(F0, 0), XB, eio((t - T + .35) / .35)), false); return { F }; }
+  const carry = (x, o = {}) => { const F = tag(walkSpec(x, BY, 1, P.ph + x / 110, { stride: 20, sag: 12, head: .26, ...o })); F.back = { u0: 0 }; return F; };
+  if (t < T - .3) { const x = pilX(j, tp); return { F: carry(x, tp > 11.4 ? { stride: 30, head: .12, sag: 8 } : { sweat: Math.floor(tp * 3 + j) % 2 === 0 }) }; }
+  const XB = lying(E - REST, yb, 0, L, 0), SX = E - REST + 140;
+  const LAY = tag(sitSpec(SX, BY, 1, [xpt(XB, 30), xpt(XB, 80)], { head: .3, sit: .45 }));
+  if (t < T) { const F0 = carry(EX), k = eio((tp - T + .3) / .3), F = tag(mixSpec({ ...F0, back: null }, LAY, k)), Xm = mixX(backCross(F0, 0), XB, k);
+    F.legs[0] = xpt(Xm, lerp(CBX - 40, 30, k)); F.legs[1] = xpt(Xm, lerp(CBX - 80, 80, k)); if (k < .2) { const lw = legsOf(F0); F.legs[0] = lerp2(lw[0], F.legs[0], k / .2); F.legs[1] = lerp2(lw[1], F.legs[1], k / .2); }
+    F.mid = () => drawCross(INKG, Xm, false); return { F }; }
   const xs0 = EX + 40, xs1 = E + GAP + 230, top = yb - PWL / 2 - 4;
-  if (t < T + .8) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .1) / .7))), on = x - 180 < E + GAP && x + 160 > E;
-    const F = tag(walkSpec(x, on ? top : BY, 1, P.ph + x / 120, { stride: 26, head: .2, sag: 0 })); return { F, bridge: XB, onBridge: on }; }
-  // from the far side: turn round, bite the top end, back away hauling it across, flip it up onto the back
-  const pullX = k => ({ ...XB, x: XB.x + PULL * k, a: -.06 * k });
-  const PULLS = k => { const X = pullX(k), F = tag(standSpec(0, BY, -1, { head: .5, rot: .08, sag: 6 })); F.x = 0; const m = mouthAt(F), tip = xpt(X, L - 8);
-    F.x = tip[0] - m[0]; F.sag += tip[1] - m[1] - 4; F.legs = legsOf({ ...F, moving: true, ph: k * 1.5, stride: 14 }); F.legs = F.legs.map(p => [p[0], BY]); return [F, X]; };
-  if (t < T + 1.15) { const k = eio(clamp((tp - T - .8) / .35)), [F, X] = PULLS(k), k0 = eio((tp - T - .8) / .12);
-    return { F: k0 < 1 ? tag(mixSpec(standSpec(xs1, BY, 1), F, k0)) : F, bridge: X }; }
-  const [Fp, Xp] = PULLS(1);
-  if (t < T + 1.35) { const k = eio((tp - T - 1.15) / .2), Fc = carry(Fp.x - 40), F = tag(mixSpec(Fp, { ...Fc, back: null }, k)); F.f = k < .5 ? -1 : 1;
-    F.behind = () => drawCross(INKG, mixX(Xp, backCross(Fc, 0), k), false); return { F }; }
-  const x = lerp(Fp.x - 40, GX, clamp((tp - T - 1.35) / .45)), F = carry(x, { stride: 26, head: .05 });
-  F.alpha = 1 - ss(T + 1.55, T + 1.85, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 120;
+  if (t < T + .6) { const k0 = eio(clamp((tp - T) / .12)), x = lerp(xs0, xs1, eio(clamp((tp - T - .05) / .55))), on = x - 180 < E + GAP && x + 160 > E;
+    const W = tag(walkSpec(x, on ? top : BY, 1, P.ph + x / 120, { stride: 26, head: .2, sag: 0 })); return { F: k0 < 1 ? tag(mixSpec(LAY, W, k0)) : W, bridge: XB, onBridge: on }; }
+  // from the far side: turn round and sit, forepaws on the top end, haul it back across
+  const pullX = k => ({ ...XB, x: XB.x + PULL * k });
+  const PULLS = k => { const X = pullX(k), tip = xpt(X, L - 20), rx = tip[0] + 170; return [tag(sitSpec(rx, BY, -1, [xpt(X, L - 10), xpt(X, L - 60)], { head: .35, rot: .05, sit: .45 })), X]; };
+  if (t < T + .95) { const k = eio(clamp((tp - T - .65) / .3)), [F, X] = PULLS(k), k0 = eio(clamp((tp - T - .6) / .15));
+    return { F: k0 < 1 ? tag(mixSpec(tag(standSpec(xs1, BY, 1)), F, k0)) : F, bridge: X }; }
+  const [Fp, Xp] = PULLS(1), xg = Fp.x + 60;
+  if (t < T + 1.25) { const k = eio((tp - T - .95) / .3), Fc = carry(xg), F = tag(mixSpec(Fp, { ...Fc, back: null }, k)), Xm = mixX(Xp, backCross(Fc, 0), k);
+    const cp = xpt(Xm, lerp(L - 10, CBX - 40, k)); if (F.f < 0) F.legs[0] = cp; else F.legs[1] = cp;
+    if (k > .75) { const lw = legsOf(Fc); F.legs = F.legs.map((p, i) => lerp2(p, lw[i], (k - .75) / .25)); }
+    F.mid = () => drawCross(INKG, Xm, false); return { F }; }
+  const x = lerp(xg, GX, clamp((tp - T - 1.25) / .45)), F = carry(x, { stride: 26, head: .05 });
+  F.alpha = 1 - ss(T + 1.5, T + 1.8, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 120;
   return { F };
 }
 
 // ---------------- camera ----------------
 const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
+const GAPCAM = () => ({ x: E + 170, y: 1150, z: .92 });
 function camAt(t) {
-  let c = { x: meX(t) + 160 + 160 * ss(4.3, 5.4, t), y: 1060, z: .82 };
-  c = mixCam({ x: meX(t) + 120, y: 975, z: 1.18 }, c, eio((t - 1.2) / 1.4));          // the hook: close on me, the saw in my teeth; widening by ~2.6
-  const at = cc => ({ x: cc.cutX + 120, y: 1010, z: 1.05 });
+  let c = { x: meX(t) + 160 + 160 * ss(4.3, 5.4, t), y: 1080, z: .86 };
+  c = mixCam({ x: meX(t) + 70, y: 1130, z: 1.4 }, c, eio((t - 1.2) / 1.4));          // the hook: close on me, the saw in my strap; widening by ~2.6
+  const at = cc => ({ x: cc.cutX + 160, y: 1130, z: 1.15 });
   c = mixCam(c, at(CUTS[0]), Pilot.win(t, CUTS[0].s - .05, CUTS[0].up1 + .25, .32, .35));
   c = mixCam(c, mixCam(at(CUTS[1]), at(CUTS[2]), eio((t - 9.9) / .55)), Pilot.win(t, CUTS[1].s - .1, CUTS[2].up1 + .2, .3, .4));
   if (t < 12.4) c.x = Math.min(c.x, E - 540 / c.z - 30 + 1600 * ss(11.5, 12.4, t) * ss(11.5, 12.4, t));
-  if (t >= 12) c = mixCam(c, { x: E + 260, y: 1080, z: .74 }, eio((t - 12.05) / .95));
-  if (t >= 18.1) c = mixCam(c, { x: E + 120, y: 1140, z: .95 }, eio((t - 18.1) / .5));
-  if (t >= B.fall) c = mixCam(c, { x: E + 110, y: 1260, z: 1.3 }, eo((t - B.fall) / .09));
-  if (t >= B.fall + .6) c = mixCam(c, { x: E + 100, y: 1140, z: .95 }, eio((t - B.fall - .6) / .7));
-  if (t >= B.back) c = mixCam(c, BACKCAM, eio((t - B.back) / .6));
-  if (t >= 22.5) c = mixCam(c, { x: E + 120, y: 1150, z: .95 }, eio((t - 22.5) / 1.5));
+  if (t >= 12) c = mixCam(c, { x: E + 260, y: 1100, z: .76 }, eio((t - 12.05) / .95));
+  if (t >= 18.1) c = mixCam(c, { x: E + 150, y: 1160, z: .95 }, eio((t - 18.1) / .5));
+  if (t >= B.fall) c = mixCam(c, { x: E + 120, y: 1260, z: 1.3 }, eo((t - B.fall) / .09));
+  if (t >= B.fall + .6) c = mixCam(c, { x: E + 140, y: 1160, z: .95 }, eio((t - B.fall - .6) / .7));
+  if (t >= B.back + .15) c = mixCam(c, TRAVEL, eio((t - B.back - .15) / .7));
+  if (t >= 22.25) c = mixCam(c, GAPCAM(), eio((t - 22.25) / .6));
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 18 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 13 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
 
 // ---------------- the world ----------------
 let INKL, INKG;
-function road(g, cm, t) {   // the road: its front and back edges (stopping at the gap), a few dashes; the cliff lines going down
+function road(g, cm, t) {
   const x0 = cm.x - 540 / cm.z - 60, x1 = cm.x + 540 / cm.z + 60, segs = [];
   const add = (a, b) => { a = Math.max(a, x0); b = Math.min(b, x1); if (b > a + 4) segs.push([a, b]); };
   add(-4000, E); add(E + GAP, 9000);
@@ -452,22 +488,19 @@ function road(g, cm, t) {   // the road: its front and back edges (stopping at t
     mk(g, cam(HD.seg([a, G1], [b, G1 - 2], 8)), s++, { w: 7, mn: .5, ts: 30, te: 30, wob: 3 });
     mk(g, cam(HD.seg([a, GB], [b, GB + 2], 8)), s++, { w: 5.5, mn: .4, ts: 40, te: 40, wob: 3 });
   }
-  // dashes under the road (the lab's), placed on a fixed grid so they don't crawl
   for (let x = Math.floor(x0 / 260) * 260; x < x1; x += 260) { if (x > E - 140 && x < E + GAP + 40) continue; const r = HD.hash(x | 0, 5);
     mk(g, cam(HD.seg([x + r * 80, G1 + 34 + r * 20], [x + r * 80 + 50 + r * 40, G1 + 34 + r * 20], 4)), 800 + (x / 260 | 0), { w: 5, mn: .3, ts: 20, te: 20 }); }
-  // the gap: two cliff lines down from both lips, strata ticks on the walls
   if (E + GAP > x0 && E < x1) {
     for (const [xx, dir, sd] of [[E, 1, 850], [E + GAP, -1, 860]]) {
       mk(g, cam(HD.spline([[xx, GB - 2], [xx + dir * 4, G1], [xx + dir * 10, G1 + 300], [xx + dir * 2, G1 + 700], [xx + dir * 14, G1 + 1100]], 6)), sd, { w: 8, mn: .6, ts: 10, te: 200 });
       for (let i = 0; i < 7; i++) { const y = G1 + 60 + i * 110 + HD.hash(i, sd) * 40; mk(g, cam(HD.seg([xx + dir * 10, y], [xx + dir * (40 + HD.hash(i, sd + 1) * 40), y + 30], 3)), sd + 10 + i, { w: 4.5, mn: .3, blob: 0 }); }
     }
-    // the near lip's edge across the road band (the gap's top, seen a little from above)
     for (const [xx, sd] of [[E, 870], [E + GAP, 871]]) mk(g, cam(HD.seg([xx, GB], [xx + 2, G1], 4)), sd, { w: 6, mn: .6 });
   }
 }
 function drawDoor(g, t, fillPass) {
   const x = GX, gy = GB + 6, w = 86, h = 300, arch = (rw, hh) => { const o = [[x - rw, gy]]; for (let i = 0; i <= 18; i++) { const a = Math.PI + Math.PI * i / 18; o.push([x + Math.cos(a) * rw, gy - hh + rw + Math.sin(a) * rw]); } o.push([x + rw, gy]); return o; };
-  if (fillPass) {   // the warm light inside (drawn before the figures who walk into it), with the lab's pulse ticks
+  if (fillPass) {
     const pulse = .5 + .5 * Math.sin(t * TAU * 1.4);
     INKG.save(); INKG.globalCompositeOperation = 'multiply'; fillC(INKG, cam(arch(w, h)), 1300, LIGHT + (.75 + .15 * pulse) + ')');
     const spill = [[x - w, gy], [x + w, gy], [x + w + 120, G1 - 4], [x - w - 160, G1 - 4]]; fillC(INKG, cam(spill), 1301, LIGHT + (.35 + .1 * pulse) + ')'); INKG.restore();
@@ -475,59 +508,61 @@ function drawDoor(g, t, fillPass) {
   }
   mk(g, cam(HD.poly(arch(w + 22, h + 22), false, 5)), 1310, { w: 9 });
   mk(g, cam(HD.poly(arch(w, h), false, 5)), 1311, { w: 7.5 });
-  const leaf = [[x + w, gy], [x + w + 70, gy + 26], [x + w + 70, gy - h + w + 30], [x + w, gy - h + w * .55]];   // the door leaf, standing open
+  const leaf = [[x + w, gy], [x + w + 70, gy + 26], [x + w + 70, gy - h + w + 30], [x + w, gy - h + w * .55]];
   fillC(g, cam(leaf), 1312, PAPER); mk(g, HD.poly(cam(leaf), true, 5), 1313, { w: 7 });
   const kn = cam([[x + w + 54, gy - h * .42]])[0]; HD.fillPts(g, HD.arc(kn[0], kn[1], 6 * ZK, 6 * ZK, 0, TAU, 2), INK);
   const pulse = .5 + .5 * Math.sin(t * TAU * 1.4);
   if (pulse > .45) for (let i = 0; i < 7; i++) { const a = Math.PI + Math.PI * (i + .5) / 7, r0 = w + 42, r1 = w + 66, cy = gy - h + w;
     mk(g, cam(HD.seg([x + Math.cos(a) * r0, cy + Math.sin(a) * r0], [x + Math.cos(a) * r1, cy + Math.sin(a) * r1], 3)), 1320 + i, { w: 4.5, blob: 0, mn: .5 }); }
 }
-function guide(g, t, k, al, full) {   // the dashed outline of my whole cross across the gap
+// the dashed outline of my whole cross over the gap; its missing span (three piece-lengths) lights slot by slot
+function outline(g, t, al, full) {
   const X = lying(E - REST, LIEY, 0, L, 0), sh = L * S.left[3];
-  const pts = (full ? crossLocal(0, L, 1) : [[sh, -PWL / 2], [L, -PWL / 2], [L, PWL / 2], [sh, PWL / 2]]).map(([u, v]) => xpt(X, u, v)), sp = cam(pts);
-  const x1 = cam([[E - REST - 6 + (L + 12) * k, 0]])[0][0];
-  g.save(); g.beginPath(); g.rect(-100, -100, x1 + 100, 4000); g.clip(); g.globalAlpha = al;
-  g.globalCompositeOperation = 'multiply'; fillC(g, sp, 1400, LIGHT + (full ? .35 : .25) + ')'); g.globalCompositeOperation = 'source-over';
+  const sp = cam((full ? crossLocal(0, L, 1) : [[sh, -PWL / 2], [L, -PWL / 2], [L, PWL / 2], [sh, PWL / 2]]).map(([u, v]) => xpt(X, u, v)));
+  g.save(); g.globalAlpha = al;
+  if (full) for (let k = 0; k < 3; k++) { const on = ss(SLOTS[k], SLOTS[k] + .25, t); if (on <= 0) continue;
+    const u0 = L * (1 - S.left[k]), u1 = L * (1 - S.left[k + 1]), q = cam([[u0 + 3, -PWL / 2 - 2], [u1 - 3, -PWL / 2 - 2], [u1 - 3, PWL / 2 + 2], [u0 + 3, PWL / 2 + 2]].map(([u, v]) => xpt(X, u, v)));
+    const c = cam([xpt(X, (u0 + u1) / 2)])[0], pulse = 1 + .4 * Math.exp(-(t - SLOTS[k]) * 4);
+    g.save(); g.globalAlpha = al * on; g.globalCompositeOperation = 'multiply';
+    HD.fillPts(g, HD.arc(c[0], c[1], (u1 - u0) * .75 * ZK * pulse, 46 * ZK * pulse, 0, TAU, 8), LIGHT + '.45)'); HD.fillPts(g, q, LIGHT + '1)'); g.restore();
+    g.save(); g.globalAlpha = al * on; for (let i = 0; i < 6; i++) { const a = -Math.PI * (.12 + .76 * i / 5), r0 = 40 * ZK, r1 = (58 + 12 * pulse) * ZK;
+      mk(g, [[c[0] + Math.cos(a) * r0, c[1] + Math.sin(a) * r0 * .8], [c[0] + Math.cos(a) * r1, c[1] + Math.sin(a) * r1 * .8]], 1450 + k * 10 + i, { w: 4.5, blob: 0, mn: .5 }); } g.restore(); }
   g.setLineDash([16, 12]); g.lineDashOffset = -t * 20; g.lineWidth = 4.5; g.strokeStyle = INK; g.lineJoin = 'round';
   g.beginPath(); g.moveTo(sp[0][0], sp[0][1]); for (const p of sp) g.lineTo(p[0], p[1]); g.closePath(); g.stroke(); g.setLineDash([]); g.restore();
 }
-function ticks(g, c, t, R, seed, al) {   // the lab's pulse ticks around a glowing thing, on twos
-  if (al <= .05) return; const pulse = .5 + .5 * Math.sin(t * TAU * 1.6 + seed);
+function glowAt(g, c, t, R, seed, al) {   // a soft warm glow under a piece on the road, breathing (no sparkles)
+  if (al <= .03) return; const pulse = .5 + .5 * Math.sin(t * TAU * .9 + seed);
   g.save(); g.globalAlpha = al; g.globalCompositeOperation = 'multiply';
-  HD.fillPts(g, HD.arc(c[0], c[1], R * (.9 + .1 * pulse), R * .55 * (.9 + .1 * pulse), 0, TAU, 8), LIGHT + (.35 + .2 * pulse) + ')'); g.restore();
-  g.save(); g.globalAlpha = al; for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + .2, r0 = R * .62, r1 = R * (.62 + .2 * pulse + .1);
-    mk(g, [[c[0] + Math.cos(a) * r0, c[1] + Math.sin(a) * r0 * .7], [c[0] + Math.cos(a) * r1, c[1] + Math.sin(a) * r1 * .7]], seed + i, { w: 4.5, blob: 0, mn: .5 }); } g.restore();
+  HD.fillPts(g, HD.arc(c[0], c[1], R * (1 + .08 * pulse), R * .42 * (1 + .08 * pulse), 0, TAU, 8), LIGHT + (.3 + .15 * pulse) + ')');
+  HD.fillPts(g, HD.arc(c[0], c[1], R * .62, R * .26, 0, TAU, 8), LIGHT + (.35 + .2 * pulse) + ')'); g.restore();
 }
 
 function world(g, t, cm) {
   road(g, cm, t);
   drawDoor(g, t, true);
   const pils = [0, 1, 2].map(j => pilState(j, t)).filter(Boolean), M = poseMe(t);
-  for (const P of pils) if (P.bridge) drawCross(g, P.bridge, false, { seed: 3000 + 50 });
+  for (const P of pils) if (P.bridge) drawCross(g, P.bridge, false, { seed: 3050 });
   for (const P of pils) if (P.F.inGate) drawBear(g, P.F);
   drawDoor(g, t, false);
   pils.filter(P => !P.F.inGate).sort((a, b) => a.F.x - b.F.x).forEach(P => drawBear(g, P.F));
-  if (t >= 18.65 && t < 19.75) guide(g, t, eio((t - 18.65) / .35), 1 - ss(19.4, 19.75, t), false);
-  if (t >= B.fill[0] - .3) guide(g, t, eio((t - B.fill[0] + .3) / .5), 1, true);
-  // the saw I spit out after the last cut
+  if (t >= 18.65 && t < 19.75) outline(g, t, eio((t - 18.65) / .3) * (1 - ss(19.4, 19.75, t)), false);
+  if (t >= 22.3) outline(g, t, eio((t - 22.3) / .45), true);
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .25), g0 = sawState(c3, c3.drop - .01).grip; drawSaw(g, lerp2(g0, [SAWLIE.x, SAWLIE.y - 14], k), lerp(CUT_ANG, Math.PI + .04, k), 950); }
-  // the cut pieces where they fell; they light up when I look back, and fly into the outline
+  // the cut pieces where they fell: when I look back they glow where they lie (and once more as their slot lights)
   for (const P of PIECES) if (t >= P.c.drop) {
     const X = pieceAt(P, t), cu = (P.u0 + P.u1) / 2, c = cam([xpt(X, cu)])[0];
-    const hl = ss(B.back + .25 + (2 - P.c.k) * .15, B.back + .6 + (2 - P.c.k) * .15, t) * (1 - .6 * ss(FILL[P.c.k][1] + .2, FILL[P.c.k][1] + .9, t));
-    if (hl > 0) ticks(g, c, t, 120 * cm.z + 30, 1500 + P.c.k * 20, hl);
+    const hl = ss(B.back + .3 + P.c.k * .12, B.back + .9 + P.c.k * .12, t) + .5 * Math.exp(-Math.max(0, t - SLOTS[P.c.k]) * 3) * (t > SLOTS[P.c.k] ? 1 : 0);
+    glowAt(g, c, t, ((P.u1 - P.u0) * .9 + 60) * cm.z, 1500 + P.c.k * 20, Math.min(1, hl));
     drawCross(g, X, true, { seed: 1600 + P.c.k * 30 });
-    if (X.fly != null && X.fly < 1) for (let i = 1; i < 5; i++) { const b = cam([xpt(pieceAt(P, t - i * .05), cu)])[0], c2 = cam([xpt(pieceAt(P, t - i * .05 + .03), cu)])[0];   // speed lines
-      mk(g, [b, c2], 1700 + i + P.c.k * 9, { w: 5 - i * .7, blob: 0, mn: .4 }); }
   }
-  // my cross lying for a cut (with the kerf), and me
-  if (M.lie) { drawCross(g, M.lie, true, { seed: 520 }); if (M.kerf != null && M.c) { const k0 = cam([[M.c.cutX, LIEY - PWL / 2]])[0], k1 = cam([[M.c.cutX, LIEY - PWL / 2 + M.kerf * (PWL + PFACE)]])[0]; mk(g, [k0, k1], 530, { w: 5, blob: 0, mn: 1 }); } }
+  if (M.lie) { drawCross(g, M.lie, true, { seed: 520 }); }
   if (M.X) drawCross(g, M.X, true, { seed: 540 });
   drawBear(g, M.F);
-  if (M.c && t >= M.c.drop && t < M.c.drop + .3) { const c = cam([[M.c.cutX - 10, LIEY]])[0];   // the clunk
-    for (const [ax, ay, bx, by] of [[-30, -16, -64, -40], [-34, 10, -76, 12], [20, -22, 44, -54]]) mk(g, [[c[0] + ax * ZK, c[1] + ay * ZK], [c[0] + bx * ZK, c[1] + by * ZK]], 560 + ax, { w: 5, blob: 0, mn: .4 }); }
-  // my short cross over the edge: tips, falls into the gap (clipped between the cliff lines), the crash lines
+  if (M.lie && M.kerf && M.c) { const st = sawState(M.c, t), n = [-Math.sin(st.X.a), Math.cos(st.X.a)], K0 = st.X.cut, k0 = cam([[K0[0] - n[0] * PW / 2, K0[1] - n[1] * PW / 2]])[0], k1 = cam([[K0[0] + n[0] * (-PW / 2 + M.kerf * PW), K0[1] + n[1] * (-PW / 2 + M.kerf * PW)]])[0];
+    mk(g, [k0, k1], 530, { w: 5, blob: 0, mn: 1 }); }
+  if (M.c && t >= M.c.drop && t < M.c.drop + .3) { const p = PIECES[M.c.k], c = cam([[p.x - (p.u0 + p.u1) / 2, LIEY]])[0];   // the clunk as it lands
+    for (const [ax, ay, bx, by] of [[-30, -16, -64, -40], [-34, 10, -76, 12], [30, -16, 64, -40], [34, 10, 76, 12]]) mk(g, [[c[0] + ax * ZK, c[1] + ay * ZK], [c[0] + bx * ZK, c[1] + by * ZK]], 560 + ax + ay, { w: 5, blob: 0, mn: .4 }); }
   const FX = fallX(t);
   if (FX && FX.al > 0) { g.save(); if (t >= B.fall) { const a = cam([[E + 6, 0]])[0][0], b = cam([[E + GAP - 6, 0]])[0][0]; g.beginPath(); g.rect(a, -100, b - a, 4000); g.clip(); }
     g.globalAlpha = FX.al; const sv = CAM; if (FX.s < 1) CAM = HD.mul(CAM, HD.mul(HD.mat(FX.c[0], FX.c[1], 0, FX.s), HD.mat(-FX.c[0], -FX.c[1])));
@@ -535,9 +570,8 @@ function world(g, t, cm) {
   if (t >= B.fall - .02 && t < B.fall + .55) { const u = t - B.fall, c = cam([[E + 60, LIEY]])[0], k = 1 - ss(.25, .55, u);
     g.save(); g.globalAlpha = k; for (let i = 0; i < 9; i++) { const a = -Math.PI * (.08 + .84 * i / 8), r0 = (70 + 40 * eo(u / .3)) * ZK, r1 = r0 + (60 + 30 * HD.hash(i, 3)) * ZK;
       mk(g, [[c[0] + Math.cos(a) * r0, c[1] + Math.sin(a) * r0], [c[0] + Math.cos(a) * r1, c[1] + Math.sin(a) * r1]], 590 + i, { w: 7, blob: 0, mn: .4 }); } g.restore(); }
-  // speed lines behind me while I gallop
   const run = Pilot.win(t, 4.8, 8.7, .2, .25) + Pilot.win(t, 11.4, 12.05, .1, .1);
-  if (run > 0 && M.F) { g.save(); g.globalAlpha = Math.min(1, run); for (let i = 0; i < 4; i++) { const y = M.F.gy - (50 + i * 60) * SC, x = M.F.x - 220 * SC, l = 70 + HD.hash(i, Math.round(t * 8)) * 60;
+  if (run > 0 && M.F) { g.save(); g.globalAlpha = Math.min(1, run); for (let i = 0; i < 4; i++) { const y = M.F.gy - (50 + i * 60) * SC, x = M.F.x - 220 * SC - 250, l = 70 + HD.hash(i, Math.round(t * 8)) * 60;
     mk(g, cam([[x - l, y], [x, y]]), 600 + i, { w: 5, blob: 0, mn: .4 }); } g.restore(); }
 }
 
@@ -550,7 +584,6 @@ function draw(ctx, t) {
   ctx.drawImage(TX.paper, 0, 0);
   HD.clearWhite(g);
   world(g, t, cm);
-  // the end: a clean sheet of the same paper, the card in the hand font
   const pe = ss(B.end - .2, B.end + .35, t);
   if (pe > 0) { g.save(); g.globalAlpha = pe; HD.clearWhite(g); g.restore(); if (pe > .5) { const sv = CAM; CAM = HD.mat(0, 0); mk(g, HD.seg([180, 1330], [900, 1326], 6), 1900, { w: 6, mn: .4, ts: 60, te: 60 }); CAM = sv; } }
   HD.dropout(g, TX.drop, .35);
@@ -567,7 +600,7 @@ async function init() {
   TX.paper = HD.paper(T, { base: [253, 253, 251], mott: 2, emb: 5, grain: 2, vig: .015 });
   TX.drop = HD.toothMask(T, '#ffffff', 'valley', .22, .07, .7);
   INKL = HD.layer();
-  BACKCAM = (() => { const x0 = Math.min(...PIECES.map(P => P.x - P.u1)) - 80, x1 = E - 100, z = clamp(1080 / (x1 - x0), .55, 1); return { x: (x0 + x1) / 2, y: 1150, z }; })();
+  TRAVEL = (() => { const xs = PIECES.map(P => P.x - (P.u0 + P.u1) / 2), x0 = Math.min(...xs) - 140, x1 = Math.max(...xs) + 160, z = clamp(1080 / (x1 - x0), .6, 1.1); return { x: (x0 + x1) / 2, y: 1150, z }; })();
 }
 Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 80px 'Gaegu'", "400 34px 'Gaegu'", "400 28px 'Noto Sans KR'"], init, draw });
 </script>
