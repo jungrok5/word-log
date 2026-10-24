@@ -320,7 +320,7 @@ function poseMe(t) {
         return { F, X: mixX(XA, XL, eio((t - c.s) / c.d)), lieX: k > .5, c, saw: { grip: F.near, ang: lerp(hangAng(1), CUT_ANG, k) }, held: lf0 }; }
       if (t < c.drop) { const st = sawState(c, t), F = sawSpec(c, t); F.near = st.grip; return { F, X: XL, lieX: true, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG }, held: lf0 }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k); F.f = k < .5 ? -1 : 1;
-      const nT = last ? WB.near : nearHang(WB); F.near = [lerp(SP.near[0], nT[0], k), lerp(SP.near[1], nT[1], k)]; F.far = [lerp(SP.far[0], WB.far[0], k), lerp(SP.far[1], WB.far[1], k)];
+      const nT = nearHang(WB); F.near = [lerp(SP.near[0], nT[0], k), lerp(SP.near[1], nT[1], k)]; F.far = [lerp(SP.far[0], WB.far[0], k), lerp(SP.far[1], WB.far[1], k)];
       F.farFront = k < .5; F.farKind = k < .5 ? 'flat' : 'fist';
       return { F, X: mixX(XL, XB, eio((t - c.drop) / (c.up1 - c.drop))), lieX: k < .5, c, saw: last ? null : { grip: F.near, ang: lerp(CUT_ANG, hangAng(1), k) }, held: lf1 };
     }
@@ -416,7 +416,7 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 150, y: 1130, z: 1.12 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 120, y: 1290, z: 1.5 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 120, y: 1170, z: 1.1 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back + .2) c = mixCam(c, { x: 1545, y: 1200, z: 1.25 }, eio((t - B.back - .2) / .95));       // back along the road: the pieces glow where they lie
+  if (t >= B.back + .2) c = mixCam(c, { x: 1510, y: 1200, z: 1.25 }, eio((t - B.back - .2) / .95));       // back along the road: the pieces glow where they lie
   if (t >= 22.25) c = mixCam(c, { x: E + 205, y: 1150, z: 1.2 }, eio((t - 22.25) / .65));                // return: the gap, me at the lip, the outline
   if (t >= 22.9) { c.z += .05 * ss(22.9, 26.5, t); }
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 22 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 16 * k * Math.sin(t * 131 + 1) : 0;

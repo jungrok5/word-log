@@ -289,7 +289,7 @@ function buildTimeline() {
     c.k = k; c.mx = meX(c.s); c.cutX = c.mx - 142 * SME; c.u0 = L * (1 - S.left[k]); c.u1 = L * (1 - S.left[k + 1]); c.baseX = c.cutX - c.u1; c.y = FY + 26;
     const r = rng(100 + k);
     for (let n = 0; n < 16; n++) FLECKS.push({ t0: n < 11 ? lerp(c.saw0, c.drop, n / 11) : c.drop + r() * .05, x: c.cutX + (r() - .5) * 8, y: c.y - PW / 2,
-      vx: (r() - .5) * (n < 11 ? 180 : 320), vy: -(80 + r() * (n < 11 ? 160 : 260)), land: FY + 18 + r() * 44, r0: r() * TAU, vr: (r() - .5) * 20, sz: 4 + r() * 5, col: RED });
+      vx: (r() - .5) * (n < 11 ? 180 : 320), vy: -(80 + r() * (n < 11 ? 160 : 260)), land: FY + 18 + r() * 44, r0: r() * TAU, vr: (r() - .5) * 20, sz: 4 + r() * 5, col: '#e8b070' });
   });
   const c3 = CUTS[2]; SAWLIE = { grip: [c3.cutX + 150, FY + 52], ang: Math.PI + .05 };
 }
