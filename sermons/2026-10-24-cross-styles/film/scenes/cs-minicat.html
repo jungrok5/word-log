@@ -640,9 +640,9 @@ function draw(ctx, t) {
   ctx.save(); setCam(ctx, cm, 1); world(ctx, t, cm); ctx.restore(); LW = 1;
   // the end: a plain plate of the same water (the moon, a few rings), the card in the hand font
   const pe = ss(B.end - .2, B.end + .35, t);
-  if (pe > 0) { ctx.save(); ctx.globalAlpha = pe * .94; ctx.drawImage(BG, 0, 0); ctx.restore();
+  if (pe > 0) { ctx.save(); ctx.globalAlpha = pe; ctx.drawImage(BG, 0, 0); ctx.restore();
     ctx.save(); ctx.globalAlpha = pe; ink(ctx, ell(810, 560, 54, 42, 20).map((q, i) => [q[0] + Math.sin(i * 1.7) * 3, q[1] + Math.cos(i * 2.3) * 3]), { fill: C.moon, lw: 3 });
-    for (let i = 0; i < 5; i++) { const R = 330 + i * 70 + (t - B.end) * 6; arc(ctx, 540, 1360, R, R * .3, .5 + i * .9, .9 + i * .9, 2.6); } ctx.restore(); }
+    for (let i = 0; i < 5; i++) { const R = 330 + i * 70 + (t - B.end) * 6; arc(ctx, 540, 1600, R, R * .22, .5 + i * .9, .9 + i * .9, 2.6); } ctx.restore(); }
   if (t < B.end) Story.captions(ctx, t, S.lines, { font: HAND, weight: 400, size: 74, y: 410, color: C.ink, srcColor: '#20243a', shadow: 'rgba(86,128,189,.95)', shadowBlur: 16 });
   ctx.save(); ctx.translate(540, 820); ctx.scale(1.18, 1.18); ctx.translate(-540, -820);
   Story.endCard(ctx, t, S.endCard, B.end, { font: HAND, color: C.ink, srcFont: HAND, srcColor: '#22263c', y: 820, titleShadow: '' });
