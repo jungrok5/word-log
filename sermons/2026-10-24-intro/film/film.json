@@ -1,0 +1,14 @@
+{
+ "title": "word-log 채널 소개 — 키보드 위의 말씀",
+ "source": "ko",
+ "scenes": [
+  { "id": "intro-keyboard", "label": "채널 소개 · 키보드 위의 말씀 (영상 모델 캐릭터 테스트)", "dur": 13 }
+ ],
+ "poster": 8.4,
+ "fonts": {
+  "local": {
+   "Noto Sans KR": "NotoSansKR[wght].ttf",
+   "Do Hyeon": "DoHyeon-Regular.ttf"
+  }
+ }
+}
