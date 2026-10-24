@@ -1,0 +1,389 @@
+{
+ "duration": 30.5,
+ "family": "felt",
+ "ducks": [
+  {
+   "from": 19.42,
+   "to": 19.56,
+   "db": -14,
+   "ramp": 0.08,
+   "note": "a breath of near-silence before the fall: everything placed before 19.42 dips under the hit (wind/drone return with it)"
+  }
+ ],
+ "music": [
+  {
+   "id": "m1",
+   "src": "cs-felt-burden",
+   "at": 0.0,
+   "len": 4.9,
+   "db": -1.2,
+   "fout": 0.5,
+   "note": "felt-burden take 3 of 4 (D minor, felt piano chord on frame 0 + cello, holds to 4.9) — levelled to v2 m1 (-21.8 dB RMS placed)",
+   "prompt": "Intimate dark chamber music in D minor: a felt upright piano playing slow heavy low chords and a solo cello sustaining long low notes, close and dry like a small quiet room, slow 60 bpm, grave and burdened, weight and effort, starts immediately at full presence, no drums, no bright notes, no vocals"
+  },
+  {
+   "id": "m2",
+   "src": "cs-felt-push",
+   "at": 4.55,
+   "len": 7.45,
+   "db": -1.6,
+   "fin": 0.25,
+   "fout": 0.03,
+   "note": "felt-push take 4 of 4 (D minor cello ostinato; own accent at file 5.75 → ≈10.3, the third cut) — levelled to v2 m2 (-22.1 dB RMS placed)",
+   "prompt": "Tense intimate chamber music in D minor: a solo cello playing a restless driving low ostinato in eighth notes with a felt piano hammering one low anxious note at 84 bpm, hurried and uneasy, not cheerful, close and dry; in the last third the cello drops away leaving only the low repeated piano note and one held cello note, no drums, no vocals"
+  },
+  {
+   "id": "m3",
+   "src": "cs-felt-dread",
+   "at": 12.6,
+   "len": 9.4,
+   "db": 2.2,
+   "fin": 0.8,
+   "fout": 1.5,
+   "note": "felt-dread take 1 of 4 (D, cello tremolo crescendo to ≈19.1, drops at ≈19.6 = the fall) — levelled to v2 m3 (-23.4 dB RMS placed)",
+   "prompt": "Dark intimate dread in D minor: a solo cello holding a very quiet sustained low note with slow tremolo, the lowest strings of a felt piano resonating softly underneath, close and dry, near silence and space, suspended tension, no rhythm, no melody, slowly breathing, no vocals"
+  },
+  {
+   "id": "m4",
+   "src": "cs-felt-grave",
+   "at": 21.2,
+   "len": 9.3,
+   "db": -1.6,
+   "fin": 0.4,
+   "fout": 1.5,
+   "note": "felt-grave take 1 of 4 from file 0.20 s (cello enters full at file 3.3 → 24.3 = last piece locks in) — levelled to v2 m4 (-23.3 dB RMS placed)",
+   "prompt": "Grave, aching chamber theme in D minor turning to D major: a solo cello melody over slow felt upright piano chords, close and intimate, starting quiet and sorrowful, building steadily to a full warm resolved swell at the third second, then settling slowly and fading to quiet at the end, slow 60 bpm, solemn and tender, no drums, no vocals"
+  }
+ ],
+ "note": "felt family: intimate chamber score (felt upright piano, solo cello) on v2's cue points; close dry foley (steps, saw, wood knocks), a low piano strike inside the fall, close room tone.",
+ "sfx": [
+  {
+   "id": "bed",
+   "src": "cs-bed-room",
+   "at": 0.0,
+   "len": 30.5,
+   "db": 24.4,
+   "loop": true,
+   "note": "bed-room take 1 (close still room tone) (placed ≈ -39 dB RMS; v2 wind -37.8)",
+   "prompt": "Quiet close room tone, a soft low air hum in a small still room, intimate, near silence, no voices, no clock ticking"
+  },
+  {
+   "id": "steps",
+   "src": "cs-f-steps",
+   "at": 0.0,
+   "len": 3.15,
+   "db": 0.20000000000000018,
+   "fout": 0.3,
+   "note": "f-steps take 1 of 4: dry close trudge, steps ≈0.28/1.10/1.43/2.15/2.46",
+   "prompt": "Slow heavy footsteps on a dry dirt path, close and dry, a wooden beam on the shoulder creaking softly with each step, intimate, no reverb"
+  },
+  {
+   "id": "sw1",
+   "src": "cs-f-saw",
+   "at": 3.2,
+   "len": 0.45,
+   "db": -4.6,
+   "fout": 0.06,
+   "note": "f-saw take 4 from file 0.20 (densest strokes)",
+   "prompt": "A hand saw cutting through a thick wooden beam, two short dry rasping strokes, very close, no reverb"
+  },
+  {
+   "id": "dr1",
+   "src": "cs-f-drop",
+   "at": 3.969,
+   "len": 0.6,
+   "db": -7.9,
+   "fout": 0.15,
+   "note": "f-drop take 2 of 4 (single dry knock), peak on the drop",
+   "prompt": "A sawn-off block of wood dropping onto a dirt path, one dry dull heavy wooden knock, very close"
+  },
+  {
+   "id": "cl1",
+   "src": "thunk-lo",
+   "at": 3.975,
+   "len": 0.8,
+   "db": -13,
+   "fout": 0.3,
+   "note": "v2 deep thunk, lower — weight under the dry drop"
+  },
+  {
+   "id": "st",
+   "src": "cs-f-strides",
+   "at": 4.6,
+   "len": 4.1,
+   "db": 16.5,
+   "loop": true,
+   "fin": 0.15,
+   "fout": 0.5,
+   "note": "f-strides take 2 of 4 (dry hurried steps ≈ every 0.33 s)",
+   "prompt": "Fast hurried footsteps on a dry dirt path, close and dry, one person rushing ahead with long strides, no reverb"
+  },
+  {
+   "id": "sw2",
+   "src": "cs-f-saw-b",
+   "at": 9.0,
+   "len": 0.45,
+   "db": -3.7,
+   "fout": 0.06,
+   "note": "f-saw take 1 from file 0.40"
+  },
+  {
+   "id": "dr2",
+   "src": "cs-f-drop",
+   "at": 9.769,
+   "len": 0.6,
+   "db": -5.9,
+   "fout": 0.15
+  },
+  {
+   "id": "cl2",
+   "src": "thunk-lo",
+   "at": 9.775,
+   "len": 0.8,
+   "db": -14,
+   "fout": 0.3,
+   "note": "v2 deep thunk, lower — weight under the dry drop"
+  },
+  {
+   "id": "sw3",
+   "src": "cs-f-saw",
+   "at": 10.4,
+   "len": 0.45,
+   "db": -4.6,
+   "fout": 0.06
+  },
+  {
+   "id": "dr3",
+   "src": "cs-f-drop",
+   "at": 11.169,
+   "len": 0.6,
+   "db": -5.9,
+   "fout": 0.15
+  },
+  {
+   "id": "cl3",
+   "src": "thunk-lo",
+   "at": 11.175,
+   "len": 0.8,
+   "db": -15,
+   "fout": 0.3,
+   "note": "v2 deep thunk, lower — weight under the dry drop"
+  },
+  {
+   "id": "ab",
+   "src": "abyss",
+   "at": 11.98,
+   "len": 10.6,
+   "db": -12,
+   "loop": true,
+   "fin": 0.08,
+   "fout": 2.0,
+   "note": "v2 chasm drone, lower (intimate)",
+   "prompt": "Deep low hollow drone rising from a deep chasm, distant cavernous wind moaning far below, dark, empty and tense, steady"
+  },
+  {
+   "id": "hm",
+   "src": "hum",
+   "at": 12.4,
+   "len": 9.0,
+   "db": -14,
+   "loop": true,
+   "fin": 1.5,
+   "fout": 1.5,
+   "note": "reused v1 light hum, much lower than v1 — only a trace of the gate's light"
+  },
+  {
+   "id": "tb1",
+   "src": "cs-f-lay",
+   "at": 14.163,
+   "len": 0.8,
+   "db": 0.10000000000000009,
+   "fout": 0.25,
+   "note": "f-lay take 1 of 4 (deep dry thump)",
+   "prompt": "A long heavy wooden beam laid down across two rock edges, one dry deep wooden thump, close, short"
+  },
+  {
+   "id": "tl1",
+   "src": "thunk-lo",
+   "at": 14.173,
+   "len": 0.9,
+   "db": -9,
+   "fout": 0.3,
+   "note": "v1 deep thunk layered, peaks aligned"
+  },
+  {
+   "id": "cr1",
+   "src": "crossing",
+   "at": 14.55,
+   "len": 0.8,
+   "db": -14,
+   "fout": 0.25,
+   "note": "take 1 of 4: steps over the timber (t+0.35)",
+   "prompt": "A few quick heavy footsteps crossing a thick wooden beam over a deep drop, hollow timber steps with a slight creak"
+  },
+  {
+   "id": "tl2",
+   "src": "thunk-lo",
+   "at": 15.373,
+   "len": 0.9,
+   "db": -9,
+   "fout": 0.3
+  },
+  {
+   "id": "tb2",
+   "src": "cs-f-lay-b",
+   "at": 15.39,
+   "len": 0.8,
+   "db": 6.2,
+   "fout": 0.25,
+   "note": "f-lay take 3 of 4"
+  },
+  {
+   "id": "cr2",
+   "src": "crossing-b",
+   "at": 15.75,
+   "len": 0.8,
+   "db": -14,
+   "fout": 0.25,
+   "note": "take 2 of the crossing node"
+  },
+  {
+   "id": "tb3",
+   "src": "cs-f-lay",
+   "at": 16.563,
+   "len": 0.8,
+   "db": 0.10000000000000009,
+   "fout": 0.25
+  },
+  {
+   "id": "tl3",
+   "src": "thunk-lo",
+   "at": 16.573,
+   "len": 0.9,
+   "db": -9,
+   "fout": 0.3
+  },
+  {
+   "id": "cr3",
+   "src": "crossing",
+   "at": 16.95,
+   "len": 0.8,
+   "db": -14,
+   "fout": 0.25
+  },
+  {
+   "id": "kn",
+   "src": "knock",
+   "at": 18.373,
+   "len": 0.9,
+   "db": -6,
+   "fout": 0.2,
+   "note": "reused v1 hollow knock (my short cross on the lip)"
+  },
+  {
+   "id": "tp",
+   "src": "tip",
+   "at": 19.25,
+   "len": 0.45,
+   "db": -4,
+   "fout": 0.1,
+   "note": "reused v1 creak + scrape"
+  },
+  {
+   "id": "hit",
+   "src": "boom",
+   "at": 19.54,
+   "len": 4.0,
+   "db": -5,
+   "fout": 1.2,
+   "note": "v2 deep impact, lower: the piano strike leads"
+  },
+  {
+   "id": "pno",
+   "src": "cs-hit-piano",
+   "at": 19.55,
+   "len": 3.0,
+   "db": 5.199999999999999,
+   "fout": 1.2,
+   "note": "hit-piano take 1 of 4 (one low struck note, pedal down); attack at file 0 → 19.55, right after the breath",
+   "prompt": "A single very low piano note and low cluster struck hard with the sustain pedal down, a dark resonant boom with a long decay"
+  },
+  {
+   "id": "fl",
+   "src": "fall",
+   "at": 19.56,
+   "len": 2.0,
+   "db": -11,
+   "fin": 0.05,
+   "fout": 0.8,
+   "note": "take 4 of 4: hollow falling whoosh (swells to ≈20.2, drops away by ≈21.0)",
+   "prompt": "A heavy wooden cross tumbling down into a deep ravine, a long hollow falling whoosh and the wood scraping and knocking against rock as it drops away, getting more distant"
+  },
+  {
+   "id": "cs",
+   "src": "crash",
+   "at": 20.8,
+   "len": 1.8,
+   "db": -10,
+   "fout": 0.8,
+   "note": "v2 distant crash, lower and shorter (drier room)",
+   "prompt": "A distant heavy wooden crash far below at the bottom of a deep canyon, splintering impact with a long echoing reverb tail rolling off the rock walls"
+  },
+  {
+   "id": "rs1",
+   "src": "rise",
+   "at": 21.81,
+   "len": 2.0,
+   "db": -10,
+   "fin": 0.1,
+   "fout": 0.5,
+   "note": "take 4 of 4 pitched +2 (C→D); swell peak 1.09 s → on each lock",
+   "prompt": "A deep low resonant swell, a warm dark bass tone rising with a soft rumble and then fading, cinematic, no high frequencies"
+  },
+  {
+   "id": "rs2",
+   "src": "rise",
+   "at": 22.51,
+   "len": 2.0,
+   "db": -8,
+   "fin": 0.1,
+   "fout": 0.5
+  },
+  {
+   "id": "lk1",
+   "src": "cs-f-lock",
+   "at": 22.821,
+   "len": 0.8,
+   "db": -1.5,
+   "fout": 0.3,
+   "note": "f-lock take 1 of 4",
+   "prompt": "A wooden block fitting firmly into a wooden joint, one dry solid deep wooden knock, close, final"
+  },
+  {
+   "id": "rs3",
+   "src": "rise",
+   "at": 23.21,
+   "len": 2.0,
+   "db": -6,
+   "fin": 0.1,
+   "fout": 0.6
+  },
+  {
+   "id": "lk2",
+   "src": "cs-f-lock-b",
+   "at": 23.6,
+   "len": 0.8,
+   "db": 10.8,
+   "fout": 0.3,
+   "note": "f-lock take 2 of 4"
+  },
+  {
+   "id": "lk3",
+   "src": "cs-f-lock",
+   "at": 24.221,
+   "len": 0.8,
+   "db": -3.1,
+   "fout": 0.3
+  }
+ ]
+}

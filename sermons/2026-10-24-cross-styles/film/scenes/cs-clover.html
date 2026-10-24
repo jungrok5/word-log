@@ -1,0 +1,789 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>잘라 낸 건 다리였다 · 11 클로버 수채</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hi+Melody&family=Noto+Sans+KR:wght@400;500;600&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 잘라 낸 건 다리였다 — 11 pastel clover picnic (watercolour + coloured pencil), from lab-clover (code version).
+   Every shape is a transparent wash on cold-press paper: flat colour with soft blooms, pigment pooled darker at the edges,
+   a thin broken coloured-pencil contour in a darker shade of itself. Depth by softness and value: pale blurred clover far,
+   crisp saturated leaves near. Big three-leaf clovers with pale chevrons, white clover flower balls, grass blades.
+   The pilgrims are round little hamsters (the lab's hamster). Me: the orange one, carrying a cross of warm honey-gold wood
+   (the one accent; the others are pale grey/cream hamsters with weathered grey crosses). The road is a sandy footpath
+   through the clover; the gap is a brook gully a hamster cannot step over; on the far side a plain round arch of bent
+   willow twig with warm sunlight pouring through (the lab's sunbeam). The hit: my short cross drops into the brook — a
+   watercolour splash, crash zoom and shake. The cut pieces glow honey-gold, lift and fly into a dashed pencil outline
+   of my whole cross over the gully. Native motion: leaves and flower heads sway, dappled light drifts over the path,
+   the brook ripples, motes drift in the sunbeam, a ladybug walks a leaf. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng, noise } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const C = {
+  sky0: '#b9e0dc', sky1: '#e9f3d6', far: '#a3d38c', farL: '#86bd76', mid: '#79c164', midL: '#4f9a4a', near: '#66b558', nearL: '#3f8a40', deep: '#55a64f',
+  chev: 'rgba(232,248,210,.55)', blade: '#8cc67a', bladeL: '#5d9a58', stem: '#9ccc86', flower: '#fdfdf8', flowerL: '#c6cdb9', flowerC: '#dfe6c8',
+  path: '#efe2c2', pathD: '#dcc59a', pathL: '#b89a6e', earth: '#caa47a', earthD: '#9b7651', earthL: '#6f5238', water: '#a7d4dd', waterD: '#6fa7b6', waterL: '#effaf6',
+  gold: '#ebb35a', goldD: '#c27f2c', goldL: '#8f5d24', xw: '#cdc6b7', xwD: '#a49b8a', xwL: '#7b7366',
+  saw: '#c4c9d0', sawL: '#7c838e', handle: '#c48a55', handleL: '#8a5a32', warm: '#ffd88a', ink: '#5f7f52', twig: '#a9825c', twigL: '#6f523a',
+};
+const PAL = {
+  me: { ham: '#f3bf8a', hamD: '#e3a46e', hamL: '#b97c4e', belly: '#fffaf1', pink: '#f5b8b0', nose: '#e88f8c', edge: 'rgba(200,120,70,.42)' },
+  p: [{ ham: '#dcd5ca', hamD: '#c9c0b2', hamL: '#8f877d', belly: '#fbf9f4', pink: '#ebc9c3', nose: '#d8a6a0', edge: 'rgba(120,108,96,.32)' },
+      { ham: '#d3d6d4', hamD: '#bcc1c0', hamL: '#828a8a', belly: '#fafbf8', pink: '#e8c8c4', nose: '#d4a3a0', edge: 'rgba(100,110,112,.32)' },
+      { ham: '#e5dcc9', hamD: '#d3c6ad', hamL: '#978a73', belly: '#fdfbf4', pink: '#eecbc2', nose: '#dba69e', edge: 'rgba(130,112,84,.32)' },
+      { ham: '#d9d0cc', hamD: '#c5bab5', hamL: '#8c817c', belly: '#fbf8f6', pink: '#eac6c2', nose: '#d6a29e', edge: 'rgba(118,102,98,.32)' }],
+};
+const L = 520, PW = 34, CBX = L - 140, CBW = 32, CBH = 104, CBHL = 40;   // cross: post length, width; crossbar (from foot), thickness, half-length upright / lying
+const FY = 1300, BY = 1250, RT = 1204, PN = 1352;                         // my lane, the others' lane, the path's far / near edge
+const REST = 26, G = L - 2 * REST;                                         // a full cross rests 26 px on each lip: the gully is G wide
+const KM = 2.5, KP = 2.2;                                                  // hamster scale (world px per lab unit): me / the others
+const WATER = 1690;
+const t12 = t => Math.floor(t * 12 + 1e-6) / 12;
+const frac = x => x - Math.floor(x);
+const shade = (hex, k) => { const c = Pilot.hex(hex); return `rgb(${c[0] * k | 0},${c[1] * k | 0},${c[2] * k | 0})`; };
+
+// ---------------- watercolour helpers (from lab-clover) ----------------
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+function smooth(pts, closed = true) {
+  const p = new Path2D(), n = pts.length;
+  if (closed) { const m0 = mid(pts[n - 1], pts[0]); p.moveTo(m0[0], m0[1]);
+    for (let i = 0; i < n; i++) { const a = pts[i], m = mid(a, pts[(i + 1) % n]); p.quadraticCurveTo(a[0], a[1], m[0], m[1]); } p.closePath(); }
+  else { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n - 1; i++) { const m = mid(pts[i], pts[i + 1]); p.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } p.lineTo(pts[n - 1][0], pts[n - 1][1]); }
+  return p;
+}
+function rough(pts, amp, seed, step = 10, closed = true) {
+  const o = [], n = pts.length, m = closed ? n : n - 1;
+  for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n], Ln = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.round(Ln / step));
+    for (let j = 0; j < k; j++) { const u = j / k, x = a[0] + (b[0] - a[0]) * u, y = a[1] + (b[1] - a[1]) * u;
+      o.push([x + (noise(x * .03 + seed, y * .03) - .5) * amp, y + (noise(y * .03 + seed * 1.7, x * .03 + 9) - .5) * amp]); } }
+  if (!closed) o.push(pts[n - 1]);
+  return o;
+}
+const pathOf = (pts, closed = true) => { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); if (closed) p.closePath(); return p; };
+const ellPts = (cx, cy, rx, ry, n = 22) => { const o = []; for (let i = 0; i < n; i++) { const a = i / n * TAU; o.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); } return o; };
+const TX = {}, FX = {};
+// a wash: colour + blooms + pigment pooled at the edge (layered inner strokes) + a thin, slightly broken pencil contour
+function wash(ctx, path, col, edge, o = {}) {
+  ctx.save(); ctx.fillStyle = col; ctx.fill(path); ctx.clip(path);
+  ctx.globalAlpha = o.bloom ?? .5; ctx.fillStyle = TX.bloomPat; ctx.fill(path); ctx.globalAlpha = 1;
+  if (edge) { const ew = o.ew ?? 9, pool = o.pool ?? .4; ctx.strokeStyle = edge; ctx.lineJoin = 'round';
+    for (const [w, a] of [[ew * 1.8, .18], [ew, .3], [ew * .4, .45]]) { ctx.globalAlpha = pool * a * 1.6; ctx.lineWidth = w; ctx.stroke(path); } ctx.globalAlpha = 1; }
+  ctx.restore();
+  if (o.line) { ctx.save(); ctx.strokeStyle = o.line; ctx.lineWidth = o.lw || 2; ctx.globalAlpha = o.la ?? .75; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.setLineDash(o.dash || [140, 5, 90, 4, 200, 6]); ctx.lineDashOffset = (o.seed || 0) * 13; ctx.stroke(path); ctx.restore(); }
+}
+function bloomTexture(w, h, seed) {   // soft light/dark blooms + granulation, transparent; seamless (it is used as a repeating pattern)
+  const c = Pilot.canvas(w, h), x = c.getContext('2d'), d = x.createImageData(w, h), q = d.data, r = rng(seed);
+  const nb = (i, y) => noise(i / 70 + seed, y / 70) * .6 + noise(i / 22, y / 22 + seed) * .4;
+  for (let y = 0; y < h; y++) for (let i = 0; i < w; i++) {
+    const u = i / w, v0 = y / h, bs = nb(i, y) * (1 - u) * (1 - v0) + nb(i + w, y) * u * (1 - v0) + nb(i, y + h) * (1 - u) * v0 + nb(i + w, y + h) * u * v0;
+    const k = Math.sqrt((1 - u) * (1 - u) + u * u) * Math.sqrt((1 - v0) * (1 - v0) + v0 * v0);   // keep the contrast where the four blend
+    const b = (bs - .5) / k, g = r(), o = (y * w + i) * 4, v = b * 1.6 + (g - .5) * .35;
+    if (v > 0) { q[o] = 255; q[o + 1] = 255; q[o + 2] = 245; q[o + 3] = Math.min(255, v * 150); } else { q[o] = 40; q[o + 1] = 70; q[o + 2] = 40; q[o + 3] = Math.min(255, -v * 110); } }
+  x.putImageData(d, 0, 0); return c;
+}
+function paperTexture(w, h, seed) {   // cold-press watercolour paper
+  const c = Pilot.canvas(w, h), x = c.getContext('2d'), d = x.createImageData(w, h), q = d.data, r = rng(seed);
+  for (let y = 0; y < h; y++) for (let i = 0; i < w; i++) {
+    const tooth = noise(i / 3.5, y / 3.5 + seed) * .6 + noise(i / 9, y / 9) * .4, lo = noise(i / 200, y / 200 + seed), o = (y * w + i) * 4, v = 128 + (tooth - .5) * 46 + (lo - .5) * 26 + (r() - .5) * 10;
+    q[o] = q[o + 1] = q[o + 2] = v; q[o + 3] = 255; }
+  x.putImageData(d, 0, 0); return c;
+}
+
+// ---------------- clover pieces (from lab-clover) ----------------
+function leaflet(s) {
+  const p = new Path2D(); p.moveTo(0, 0);
+  p.bezierCurveTo(-s * .5, -s * .18, -s * .66, -s * .98, -s * .3, -s * 1.08);
+  p.quadraticCurveTo(-s * .07, -s * 1.12, 0, -s * .95);
+  p.quadraticCurveTo(s * .07, -s * 1.12, s * .3, -s * 1.08);
+  p.bezierCurveTo(s * .66, -s * .98, s * .5, -s * .18, 0, 0); p.closePath(); return p;
+}
+const LEAFS = ['#6fbd5c', '#5daf52', '#86ca6a', '#4fa24c', '#93d070', '#72b95f'];
+function cloverLeaf(ctx, x, y, s, rot, tilt, col, line, seed, o = {}) {
+  if (!o.keep) col = Pilot.rgb(Pilot.mix(Pilot.hex(col), Pilot.hex(LEAFS[Math.abs(seed | 0) % LEAFS.length]), .45));
+  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(1, tilt);
+  const r = rng(seed);
+  for (let i = 0; i < 3; i++) { const a = -Math.PI / 2 + (i - 1) * 2.15 + (r() - .5) * .2;
+    ctx.save(); ctx.rotate(a + Math.PI / 2); const lp = leaflet(s * (.92 + r() * .16));
+    wash(ctx, lp, col, line, { bloom: .4, line: o.noLine ? null : (o.lineCol || '#3f7d40'), la: .85, lw: 2.4 / Math.sqrt(tilt), seed: seed + i, ew: s * .12 });
+    { const g = ctx.createLinearGradient(0, 0, 0, -s * 1.1); g.addColorStop(0, 'rgba(30,80,40,.32)'); g.addColorStop(.5, 'rgba(30,80,40,.06)'); g.addColorStop(1, 'rgba(240,255,210,.12)');
+      ctx.save(); ctx.clip(lp); ctx.fillStyle = g; ctx.fillRect(-s, -s * 1.2, 2 * s, s * 1.3); ctx.restore(); }
+    ctx.strokeStyle = C.chev; ctx.lineWidth = Math.max(2, s * .045); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(-s * .3, -s * .78); ctx.quadraticCurveTo(-s * .1, -s * .56, 0, -s * .5); ctx.quadraticCurveTo(s * .1, -s * .56, s * .3, -s * .78); ctx.stroke();
+    ctx.strokeStyle = 'rgba(60,110,60,.25)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(0, -s * .05); ctx.lineTo(0, -s * .9); ctx.stroke();
+    ctx.restore(); }
+  ctx.restore();
+}
+function leafSprite(s, tilt, col, line, seed, o = {}) {   // a leaf without its stem, centred
+  const pad = s * 1.25, c = Pilot.canvas(Math.ceil(pad * 2), Math.ceil(pad * 2 * Math.max(tilt, .5))), x = c.getContext('2d');
+  cloverLeaf(x, c.width / 2, c.height / 2, s, (rng(seed)() - .5) * .5, tilt, col, line, seed, o); return c;
+}
+function cloverSprite(s, tilt, col, line, seed, stemH, stemCol) {   // a leaf on its stem, pivot at the stem's foot
+  const pad = s * 1.3, c = Pilot.canvas(Math.ceil(pad * 2 + 20), Math.ceil(pad * 2 * tilt + stemH + 40)), x = c.getContext('2d');
+  const cx = c.width / 2, cy = pad * tilt + 20;
+  x.strokeStyle = stemCol || C.stem; x.lineWidth = Math.max(4, s * .08); x.lineCap = 'round';
+  x.beginPath(); x.moveTo(cx, cy); x.quadraticCurveTo(cx + s * .15, cy + stemH * .5, cx, cy + stemH); x.stroke();
+  cloverLeaf(x, cx, cy, s, (rng(seed)() - .5) * .5, tilt, col, line, seed);
+  c.px = cx; c.py = cy + stemH; return c;
+}
+function flowerSprite(r, seed, pale = 0) {   // a white clover flower ball: many small reflexed florets
+  const c = Pilot.canvas(r * 2.8, r * 2.8), x = c.getContext('2d'), rr = rng(seed), cx = c.width / 2, cy = c.height / 2;
+  x.fillStyle = C.flowerC; x.beginPath(); x.ellipse(cx, cy + r * .1, r * .75, r * .7, 0, 0, TAU); x.fill();
+  const n = 70; for (let i = 0; i < n; i++) { const a = rr() * TAU, d = Math.sqrt(rr()) * r * .8, px = cx + Math.cos(a) * d, py = cy + Math.sin(a) * d * .9;
+    const ang = Math.atan2(py - cy + r * .3, px - cx), Lf = r * (.38 + rr() * .2);
+    x.save(); x.translate(px, py); x.rotate(ang + Math.PI / 2); const p = new Path2D(); p.ellipse(0, Lf * .45, Lf * .22, Lf * .55, 0, 0, TAU);
+    x.fillStyle = rr() < .12 ? '#f3efe6' : C.flower; x.fill(p); x.strokeStyle = C.flowerL; x.lineWidth = 1.4; x.globalAlpha = .7; x.stroke(p); x.globalAlpha = 1; x.restore(); }
+  x.globalCompositeOperation = 'source-atop'; const g = x.createLinearGradient(0, cy - r, 0, cy + r); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(150,170,130,.28)'); x.fillStyle = g; x.fillRect(0, 0, c.width, c.height);
+  if (pale) { x.fillStyle = `rgba(225,238,230,${pale})`; x.fillRect(0, 0, c.width, c.height); }
+  return c;
+}
+function blade(ctx, x, y, h, bend, w, col, line) {
+  const p = new Path2D(); p.moveTo(x - w / 2, y); p.quadraticCurveTo(x - w * .3 + bend * .4, y - h * .6, x + bend, y - h); p.quadraticCurveTo(x + w * .3 + bend * .4, y - h * .6, x + w / 2, y); p.closePath();
+  ctx.fillStyle = col; ctx.fill(p); if (line) { ctx.strokeStyle = line; ctx.lineWidth = 1.6; ctx.globalAlpha = .6; ctx.stroke(p); ctx.globalAlpha = 1; }
+}
+function violet(ctx, x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  for (let i = 0; i < 5; i++) { ctx.save(); ctx.rotate(i / 5 * TAU); const p = new Path2D(); p.ellipse(0, -24, 19, 24, 0, 0, TAU); ctx.fillStyle = '#b4b9ec'; ctx.fill(p); ctx.strokeStyle = '#7f86c9'; ctx.lineWidth = 2; ctx.globalAlpha = .7; ctx.stroke(p); ctx.restore(); }
+  ctx.fillStyle = '#fff'; for (let i = 0; i < 5; i++) { ctx.save(); ctx.rotate(i / 5 * TAU); ctx.fillRect(-1.5, -18, 3, 14); ctx.restore(); } ctx.beginPath(); ctx.arc(0, 0, 6, 0, TAU); ctx.fill(); ctx.restore();
+}
+
+// ---------------- the cross: a watercolour wash of wood, post along +x (foot at 0, top at L) ----------------
+const KX = 2, CPAD = 14;
+function crossSprite(col, edge, line, lying, seed) {
+  const hb = lying ? CBHL : CBH, w = (L + 2 * CPAD) * KX, h = (2 * hb + 2 * CPAD) * KX, c = Pilot.canvas(w, h), g = c.getContext('2d');
+  g.setTransform(KX, 0, 0, KX, CPAD * KX, (hb + CPAD) * KX);
+  const cw = lying ? CBW * .9 : CBW;
+  const out = [[0, -PW / 2], [CBX - cw / 2, -PW / 2], [CBX - cw / 2, -hb], [CBX + cw / 2, -hb], [CBX + cw / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
+    [CBX + cw / 2, PW / 2], [CBX + cw / 2, hb], [CBX - cw / 2, hb], [CBX - cw / 2, PW / 2], [0, PW / 2]];
+  const p = pathOf(rough(out, 1.6, seed, 12));
+  wash(g, p, col, edge, { bloom: .35, ew: 7, pool: .55 });
+  g.save(); g.clip(p);
+  // wood grain: thin wavy pencil strokes along the post and the crossbar
+  const r = rng(seed); g.strokeStyle = edge; g.lineCap = 'round';
+  for (let k = 0; k < 6; k++) { const yy = -PW / 2 + 5 + k * (PW - 10) / 5 + (r() - .5) * 3; g.globalAlpha = .28 + r() * .2; g.lineWidth = .9 + r() * .6; g.beginPath();
+    for (let x = 2; x < L; x += 14) { const yv = yy + Math.sin(x / 40 + k * 2 + seed) * 1.6; x === 2 ? g.moveTo(x, yv) : g.lineTo(x, yv); } g.stroke(); }
+  for (let k = 0; k < 3; k++) { const xx = CBX - cw / 2 + 6 + k * (cw - 12) / 2; g.globalAlpha = .26; g.lineWidth = 1; g.beginPath(); g.moveTo(xx, -hb + 4); g.lineTo(xx + Math.sin(k) * 1.5, hb - 4); g.stroke(); }
+  // a knot or two, light along the top edge
+  g.globalAlpha = .35; g.lineWidth = 1.3; for (const kx of [L * .3, L * .62]) { g.beginPath(); g.ellipse(kx, 3, 7, 3, 0, 0, TAU); g.stroke(); }
+  g.globalAlpha = .5; g.strokeStyle = 'rgba(255,250,232,.9)'; g.lineWidth = 3; g.beginPath(); g.moveTo(4, -PW / 2 + 3); g.lineTo(L - 4, -PW / 2 + 3); g.stroke();
+  g.restore();
+  g.save(); g.strokeStyle = line; g.lineWidth = 2; g.globalAlpha = .8; g.setLineDash([120, 4, 70, 3, 160, 5]); g.lineJoin = 'round'; g.stroke(p); g.restore();
+  return { c, hb };
+}
+// draw cross material [u0, u1] (local x along the post) with the foot origin at (x, y), angle a; cut ends get end grain
+function drawCross(ctx, X, u0, u1, x, y, a, alpha = 1, glow = 0) {
+  if (u1 - u0 < .5 || alpha <= 0) return;
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.globalAlpha = alpha;
+  const hb = X.hb, dh = 2 * hb + 2 * CPAD, left = u0 <= .5 ? -CPAD : u0, right = u1 >= L - .5 ? L + CPAD : u1;
+  if (glow > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha * glow * .5; ctx.filter = 'blur(10px)';
+    ctx.drawImage(X.c, (left + CPAD) * KX, 0, (right - left) * KX, dh * KX, left - 6, -hb - CPAD - 6, right - left + 12, dh + 12); ctx.restore(); }
+  ctx.drawImage(X.c, (left + CPAD) * KX, 0, (right - left) * KX, dh * KX, left, -hb - CPAD, right - left, dh);
+  ctx.fillStyle = X.endc;
+  for (const u of [u0 > .5 ? u0 : null, u1 < L - .5 ? u1 : null]) if (u != null) { ctx.globalAlpha = alpha * .9; ctx.fillRect(u - 2.5, -PW / 2 + 1, 5, PW - 2); }
+  ctx.restore();
+}
+
+// ---------------- the hamster (lab units: feet at y = 0, body centre (0, -58), 60 × 54) ----------------
+// F: { x, gy, k, f (+1 faces right), lean, bob, crouch, sq, breath, head, eye, feet: [[u, up] far, near], paws: [far, near] world targets | null, pal, alpha }
+const SH_N = [26, -50], SH_F = [32, -56];
+function bodyPt(F, u, v) {
+  const lean = F.lean || 0, cr = F.crouch || 0, sq = F.sq || 1, cl = Math.cos(lean), sl = Math.sin(lean);
+  const x = u / Math.sqrt(sq), y = v * (1 - .17 * cr) * sq, dy = y + 20;
+  return [x * cl - dy * sl, -20 + x * sl + dy * cl - (F.bob || 0)];
+}
+const worldPt = (F, u, v) => { const p = bodyPt(F, u, v); return [F.x + F.f * F.k * p[0], F.gy + F.k * p[1]]; };
+function capsule(a, b, wa, wb, n = 7) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], an = Math.atan2(dy, dx), pts = [];
+  for (let i = 0; i <= n; i++) { const q = an + Math.PI / 2 + Math.PI * i / n; pts.push([a[0] + Math.cos(q) * wa / 2, a[1] + Math.sin(q) * wa / 2]); }
+  for (let i = 0; i <= n; i++) { const q = an - Math.PI / 2 + Math.PI * i / n; pts.push([b[0] + Math.cos(q) * wb / 2, b[1] + Math.sin(q) * wb / 2]); }
+  return pts;
+}
+function drawHam(ctx, F, mid, front) {
+  const al = F.alpha ?? 1; if (al <= 0) return;
+  const P = F.pal, k = F.k, f = F.f, lean = F.lean || 0, br = F.breath || 1, m0 = ctx.getTransform();
+  const Bp = (u, v) => bodyPt(F, u, v), toL = p => [(p[0] - F.x) / (f * k), (p[1] - F.gy) / k];
+  ctx.save(); ctx.globalAlpha = al; ctx.translate(F.x, F.gy); ctx.scale(f * k, k);
+  const feet = F.feet || [[-12, 0], [12, 0]];
+  const foot = ([u, up], near) => { const p = new Path2D(); p.ellipse(u + (near ? 14 : -10), -up - 5, 12, 7, 0, 0, TAU); ctx.fillStyle = near ? P.pink : shade(P.pink, .92); ctx.fill(p);
+    ctx.strokeStyle = shade(P.nose, .85); ctx.lineWidth = 1.1; ctx.globalAlpha = al * .55; ctx.stroke(p); ctx.globalAlpha = al; };
+  foot(feet[0], false);
+  // body: rough contour cached per pal (no boiling), breathing scales it about the centre
+  const raw = FX.body; const body = smooth(raw.map(([u, v]) => Bp(u, -58 + (v + 58) * br)));
+  ctx.fillStyle = P.ham; ctx.fill(body);
+  ctx.save(); ctx.clip(body);
+  const bel = Bp(22, -34); ctx.fillStyle = P.belly; ctx.beginPath(); ctx.ellipse(bel[0], bel[1], 40, 32, lean - .3, 0, TAU); ctx.fill();
+  const g0 = Bp(-10, -80), g1 = Bp(0, -58), g = ctx.createRadialGradient(g0[0], g0[1], 10, g1[0], g1[1], 70);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.75, 'rgba(255,255,255,0)'); g.addColorStop(1, P.edge); ctx.fillStyle = g; ctx.fillRect(-90, -160, 180, 180);
+  ctx.globalAlpha = al * .35; ctx.fillStyle = TX.bloomPat; ctx.fillRect(-90, -160, 180, 180); ctx.globalAlpha = al;
+  if (F.rim) { ctx.globalCompositeOperation = 'source-atop'; const rg = ctx.createLinearGradient(Bp(30, -60)[0], 0, Bp(66, -60)[0], 0); rg.addColorStop(0, 'rgba(255,220,150,0)'); rg.addColorStop(1, `rgba(255,214,140,${F.rim})`); ctx.fillStyle = rg; ctx.fillRect(-90, -160, 180, 180); ctx.globalCompositeOperation = 'source-over'; }
+  ctx.restore();
+  ctx.strokeStyle = P.hamL; ctx.lineWidth = 2.2 / Math.sqrt(k / 1.7); ctx.globalAlpha = al * .8; ctx.setLineDash([40, 4, 26, 3]); ctx.stroke(body); ctx.setLineDash([]); ctx.globalAlpha = al;
+  // face: tilts with the body and the head
+  const fc = Bp(24, -70); ctx.save(); ctx.translate(fc[0], fc[1]); ctx.rotate(lean * .55 - (F.head || 0) * .8);
+  for (const [ex, ey] of [[-30, -34], [2, -40]]) { ctx.fillStyle = P.hamD; ctx.beginPath(); ctx.ellipse(ex, ey, 13, 12, 0, 0, TAU); ctx.fill(); ctx.fillStyle = P.pink; ctx.beginPath(); ctx.ellipse(ex + 1, ey + 1, 7, 6, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = P.hamL; ctx.lineWidth = 1.8; ctx.globalAlpha = al * .7; ctx.beginPath(); ctx.ellipse(ex, ey, 13, 12, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke(); ctx.globalAlpha = al; }
+  ctx.fillStyle = P.belly; ctx.beginPath(); ctx.ellipse(22, 8, 20, 16, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = P.nose; ctx.beginPath(); ctx.ellipse(38, 2, 5, 4, 0, 0, TAU); ctx.fill();
+  const eye = F.eye || 'open', ink = '#3b2c26';
+  ctx.strokeStyle = ink; ctx.fillStyle = ink; ctx.lineCap = 'round';
+  if (eye === 'strain' || eye === 'closed') { ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(14, -16, 5.5, .35, Math.PI - .35); ctx.stroke();
+    if (eye === 'strain') { ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(6, -27); ctx.lineTo(18, -24); ctx.stroke(); } }
+  else if (eye === 'down') { ctx.beginPath(); ctx.ellipse(14, -10, 4.2, 3.4, 0, 0, TAU); ctx.fill(); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(8, -13); ctx.lineTo(20, -13); ctx.stroke(); }
+  else { const big = eye === 'shock' ? 1.3 : 1; ctx.beginPath(); ctx.ellipse(14, -12, 4.4 * big, 5.2 * big, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(15.6, -14.2, 1.6 * big, 0, TAU); ctx.fill(); ctx.fillStyle = ink;
+    if (eye === 'wet') { ctx.strokeStyle = 'rgba(160,210,230,.9)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(14, -11, 6.5, .4, Math.PI - .5); ctx.stroke(); ctx.strokeStyle = ink; } }
+  // mouth
+  ctx.lineWidth = 1.5; ctx.strokeStyle = shade(P.nose, .7);
+  if (eye === 'shock') { ctx.fillStyle = '#c9776f'; ctx.beginPath(); ctx.ellipse(31, 15, 3.2, 4, 0, 0, TAU); ctx.fill(); }
+  else { ctx.beginPath(); ctx.moveTo(37, 6); ctx.quadraticCurveTo(36, 11, 32, 12); ctx.stroke(); }
+  ctx.fillStyle = P.pink; ctx.globalAlpha = al * .6; ctx.beginPath(); ctx.ellipse(4, 6, 9, 6, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = al;
+  ctx.strokeStyle = '#a2786a'; ctx.lineWidth = 1.2; ctx.globalAlpha = al * .8; for (const q of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(34, 8 + q * 3); ctx.lineTo(54, 6 + q * 7); ctx.stroke(); } ctx.globalAlpha = al;
+  ctx.restore();
+  // the cross / saw (world coordinates) between the body and the paws
+  if (mid) { ctx.save(); ctx.setTransform(m0); mid(); ctx.restore(); }
+  // arms: short furry limbs from the shoulders to the paw targets (far first, darker)
+  const arm = (sh, tgt, near) => {
+    const S0 = Bp(sh[0], sh[1]); let T = tgt ? toL(tgt) : Bp(near ? 40 : 47, near ? -27 : -33);
+    let dx = T[0] - S0[0], dy = T[1] - S0[1], d = Math.hypot(dx, dy) || 1e-6; const mx = 48; if (d > mx) { T = [S0[0] + dx / d * mx, S0[1] + dy / d * mx]; dx = T[0] - S0[0]; dy = T[1] - S0[1]; }
+    const col = near ? P.ham : P.hamD, ap = pathOf(capsule(S0, T, 16, 11));
+    ctx.fillStyle = col; ctx.fill(ap); ctx.strokeStyle = P.hamL; ctx.lineWidth = 1.4; ctx.globalAlpha = al * .6; ctx.stroke(ap); ctx.globalAlpha = al;
+    const an = Math.atan2(dy, dx), pp = new Path2D(); pp.ellipse(T[0], T[1], 8.5, 6.8, an, 0, TAU); ctx.fillStyle = near ? P.pink : shade(P.pink, .93); ctx.fill(pp);
+    ctx.strokeStyle = shade(P.nose, .8); ctx.lineWidth = 1.1; ctx.globalAlpha = al * .7; ctx.stroke(pp);
+    for (const q of [-.5, .5]) { ctx.beginPath(); ctx.moveTo(T[0] + Math.cos(an + q) * 4, T[1] + Math.sin(an + q) * 4); ctx.lineTo(T[0] + Math.cos(an + q * .8) * 8, T[1] + Math.sin(an + q * .8) * 8); ctx.stroke(); }
+    ctx.globalAlpha = al;
+  };
+  const paws = F.paws || [null, null];
+  arm(SH_F, paws[0], false);
+  if (front && front.between) { ctx.save(); ctx.setTransform(m0); front.between(); ctx.restore(); }
+  arm(SH_N, paws[1], true);
+  foot(feet[1], true);
+  ctx.restore();
+  if (front && front.after) { ctx.save(); ctx.setTransform(m0); front.after(); ctx.restore(); }
+}
+function hamShadow(ctx, F, k2 = 1) { if ((F.alpha ?? 1) <= 0) return; ctx.save(); ctx.globalAlpha = (F.alpha ?? 1) * k2; ctx.fillStyle = 'rgba(70,110,130,.2)';
+  const lift = Math.max(0, (F.bob || 0)) * F.k, sc = 1 - Math.min(.4, lift / 300); ctx.beginPath(); ctx.ellipse(F.x - F.f * 6, F.gy + 2, 40 * F.k * sc, 6 * F.k * sc, 0, 0, TAU); ctx.fill(); ctx.restore(); }
+
+// walking: 'waddle' (feet alternate, small bob) or 'hop' (bounding: stretch in the air, squash on landing)
+function footAt(u, s, lift) { if (u < .5) return [s / 2 - s * (u / .5), 0]; const w = (u - .5) / .5, e = w * w * (3 - 2 * w); return [-s / 2 + s * e, lift * Math.sin(Math.PI * w)]; }
+function hamWalk(x, gy, k, f, ph, o = {}) {
+  const u = frac(ph);
+  if (o.hop) { const air = u > .14 && u < .9, w = clamp((u - .14) / .76), hb = o.hop * Math.sin(Math.PI * w);
+    const land = u < .14 ? Math.sin(Math.PI * u / .14) : 0;
+    return { x, gy, k, f, lean: (o.lean ?? .28) + .1 * Math.sin(Math.PI * w) * (air ? 1 : 0) - .08 * land, bob: air ? hb : 0, sq: air ? 1 + .06 * Math.sin(Math.PI * w) : 1 - .09 * land,
+      feet: air ? [[-30 + 10 * w, hb * .85 + 4], [28 - 8 * w, hb * .85 + 8]] : [[-8, 0], [10, 0]], head: o.head ?? 0, eye: o.eye || 'open', ph };
+  }
+  const s = o.stride ?? 26, lift = o.lift ?? 9;
+  const a = footAt(frac(u + .5), s, lift), b = footAt(u, s, lift);
+  return { x, gy, k, f, lean: (o.lean ?? .16) + Math.sin(ph * TAU) * (o.waddle ?? .05), bob: Math.abs(Math.sin(ph * TAU)) * (o.bob ?? 4), sq: 1 - Math.abs(Math.sin(ph * TAU + 1)) * (o.squash ?? 0),
+    feet: [[a[0], a[1]], [b[0], b[1]]], head: o.head ?? 0, eye: o.eye || 'open', ph };
+}
+function standSpec(x, gy, k, f, o = {}) { return { x, gy, k, f, lean: o.lean ?? .06, bob: 0, crouch: o.crouch || 0, feet: [[-14, 0], [12, 0]], head: o.head ?? 0, eye: o.eye || 'open', paws: [null, null] }; }
+function mixSpec(A, Bs, k) {
+  if (k <= 0) return A; if (k >= 1) return Bs;
+  const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], pick = k < .5 ? A : Bs;
+  const pw = (i) => { const a = A.paws?.[i], b = Bs.paws?.[i]; if (!a && !b) return null; const ra = a || worldPt(A, i ? 40 : 47, i ? -27 : -33), rb = b || worldPt(Bs, i ? 40 : 47, i ? -27 : -33); return l2(ra, rb); };
+  const fA = A.feet || [[-12, 0], [12, 0]], fB = Bs.feet || [[-12, 0], [12, 0]];
+  return { ...pick, x: lerp(A.x, Bs.x, k), gy: lerp(A.gy, Bs.gy, k), k: lerp(A.k, Bs.k, k), lean: lerp(A.lean || 0, Bs.lean || 0, k), bob: lerp(A.bob || 0, Bs.bob || 0, k),
+    crouch: lerp(A.crouch || 0, Bs.crouch || 0, k), sq: lerp(A.sq || 1, Bs.sq || 1, k), head: lerp(A.head || 0, Bs.head || 0, k), feet: [l2(fA[0], fB[0]), l2(fA[1], fB[1])], paws: [pw(0), pw(1)] };
+}
+
+// ---------------- sheets (built once, drawn by visible part) ----------------
+function sheet(x0, y0, x1, y1, fn, K = 1) {
+  const c = Pilot.canvas(Math.ceil((x1 - x0) * K), Math.ceil((y1 - y0) * K)), g = c.getContext('2d'); g.setTransform(K, 0, 0, K, -x0 * K, -y0 * K); g.lineJoin = 'round'; fn(g);
+  return { c, x0, y0, x1, y1, K };
+}
+function drawSheet(ctx, s) {
+  const m = ctx.getTransform(), inv = m.inverse(), p0 = inv.transformPoint(new DOMPoint(0, 0)), p1 = inv.transformPoint(new DOMPoint(W, H));
+  const x0 = Math.max(s.x0, Math.min(p0.x, p1.x) - 4), x1 = Math.min(s.x1, Math.max(p0.x, p1.x) + 4), y0 = Math.max(s.y0, Math.min(p0.y, p1.y) - 4), y1 = Math.min(s.y1, Math.max(p0.y, p1.y) + 4);
+  if (x1 <= x0 || y1 <= y0) return;
+  ctx.drawImage(s.c, (x0 - s.x0) * s.K, (y0 - s.y0) * s.K, (x1 - x0) * s.K, (y1 - y0) * s.K, x0, y0, x1 - x0, y1 - y0);
+}
+
+// ---------------- timeline: my path (integrated once), the cuts ----------------
+const DT = 1 / 240, NT = Math.ceil((S.DUR + 1) / DT) + 2, MEX = new Float32Array(NT), MEP = new Float32Array(NT);
+const RUNV = 330;
+function vMe(t) {
+  if (t < 3.2) return 40 * (1 + .6 * Math.sin(t * TAU / 1.15 - 1));          // staggering under the whole cross
+  if (t < 4.6) return 0;
+  if (t < 5.0) return RUNV * eio((t - 4.6) / .4);                              // lighter: big bounding hops
+  if (t < 8.3) return RUNV;
+  if (t < 8.6) return lerp(RUNV, 130, (t - 8.3) / .3);
+  if (t < 9.0) return 130 * (1 - ss(8.6, 9.0, t));
+  if (t < 10.0) return 0;
+  if (t < 10.4) return 380 * Math.sin(Math.PI * (t - 10) / .4);
+  if (t < 11.35) return 0;
+  if (t < 12.0) return 520 * Math.sin(Math.PI * (t - 11.35) / .65);
+  return 0;
+}
+const strideMe = t => t < 4.6 ? 84 : t < 8.8 ? 230 : 120;   // world px per step cycle (waddle) / per hop
+const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
+const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
+const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
+const FILL = [[22.2, 23.5], [22.75, 23.8], [23.15, 24.15]];
+const FLECKS = [], DROPS = [];
+let E = 1600, GX = 0, GAY = 0, ROADX0 = -1500, ROADX1 = 0, SAWLIE = null;
+const CUTD = 190;   // the cut point is this far ahead of me when I saw (facing back)
+function buildTimeline() {
+  let x = 0, p = 0;
+  for (let i = 0; i < NT; i++) { const t = i * DT; MEX[i] = x; MEP[i] = p; const v = vMe(t); x += v * DT; p += v / strideMe(t) * DT; }
+  E = meX(12) + 168;
+  CUTS.forEach((c, k) => {
+    c.k = k; c.mx = meX(c.s); c.cutX = c.mx - CUTD; c.u0 = L * (1 - S.left[k]); c.u1 = L * (1 - S.left[k + 1]); c.baseX = c.cutX - c.u1; c.y = FY + 20;
+    const r = rng(100 + k);
+    for (let n = 0; n < 20; n++) FLECKS.push({ t0: n < 13 ? lerp(c.saw0, c.drop, n / 13) : c.drop + r() * .05, x: c.cutX + (r() - .5) * 8, y: c.y - PW / 2,
+      vx: (r() - .5) * (n < 13 ? 160 : 300), vy: -(70 + r() * (n < 13 ? 150 : 240)), land: FY + 22 + r() * 40, r0: r() * TAU, vr: (r() - .5) * 20, sz: 3 + r() * 4, col: r() < .5 ? '#f6dca4' : '#e8bd76' });
+  });
+  const c3 = CUTS[2]; SAWLIE = { grip: [c3.cutX + 120, FY + 40], ang: Math.PI - .08 };
+  const r = rng(200);
+  for (let n = 0; n < 34; n++) { const a = -Math.PI / 2 + (r() - .5) * 1.9, v = 260 + r() * 420; DROPS.push({ x: (r() - .5) * 120, vx: Math.cos(a) * v, vy: Math.sin(a) * v, sz: 4 + r() * 9, d: r() * .08 }); }
+}
+function pieceAt(c, t) {   // a cut piece lying where it fell, or flying into the gap at the end (it glows, lifts, arcs, settles into the outline)
+  const sh = 18 * eo((t - c.drop) / .25), y0 = c.y, cu = (c.u0 + c.u1) / 2;
+  let cx = c.baseX + cu - sh, cy = y0, a = -.05 * eo((t - c.drop) / .25);
+  const [f0, f1] = FILL[c.k];
+  if (t > f0 - .35) cy -= 26 * eo((t - f0 + .35) / .35);   // lifts off the road first
+  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34;
+    cx = lerp(cx, tx, e); cy = lerp(cy, ty, e) - (c.k ? 200 : 300) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 2) * .5 * (1 - u); }
+  return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a };
+}
+
+// ---------------- the carried cross ----------------
+// the post rests against my chest/shoulder (local 34, -34) and rises ahead; the foot trails behind toward the road
+function carryX(F, left, a0) {
+  const pc = worldPt(F, 34, -36), a = F.f > 0 ? -a0 : Math.PI + a0, d = [Math.cos(a), Math.sin(a)];
+  const contact = L - Math.min(L - 212, left * L - 44);
+  return { x: pc[0] - d[0] * contact, y: pc[1] - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
+}
+const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
+const upOn = (X, u, off = PW / 2) => { const n = [Math.sin(X.a), -Math.cos(X.a)], s = n[1] > 0 ? -1 : 1, p = cpt(X, u); return [p[0] + n[0] * s * off, p[1] + n[1] * s * off]; };
+function gripCarry(F, X, sawHeld) { F.paws = [upOn(X, X.contact + 40, PW / 2 - 4), sawHeld ? worldPt(F, 52, -16) : upOn(X, X.contact + 6, PW / 2 - 4)]; return F; }
+const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
+function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
+
+// ---------------- the saw ----------------
+// P(u, v) = grip + d·u + up·v; the handle spans u −24…10, the blade u 10…114 with its teeth along v = −10
+const BLEN = 104;
+function sawFrame(grip, ang) { const d = [Math.cos(ang), Math.sin(ang)]; let up = [-d[1], d[0]]; if (up[1] > 0 || (Math.abs(up[1]) < 1e-6 && up[0] > 0)) up = [-up[0], -up[1]]; return { d, up, P: (u, v) => [grip[0] + d[0] * u + up[0] * v, grip[1] + d[1] * u + up[1] * v] }; }
+function drawSaw(ctx, grip, ang) {
+  const { P } = sawFrame(grip, ang);
+  const bl = [P(8, 20), P(10 + BLEN, 4), P(10 + BLEN, -10)]; for (let u = 10 + BLEN; u >= 10; u -= 6) bl.push(P(u, (u / 6 | 0) % 2 ? -10 : -14)); bl.push(P(8, -10));
+  const bp = pathOf(bl); wash(ctx, bp, C.saw, C.sawL, { bloom: .25, ew: 4, pool: .5, line: C.sawL, lw: 1.6, la: .9 });
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(...P(14, 13)); ctx.lineTo(...P(BLEN - 4, 3)); ctx.stroke(); ctx.restore();
+  const hp = smooth([P(10, 24), P(-8, 30), P(-26, 18), P(-26, -6), P(-10, -14), P(10, -12)]);
+  wash(ctx, hp, C.handle, C.handleL, { bloom: .3, ew: 4, pool: .5, line: C.handleL, lw: 1.6, la: .9 });
+  ctx.fillStyle = 'rgba(120,80,50,.55)'; ctx.fill(smooth([P(2, 16), P(-10, 18), P(-16, 8), P(-12, -2), P(2, -2)]));   // the grip hole
+  ctx.fillStyle = C.saw; for (const u of [0, 6]) { const q = P(u + 2, 6); ctx.beginPath(); ctx.arc(q[0], q[1], 2.2, 0, TAU); ctx.fill(); }
+}
+const CUT_ANG = Math.PI - .56;   // the cutting stroke (facing back, blade down-forward)
+function sawState(c, t) {
+  const kp = clamp((t - c.saw0) / (c.drop - .06 - c.saw0)), saw = t >= c.saw0 - .05 && t < c.drop + .02;
+  const osc = saw ? 20 * Math.sin(TAU * 3.4 * (t - c.saw0)) : 0, { d, up } = sawFrame([0, 0], CUT_ANG);
+  const K = [c.cutX, c.y - PW / 2 + kp * PW * .92], uK = 66 + osc;
+  return { kp, grip: [K[0] - d[0] * uK + up[0] * 12, K[1] - d[1] * uK + up[1] * 12], K };
+}
+function sawSpec(c, t) {
+  const st = sawState(c, t);
+  return { x: c.mx, gy: FY, k: KM, f: -1, lean: .46, crouch: .9, bob: 0, sq: 1, head: -.25, eye: 'strain', feet: [[-22, 0], [18, 0]], paws: [[c.cutX + 34, c.y - PW / 2 + 1], st.grip], pal: PAL.me };
+}
+const hangSaw = (F, sw = 0) => ({ grip: worldPt(F, 52, -16), ang: Math.PI / 2 + F.f * (.75 + sw) });
+
+// ---------------- me ----------------
+function poseMe(t) {
+  const tp = Math.max(0, t12(t)), dx = meX(t) - meX(tp), left = leftAt(t);
+  const walk = (tt, xx) => {
+    const x = xx ?? meX(tt) + dx, ph = meP(tt);
+    if (tt < 3.2) { const sway = Math.sin(tt * TAU / 1.15); const F = hamWalk(x, FY, KM, 1, ph, { stride: 18, lift: 5, lean: .26 + .06 * sway, bob: 2.5, waddle: .04, head: -.35, eye: 'strain' });
+      F.crouch = .25 + .12 * Math.max(0, Math.sin(tt * TAU / 1.15 + 2)); return [F, .44 + .04 * Math.sin(tt * TAU / 1.15 + .6)]; }
+    if (tt < 8.8) { const k = ss(4.6, 5.1, tt); if (k < 1) { const F = hamWalk(x, FY, KM, 1, ph, { stride: 22, lift: 7, lean: .2, head: -.1, eye: 'open' }); return [k > 0 ? mixSpec(F, hamWalk(x, FY, KM, 1, ph, { hop: 34, lean: .28, head: .1, eye: 'open' }), k) : F, .36]; }
+      const F = hamWalk(x, FY, KM, 1, ph, { hop: 34 * (1 - ss(8.3, 8.75, tt)), lean: .28, head: .15, eye: 'open' }); return [F, .34]; }
+    return [hamWalk(x, FY, KM, 1, ph, { stride: 30, lift: 10, lean: .18, head: .05, eye: 'open' }), .34];
+  };
+  const sawHeld = t < CUTS[2].drop;
+  const carried = (F, a0, lf, held) => { F.pal = PAL.me; const X = carryX(F, lf, a0); gripCarry(F, X, held); return [F, X]; };
+  for (const c of CUTS) {
+    if (t >= c.s && t < c.up1) {
+      const lf0 = S.left[c.k], lf1 = S.left[c.k + 1], [W0, a0] = walk(c.s, c.mx), [W1, a1] = walk(c.up1, c.mx), last = c.k === 2;
+      const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
+      const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
+      if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k); F.pal = PAL.me; F.eye = 'open';
+        const hs = hangSaw(WA); F.paws[1] = [lerp(hs.grip[0], cg[0], k), lerp(hs.grip[1], cg[1], k)];
+        return { F, X: mixX(XA, XL, k), c, saw: { grip: F.paws[1], ang: lerp(hs.ang, CUT_ANG + (CUT_ANG < hs.ang ? 0 : 0), k) } }; }
+      if (t < c.drop) { const st = sawState(c, t), F = sawSpec(c, t); return { F, X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
+      const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k); F.pal = PAL.me; F.eye = 'open';
+      const hs = hangSaw(WB); F.paws[1] = last ? F.paws[1] : [lerp(cg[0], hs.grip[0], k), lerp(cg[1], hs.grip[1], k)];
+      return { F, X: mixX(XL, XB, k), c, saw: last ? null : { grip: F.paws[1], ang: lerp(CUT_ANG, hs.ang, k) } };
+    }
+  }
+  if (t < 12) { const [F, a] = walk(tp); const [G2, X] = carried(F, a, left, sawHeld);
+    return { F: G2, X, saw: sawHeld ? hangSaw(G2, .12 * Math.sin(TAU * (G2.ph || 0))) : null }; }
+  // at the edge: stop short (startled), step aside for the others, come back
+  if (t < 18.4) { const [F0] = walk(12, E - 168), k = eio((tp - 12) / .3);
+    const bx = -190 * eio((tp - 12.9) / .7) + 190 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
+    const st = standSpec(E - 168 + bx, FY, KM, 1, { lean: .1, eye: 'open' });
+    const STx = mv > 0 ? mixSpec(st, hamWalk(E - 168 + bx, FY, KM, 1, (E + bx) / 110, { stride: 28, lean: .14 }), mv) : st;
+    const F = mixSpec(F0, STx, k); F.pal = PAL.me;
+    F.lean += -.22 * Math.sin(Math.PI * clamp((tp - 12) / .5)); F.eye = tp < 13.2 ? 'shock' : 'open'; F.head = tp < 13.2 ? .2 : .1;
+    const [G2, X] = carried(F, .34, left, false); return { F: G2, X }; }
+  const XLay = { x: E - REST - L * (1 - left), y: FY + 30, a: 0, u0: L * (1 - left), lie: true };
+  const LAY = { ...standSpec(E - 172, FY, KM, 1), lean: .52, crouch: .55, head: -.15, eye: 'open', pal: PAL.me };
+  LAY.paws = [upOn(XLay, L * (1 - left) + 46, PW / 2 - 3), upOn(XLay, L * (1 - left) + 12, PW / 2 - 3)];   // pressing the cut end down on the lip
+  const REACH = { ...LAY, lean: .3, crouch: .3, paws: [[E - 20, FY - 150], [E + 40, FY - 40]], eye: 'shock', head: .1 };
+  if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 168, FY, KM, 1, { lean: .08 }); ST.pal = PAL.me; const STc = carried(ST, .34, left, false), k = eio((tp - 18.4) / .4);
+      const F = mixSpec(STc[0], LAY, k); F.pal = PAL.me; return { F, X: mixX(STc[1], XLay, eio((t - 18.4) / .4)), lay: true }; }
+    const F = { ...LAY, breath: 1 + .01 * Math.sin(t * 9) }; return { F, X: XLay, lay: true }; }
+  if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.pal = PAL.me; F.eye = 'shock'; if (tp > 20.5) { F.eye = 'down'; F.head = -.3; F.lean = .2; }
+    return { F, X: null }; }
+  const BACK = { ...standSpec(E - 168, FY, KM, -1, { lean: .04, eye: 'open', head: .05 }), pal: PAL.me }, FWD = { ...standSpec(E - 168, FY, KM, 1, { lean: .1, eye: 'open', head: .12 }), pal: PAL.me };
+  if (t < 23.0) { const F = mixSpec(REACH, BACK, eio((tp - B.back) / .3)); F.pal = PAL.me; F.eye = tp < B.back + .5 ? 'down' : 'open'; F.head = tp < B.back + .5 ? -.2 : .08; return { F, X: null }; }
+  const F = mixSpec(BACK, FWD, eio((tp - 23.0) / .3)); F.pal = PAL.me; F.eye = tp > 24.4 ? 'wet' : 'open'; F.head = .1 + .05 * ss(24.2, 25, tp); return { F, X: null };
+}
+// my cross once my paws slip: it tips over the lip, then falls into the brook
+function fallX(t) {
+  if (t < B.tip) return null;
+  const left = S.left[3], u0 = L * (1 - left), pv = [E, FY + 30 + PW / 2];
+  const X0 = { x: E - REST - u0, y: FY + 30, a: 0, u0, lie: true };
+  if (t < B.fall) return rotAbout(X0, pv, .45 * Math.pow((t - B.tip) / (B.fall - B.tip), 2));
+  const X1 = rotAbout(X0, pv, .45), u = t - B.fall, cu = (u0 + L) / 2, c0 = cpt(X1, cu);
+  const cx = c0[0] + 70 * u, cy = Math.min(c0[1] + 160 * u + 1500 * u * u, WATER + 30 + 40 * (u - .5)), a = X1.a + 2.2 * u + 1.2 * u * u;
+  return { ...X1, x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, alpha: 1 - ss(B.fall + .5, B.fall + 1.1, t), clip: true };
+}
+const SPLASH = () => B.fall + .38;   // when it hits the water
+
+// ---------------- the others: lay it across → walk over → pull it back from the far side → shoulder it → into the light ----------------
+const PIL = [{ x0: -700, ph: .3 }, { x0: -400, ph: .75 }, { x0: 300, ph: .1 }, { x0: 470, ph: .55 }];
+const BRIDGE_Y = [BY + 22, BY + 30, BY + 38], PULL = 230;
+function pilState(i, t) {
+  const tp = t12(t), P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY, pal = PAL.p[i];
+  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 50 * tt; const xa = P.x0 + 450, xb = E - 430 - 280 * j, xc = E - 152;
+    if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, clamp((tt - 12) / (T - .35 - 12))); };
+  const carry = (tt, x, gy = BY, cyc = 90) => { const F = hamWalk(x, gy, KP, 1, P.ph + x / cyc, { stride: 22, lift: 7, lean: .22, head: -.15, eye: 'closed' }); F.pal = pal; const X = carryX(F, 1, .4); gripCarry(F, X, false); return [F, X]; };
+  if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
+  if (t < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
+  const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
+  const LAY = { ...standSpec(E - 152, BY, KP, 1), lean: .5, crouch: .5, head: -.1, eye: 'open', pal };
+  LAY.paws = [upOn(XB, 46, PW / 2 - 3), upOn(XB, 14, PW / 2 - 3)];
+  if (t < T) { const [F0, X0] = carry(T - .35, E - 152), k = eio((tp - T + .35) / .35); return { F: { ...mixSpec(F0, LAY, k), pal }, X: mixX(X0, XB, eio((t - T + .35) / .35)) }; }
+  const xs0 = E - 70, xs1 = E + G + 150;
+  if (t < T + .3) { const F = mixSpec(LAY, { ...standSpec(xs0, yb - PW / 2, KP, 1, { lean: .1 }) }, eio((tp - T) / .25)); F.pal = pal; return { F, B: XB }; }
+  if (t < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 30 ? yb - PW / 2 : BY;
+    const F = hamWalk(x, gy, KP, 1, P.ph + x / 110, { stride: 30, lift: 11, lean: .2, head: .05, eye: 'open' }); F.pal = pal; return { F, B: XB }; }
+  // from the far side: turn, crouch, take the top end and slide it back across (pressing it down over the far lip as a lever)
+  const pv = [E + G, yb + PW / 2], pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, pv, -.08 * k);
+  const xpAt = k => xs1 + 30 + PULL * k;
+  const PULLS = k => { const X = pullX(k), x = xpAt(k); const F = { ...standSpec(x, BY, KP, -1), lean: .45 - .15 * k, crouch: .5, head: -.1, eye: 'strain', pal, feet: [[-20, 0], [18, 0]] };
+    F.paws = [upOn(X, L - 30, PW / 2 - 3), upOn(X, L - 62, PW / 2 - 3)]; return [F, X]; };
+  if (t < T + 1.25) { const k = eio(clamp((tp - T - .9) / .35)), [F, X] = PULLS(k);
+    const k0 = eio((tp - T - .9) / .1); return { F: k0 < 1 ? { ...mixSpec(hamWalk(xs1, BY, KP, 1, 0, {}), F, k0), pal } : F, X }; }
+  const [Fp, Xp] = PULLS(1), xg = xpAt(1);
+  if (t < T + 1.5) { const k = eio((tp - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, BY, 110); const XcU = { ...Xc, a: Xc.a + TAU * 0 };
+    return { F: { ...mixSpec(Fp, Fc, k), pal }, X: mixX(Xp, XcU, eio((t - T - 1.25) / .25)) }; }
+  const x = lerp(xg, GX + 10, clamp((tp - T - 1.5) / .35)), [F, X] = carry(tp, x, BY, 110);
+  F.alpha = 1 - ss(T + 1.55, T + 1.85, t); F.inGate = x > GX - 120; if (F.alpha <= 0) return null;
+  return { F, X };
+}
+
+// ---------------- camera ----------------
+const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
+let BACKX = 0, BACKC = null;
+function camAt(t) {
+  let c = { x: meX(t) + 70 + 110 * ss(4.3, 5.4, t), y: 1090, z: 1.03 };
+  c = mixCam({ x: meX(t) + 95, y: 1080, z: 1.62 }, c, eio((t - 1.5) / 1.1));        // the hook: close on me (saw in my paw), widening to the procession by ~2.6
+  const c1 = CUTS[0], c2 = CUTS[1], c3 = CUTS[2], at = cc => ({ x: (cc.mx + cc.cutX) / 2 - 20, y: 1150, z: 1.32 });
+  c = mixCam(c, at(c1), Pilot.win(t, c1.s - .05, c1.up1 + .2, .32, .35));
+  c = mixCam(c, mixCam(at(c2), at(c3), eio((t - 10.0) / .45)), Pilot.win(t, c2.s - .1, c3.up1 + .25, .3, .4));
+  if (t < 12.4) c.x = Math.min(c.x, E - 540 / c.z - 10 + 1600 * ss(11.45, 12.4, t) * ss(11.45, 12.4, t));   // the gully stays out of frame until I reach it
+  if (t >= 12) c = mixCam(c, { x: E + 345, y: 1000, z: .74 }, eio((t - 12.05) / .95));
+  if (t >= 18.2) c = mixCam(c, { x: E + 150, y: 1150, z: 1.12 }, eio((t - 18.2) / .45));
+  if (t >= B.fall) c = mixCam(c, { x: E + 190, y: 1380, z: 1.42 }, eo((t - B.fall) / .09));
+  if (t >= B.fall + .75) c = mixCam(c, { x: E + 110, y: 1150, z: 1.1 }, eio((t - B.fall - .75) / .7));
+  if (t >= B.back) c = mixCam(c, BACKC, eio((t - B.back) / .5));        // looking back down the road: the pieces lie there, glowing
+  if (t >= 22.85) c = mixCam(c, { x: E + 175, y: 1135, z: 1.1 }, eio((t - 22.85) / .9));           // follow them to the gully
+  const k = 1 - ss(B.fall, B.fall + .6, t); c.sx = t >= B.fall ? 16 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 12 * k * Math.sin(t * 131 + 1) : 0;
+  return c;
+}
+function layer(ctx, cm, p, fn) { const z = 1 + (cm.z - 1) * p, cx = cm.x * p, cy = 960 + (cm.y - 960) * p; ctx.save(); ctx.setTransform(z, 0, 0, z, 540 - cx * z + cm.sx * p, 960 - cy * z + cm.sy * p); fn(z); ctx.restore(); }
+
+// ---------------- the world: sheets ----------------
+const LS = [];   // stamp sprites for leaves
+function stamp(g, spr, x, y, sc) { g.drawImage(spr, x - spr.width * sc / 2, y - spr.height * sc / 2, spr.width * sc, spr.height * sc); }
+function buildSheets() {
+  ROADX0 = -1500; ROADX1 = E + G + 1500;
+  const r = rng(5);
+  // leaf stamps (various colours and tilts)
+  for (let i = 0; i < 18; i++) LS.push(leafSprite(70, .5 + (i % 4) * .08, [C.mid, C.near, C.deep, C.mid][i % 4], C.midL, 300 + i * 7));
+  // sky (parallax .1)
+  TX.sky = sheet(-900, -400, 1100, 2400, g => {
+    const gr = g.createLinearGradient(0, -400, 0, 1150); gr.addColorStop(0, '#a9d8d6'); gr.addColorStop(.45, C.sky0); gr.addColorStop(1, C.sky1); g.fillStyle = gr; g.fillRect(-900, -400, 2000, 2800);
+    for (let i = 0; i < 9; i++) { const bx = -900 + r() * 2000, by = -300 + r() * 1200, br = 160 + r() * 240, bg = g.createRadialGradient(bx, by, 0, bx, by, br); bg.addColorStop(0, 'rgba(250,252,240,.4)'); bg.addColorStop(1, 'rgba(250,252,240,0)'); g.fillStyle = bg; g.fillRect(bx - br, by - br, br * 2, br * 2); }
+    // soft watercolour clouds: overlapping pale washes
+    for (let k = 0; k < 4; k++) { const cx = -700 + k * 520 + r() * 160, cy = 120 + r() * 380; for (let j = 0; j < 6; j++) { const ex = cx + (j - 2.5) * 52 + r() * 30, ey = cy - Math.sin(j / 5 * Math.PI) * 40 + r() * 16, rr = 60 + r() * 50;
+      const cg = g.createRadialGradient(ex, ey, 0, ex, ey, rr); cg.addColorStop(0, 'rgba(255,255,252,.55)'); cg.addColorStop(.7, 'rgba(255,255,252,.35)'); cg.addColorStop(1, 'rgba(255,255,252,0)'); g.fillStyle = cg; g.fillRect(ex - rr, ey - rr, rr * 2, rr * 2); } }
+    g.fillStyle = '#b6dba4'; g.fillRect(-900, 1150, 2000, 1300);
+  }, .5);
+  // far meadow (parallax .32): pale, blurred clover and flower heads
+  { const fs = sheet(-1100, 600, 1900, 2500, g => {
+      for (let i = 0; i < 26; i++) { const px = -1100 + r() * 3000, py = 760 + r() * 260, rr = 26 + r() * 18; g.strokeStyle = '#c3debb'; g.lineWidth = 6; g.beginPath(); g.moveTo(px, py); g.lineTo(px + 6, 1200); g.stroke(); g.drawImage(flowerSprite(rr, i + 40, .35), px - rr * 1.4, py - rr * 1.4); }
+      for (let i = 0; i < 30; i++) blade(g, -1100 + r() * 3000, 1180, 200 + r() * 160, (r() - .5) * 120, 24, '#c1dfb1', null);
+      g.fillStyle = '#a9d39a'; g.fillRect(-1100, 1130, 3000, 1400);
+      for (let i = 0; i < 110; i++) { const px = -1100 + r() * 3000, py = 1030 + r() * 140; stamp(g, LS[i % LS.length], px, py, .55 + r() * .3); }
+      { const hz = g.createLinearGradient(0, 600, 0, 1000); hz.addColorStop(0, 'rgba(233,241,223,0)'); hz.addColorStop(1, 'rgba(233,241,223,.45)'); g.fillStyle = hz; g.fillRect(-1100, 600, 3000, 400); g.fillStyle = 'rgba(233,241,223,.45)'; g.fillRect(-1100, 1000, 3000, 1500); }
+    }, .5);
+    const c2 = Pilot.canvas(fs.c.width, fs.c.height), x2 = c2.getContext('2d'); x2.filter = 'blur(3px)'; x2.drawImage(fs.c, 0, 0); fs.c = c2; TX.far = fs; }
+  // mid clover band (parallax .72)
+  TX.mid = sheet(-1300, 860, E * .72 + 1500, 2500, g => {
+    g.fillStyle = '#86bf76'; g.fillRect(-1300, 1170, E * .72 + 2800, 1400); g.save(); g.globalAlpha = .4; g.fillStyle = TX.bloomPat; g.fillRect(-1300, 1170, E * .72 + 2800, 1400); g.restore();
+    for (let i = 0; i < 40; i++) blade(g, -1300 + r() * (E * .72 + 2800), 1260, 140 + r() * 200, (r() - .5) * 80, 20, C.blade, C.bladeL);
+    for (let row = 0; row < 3; row++) for (let x = -1300; x < E * .72 + 1500; x += 95 + r() * 40) stamp(g, LS[(x / 7 | 0) % LS.length & 15], x, 1040 + row * 70 + r() * 40, 1.0 + row * .14 + r() * .2);
+  });
+  // tall flower heads between far and mid (parallax .55, drawn live: they sway)
+  FX.tall = []; for (let x = -900; x < E * .55 + 900; x += 200 + r() * 160) FX.tall.push({ x, base: 1200, h: 280 + r() * 300, w: 6 + r() * 2, c: flowerSprite(48 + r() * 34, (x | 0) + 7), f: .6 + r() * .5, p: r() * TAU, bend: (r() - .5) * 40 });
+  // the ground (parallax 1): clover tufts behind the path, the sandy path, the clover bank in front; the gully cut out
+  const y0 = 1060, y1 = 2560;
+  TX.ground = sheet(ROADX0, y0, ROADX1, y1, g => {
+    for (let x = ROADX0; x < ROADX1; x += 70 + r() * 50) stamp(g, LS[(r() * 18) | 0], x, RT - 40 - r() * 50, .8 + r() * .35);
+    for (let i = 0; i < (ROADX1 - ROADX0) / 60; i++) blade(g, ROADX0 + r() * (ROADX1 - ROADX0), RT + 10, 90 + r() * 110, (r() - .5) * 60, 16, r() < .5 ? C.blade : '#7cbd6c', C.bladeL);
+    // the path: a sandy wash with rough edges
+    const top = [], bot = []; for (let x = ROADX0; x <= ROADX1; x += 40) { top.push([x, RT + (noise(x * .01, 3) - .5) * 14]); bot.push([x, PN + (noise(x * .012, 7) - .5) * 18]); }
+    const pp = smooth(top.concat(bot.reverse()));
+    wash(g, pp, C.path, C.pathD, { bloom: .45, ew: 18, pool: .5, line: C.pathL, lw: 2, la: .55 });
+    g.save(); g.clip(pp); const sh = g.createLinearGradient(0, RT, 0, RT + 60); sh.addColorStop(0, 'rgba(90,120,80,.28)'); sh.addColorStop(1, 'rgba(90,120,80,0)'); g.fillStyle = sh; g.fillRect(ROADX0, RT - 10, ROADX1 - ROADX0, 80);
+    for (let i = 0; i < (ROADX1 - ROADX0) / 26; i++) { const px = ROADX0 + r() * (ROADX1 - ROADX0), py = RT + 14 + r() * (PN - RT - 20), rr = 3 + r() * 6; g.fillStyle = r() < .5 ? 'rgba(190,165,125,.5)' : 'rgba(225,210,180,.7)'; g.beginPath(); g.ellipse(px, py, rr * 1.4, rr, 0, 0, TAU); g.fill();
+      g.strokeStyle = 'rgba(140,115,85,.45)'; g.lineWidth = 1; g.stroke(); }
+    g.restore();
+    // the clover bank in front of the path: rows of leaves, bigger and nearer as they go down
+    g.fillStyle = '#78b866'; g.fillRect(ROADX0, PN + 20, ROADX1 - ROADX0, y1 - PN); g.save(); g.globalAlpha = .45; g.fillStyle = TX.bloomPat; g.fillRect(ROADX0, PN + 20, ROADX1 - ROADX0, y1 - PN); g.restore();
+    for (let row = 0; row < 14; row++) { const yy = PN + 26 + row * 78, sc = .85 + row * .09; for (let x = ROADX0 + (row % 2) * 50; x < ROADX1; x += (90 + r() * 50) * (.8 + row * .05)) stamp(g, LS[(r() * 18) | 0], x, yy + r() * 30, sc + r() * .2); }
+    for (let i = 0; i < (ROADX1 - ROADX0) / 300; i++) { const px = ROADX0 + r() * (ROADX1 - ROADX0), py = PN + 140 + r() * 700; g.drawImage(TX.flowerS, px - 30, py - 30, 60, 60); }
+    for (let i = 0; i < (ROADX1 - ROADX0) / 420; i++) violet(g, ROADX0 + r() * (ROADX1 - ROADX0), PN + 200 + r() * 700, .8 + r() * .4);
+    // the gully: cut out, with ragged lips; earth faces on both cut sides
+    const lip = (x, dir, seed) => { const q = rng(seed), o = []; for (let y = RT - 50; y <= y1 + 10; y += 16) o.push([x + dir * (y < RT + 40 ? (y < RT ? 6 : 0) : (8 + q() * 14 + (y - RT) * .07)), y]); return o; };
+    const L1 = lip(E, 1, 71), L2 = lip(E + G, -1, 73);
+    g.save(); g.globalCompositeOperation = 'destination-out'; g.fill(pathOf(L1.concat(L2.slice().reverse()))); g.restore();
+    for (const [Lp, dir] of [[L1, 1], [L2, -1]]) { const face = Lp.map(([x, y]) => [x - dir * 26, y]); const fp = pathOf(Lp.filter(p => p[1] >= RT - 4).concat(face.filter(p => p[1] >= RT - 4).reverse()));
+      wash(g, fp, C.earth, C.earthD, { bloom: .5, ew: 8, pool: .55, line: C.earthL, lw: 1.8, la: .6 });
+      g.save(); g.clip(fp); g.strokeStyle = 'rgba(110,80,55,.5)'; g.lineWidth = 2; const q = rng(dir > 0 ? 81 : 82);
+      for (let k = 0; k < 14; k++) { const yy = RT + 40 + q() * 900, xx = Lp[0][0] - dir * 6; g.beginPath(); g.moveTo(xx, yy); g.quadraticCurveTo(xx + dir * 14, yy + 18, xx + dir * (8 + q() * 20), yy + 40 + q() * 30); g.stroke(); }
+      g.restore(); }
+    // grass tufts overhanging the lips
+    for (const [x0, dir] of [[E, 1], [E + G, -1]]) for (let k = 0; k < 7; k++) blade(g, x0 - dir * (6 + k * 7), RT + 12 + k * 4, 50 + r() * 40, dir * (20 + r() * 30), 10, C.blade, C.bladeL);
+  });
+  // inside the gully: the far wall stepping down to the brook
+  TX.gully = sheet(E - 40, RT - 60, E + G + 40, y1, g => {
+    const gr = g.createLinearGradient(0, RT, 0, WATER); gr.addColorStop(0, '#b99a72'); gr.addColorStop(.6, '#8c7558'); gr.addColorStop(1, '#6d6250'); g.fillStyle = gr; g.fillRect(E - 40, RT - 60, G + 80, y1 - RT + 60);
+    g.save(); g.globalAlpha = .5; g.fillStyle = TX.bloomPat; g.fillRect(E - 40, RT - 60, G + 80, y1 - RT + 60); g.restore();
+    // moss and roots on the back wall
+    for (let i = 0; i < 26; i++) { const x = E + r() * G, y = RT + 20 + r() * 380; g.fillStyle = `rgba(110,150,90,${.25 + r() * .25})`; g.beginPath(); g.ellipse(x, y, 20 + r() * 30, 8 + r() * 10, 0, 0, TAU); g.fill(); }
+    g.strokeStyle = 'rgba(90,65,45,.45)'; g.lineWidth = 2; for (let i = 0; i < 18; i++) { const x = E + r() * G, y = RT + 30 + r() * 300; g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + 10, y + 30, x - 12, y + 60, x + 4, y + 90 + r() * 60); g.stroke(); }
+    // the brook
+    const wg = g.createLinearGradient(0, WATER - 20, 0, y1); wg.addColorStop(0, C.water); wg.addColorStop(.35, '#8fc3cf'); wg.addColorStop(1, '#5f93a3'); g.fillStyle = wg; g.fillRect(E - 40, WATER, G + 80, y1 - WATER);
+    g.save(); g.globalAlpha = .35; g.fillStyle = TX.bloomPat; g.fillRect(E - 40, WATER, G + 80, y1 - WATER); g.restore();
+    g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 3; g.beginPath(); g.moveTo(E - 40, WATER + 2); g.lineTo(E + G + 40, WATER + 2); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 2; for (let i = 0; i < 10; i++) { const yy = WATER + 40 + i * 34, xx = E + r() * G * .7; g.beginPath(); g.moveTo(xx, yy); g.lineTo(xx + 50 + r() * 90, yy); g.stroke(); }
+    for (const [sx, sy, sr] of [[E + 30, WATER - 6, 26], [E + 70, WATER + 4, 18], [E + G - 40, WATER - 4, 30], [E + G - 90, WATER + 6, 16]]) wash(g, smooth(ellPts(sx, sy, sr * 1.4, sr * .8, 12)), '#b9b3a6', '#8a8274', { bloom: .4, ew: 5, pool: .5, line: '#7a7266', lw: 1.4 });
+    for (const [rx, dir] of [[E + 12, 1], [E + G - 12, -1]]) for (let k = 0; k < 5; k++) { g.strokeStyle = k % 2 ? '#7fae6a' : '#6d9c5c'; g.lineWidth = 5; g.lineCap = 'round'; g.beginPath(); g.moveTo(rx + dir * k * 9, WATER + 4); g.quadraticCurveTo(rx + dir * (k * 9 + 6), WATER - 80, rx + dir * (k * 12 + 14 + r() * 10), WATER - 130 - r() * 60); g.stroke(); }
+  });
+  // the arch on the far side: bent willow twig, a few leaves and white clover heads wound on it
+  GX = E + G + 400; GAY = BY - 290;
+  TX.gate = sheet(GX - 220, GAY - 220, GX + 220, BY + 30, g => {
+    const R0 = 150, tw = (pts, w, seed) => { const p = smooth(rough(pts, 3, seed, 14), false); g.lineCap = 'round'; g.strokeStyle = C.twigL; g.lineWidth = w + 4; g.stroke(p); g.strokeStyle = C.twig; g.lineWidth = w; g.stroke(p);
+      g.strokeStyle = 'rgba(255,240,215,.45)'; g.lineWidth = w * .25; g.stroke(p); };
+    const arcPts = (rr, dx) => { const o = [[GX - rr + dx, BY + 8]]; for (let i = 0; i <= 18; i++) { const a = Math.PI + Math.PI * i / 18; o.push([GX + Math.cos(a) * rr + dx, GAY + Math.sin(a) * rr]); } o.push([GX + rr + dx, BY + 8]); return o; };
+    tw(arcPts(R0, 0), 18, 3); tw(arcPts(R0 - 14, 4), 9, 5);
+    for (let i = 0; i < 9; i++) { const a = Math.PI + Math.PI * (i + .5) / 9, x = GX + Math.cos(a) * R0, y = GAY + Math.sin(a) * R0; g.drawImage(LS[i % 18], x - 30, y - 22, 60, 44); if (i % 3 === 1) g.drawImage(TX.flowerS, x - 22, y - 30, 44, 44); }
+    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) g.drawImage(LS[(k + 5) % 18], GX + sx * R0 - 28, GAY + 60 + k * 70, 56, 40);
+  });
+  // drifting dapple for the path
+  { const w = 300, h = 90, c = Pilot.canvas(w, h), x = c.getContext('2d'), d = x.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let i = 0; i < w; i++) { const n = noise(i / 18, y / 8) * .7 + noise(i / 7, y / 4 + 3) * .3, v = n > .55 ? 255 : 60, o = (y * w + i) * 4;
+      d.data[o] = d.data[o + 1] = v; d.data[o + 2] = v * .85; d.data[o + 3] = Math.abs(n - .5) > .08 ? 120 : 40; }
+    x.putImageData(d, 0, 0); const c2 = Pilot.canvas(1200, 360), x2 = c2.getContext('2d'); x2.filter = 'blur(10px)'; x2.drawImage(c, 0, 0, 1200, 360); FX.dapple = c2; }
+  // the sunbeam behind the arch (soft rays from the upper right)
+  { const q = 4, w = 1400, h = 1700, c = Pilot.canvas(w / q, h / q), x = c.getContext('2d'); x.scale(1 / q, 1 / q);
+    for (let i = 0; i < 7; i++) { const x0 = 900 + i * 70, dx = (i - 3) * 60, ww = 50 + r() * 70, a = .14 + r() * .12, gg = x.createLinearGradient(x0, 0, 700 + dx, 1500);
+      gg.addColorStop(0, `rgba(255,226,150,${a * 2.4})`); gg.addColorStop(.7, `rgba(255,226,150,${a * 1.4})`); gg.addColorStop(1, 'rgba(255,226,150,0)');
+      x.fillStyle = gg; x.beginPath(); x.moveTo(x0 - ww, 0); x.lineTo(x0 + ww, 0); x.lineTo(700 + dx + ww * .5, 1500); x.lineTo(700 + dx - ww * .5, 1500); x.fill(); }
+    const c2 = Pilot.canvas(w / q, h / q), x2 = c2.getContext('2d'); x2.filter = 'blur(6px)'; x2.drawImage(c, 0, 0); FX.beam = c2; }
+  FX.motes = []; for (let i = 0; i < 30; i++) FX.motes.push({ x0: GX + 100 + r() * 400, dx: (r() - .5) * 300, v: .05 + r() * .08, p: r(), s: 2 + r() * 3, a: .5 + r() * .5 });
+  // front leaves (parallax 1.18) along the bottom
+  FX.fore = []; for (let x = -1200; x < (E + G + 900) * 1.18; x += 300 + r() * 260) FX.fore.push({ c: cloverSprite(130 + r() * 60, .7 + r() * .1, r() < .5 ? C.near : C.deep, C.nearL, (x | 0) + 11, 220 + r() * 120, C.stem), x, y: 2120 + r() * 80, f: .7 + r() * .6, p: r() * TAU, amp: .02 + r() * .015 });
+}
+
+// ---------------- the world: per frame ----------------
+function crossOutline(x, y) {
+  const hb = CBHL; return [[0, -PW / 2], [CBX - CBW / 2, -PW / 2], [CBX - CBW / 2, -hb], [CBX + CBW / 2, -hb], [CBX + CBW / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
+    [CBX + CBW / 2, PW / 2], [CBX + CBW / 2, hb], [CBX - CBW / 2, hb], [CBX - CBW / 2, PW / 2], [0, PW / 2]].map(([a, b]) => [x + a, y + b]);
+}
+function guide(ctx, t, k, al) {   // a dashed coloured-pencil outline of my whole cross across the gully
+  const ol = crossOutline(E - REST, FY + 34), x1 = E - REST - 6 + (L + 12) * k;
+  ctx.save(); ctx.globalAlpha = al; ctx.beginPath(); ctx.rect(E - REST - 10, FY - 200, x1 - (E - REST - 10), 400); ctx.clip();
+  ctx.fillStyle = 'rgba(245,214,150,.22)'; ctx.fill(pathOf(ol));
+  const glow = ss(24.15, 24.45, t) * (1 - .4 * ss(24.8, 25.8, t));
+  ctx.setLineDash([18, 11]); ctx.lineDashOffset = -t * 16; ctx.lineCap = 'round'; ctx.lineWidth = 6.5; ctx.strokeStyle = 'rgba(186,112,38,.95)'; ctx.stroke(pathOf(ol)); ctx.setLineDash([]);
+  if (glow > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = 16; ctx.strokeStyle = `rgba(255,214,140,${.3 * glow})`; ctx.stroke(pathOf(ol)); }
+  ctx.restore();
+}
+function drawFlecks(ctx, t) {
+  for (const q of FLECKS) {
+    const u = t - q.t0; if (u < 0) continue; const al = 1 - ss(q.t0 + 1.2, q.t0 + 1.8, t); if (al <= 0) continue;
+    const tl = (-q.vy + Math.sqrt(q.vy * q.vy + 4 * 700 * (q.land - q.y))) / 1400, uu = Math.min(u, Math.max(0, tl));
+    ctx.globalAlpha = al; ctx.fillStyle = q.col; ctx.beginPath(); ctx.ellipse(q.x + q.vx * uu, q.y + q.vy * uu + 700 * uu * uu, q.sz, q.sz * .65, q.r0 + q.vr * uu, 0, TAU); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+function drawSplash(ctx, t) {
+  const t0 = SPLASH(), u = t - t0; if (u < 0 || u > 1.6) return;
+  const x0 = E + G * .55, y0 = WATER + 8;
+  ctx.save(); ctx.beginPath(); ctx.rect(E + 2, RT - 400, G - 4, 2000); ctx.clip();
+  // rings
+  for (let k = 0; k < 3; k++) { const v = u - k * .18; if (v <= 0) continue; const rr = 30 + v * 260, a = (1 - v / 1.4) * .8; if (a <= 0) continue;
+    ctx.strokeStyle = `rgba(255,255,255,${a})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.ellipse(x0, y0 + 6, rr, rr * .2, 0, 0, TAU); ctx.stroke(); }
+  // the crown and droplets: watercolour blobs
+  if (u < .55) { const k = Math.sin(Math.PI * u / .55); ctx.fillStyle = `rgba(214,238,244,${.75 * k})`; ctx.strokeStyle = `rgba(120,175,195,${.6 * k})`; ctx.lineWidth = 2;
+    const pts = []; for (let i = 0; i <= 10; i++) { const xx = x0 - 100 + i * 20, hh = (i % 2 ? 130 : 70) * k * (1 - Math.abs(i - 5) / 7); pts.push([xx, y0 - hh]); }
+    const cp = smooth([[x0 - 110, y0 + 6], ...pts, [x0 + 110, y0 + 6]]); ctx.fill(cp); ctx.stroke(cp); }
+  for (const d of DROPS) { const v = u - d.d; if (v <= 0) continue; const x = x0 + d.x * .5 + d.vx * v, y = y0 + d.vy * v + 1100 * v * v; if (y > y0 + 20) continue;
+    ctx.fillStyle = `rgba(215,238,245,${.9 * (1 - ss(.8, 1.2, v))})`; ctx.beginPath(); ctx.ellipse(x, y, d.sz * .8, d.sz, Math.atan2(d.vy + 2200 * v, d.vx), 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(110,165,185,.6)'; ctx.lineWidth = 1.2; ctx.stroke(); }
+  ctx.restore();
+}
+function world(ctx, t) {
+  drawSheet(ctx, TX.gully);
+  // brook ripples (moving with the current)
+  ctx.save(); ctx.beginPath(); ctx.rect(E, WATER, G, 900); ctx.clip(); ctx.strokeStyle = 'rgba(240,252,250,.6)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  for (let i = 0; i < 9; i++) { const yy = WATER + 22 + i * 26 + (i % 2) * 6, x = E + ((i * 137 + t * (60 + i * 12)) % (G + 160)) - 80; ctx.beginPath(); ctx.moveTo(x, yy); ctx.quadraticCurveTo(x + 30, yy - 5, x + 60 + i * 4, yy); ctx.stroke(); }
+  ctx.restore();
+  drawSheet(ctx, TX.ground);
+  // dappled light drifting over the path (the leaves above moving in a breeze)
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .5;
+  { const m = ctx.getTransform().inverse(), lx = m.transformPoint(new DOMPoint(0, 0)).x, rx = m.transformPoint(new DOMPoint(W, 0)).x, ox = Math.sin(t * .35) * 40;
+    ctx.beginPath(); ctx.rect(ROADX0, RT - 20, ROADX1 - ROADX0, PN - RT + 50); ctx.clip();
+    for (let x = Math.floor((lx - ox) / 1200) * 1200 + ox; x < rx; x += 1200) ctx.drawImage(FX.dapple, x, RT - 60 + Math.cos(t * .3) * 8); }
+  ctx.restore();
+  // the arch: warm light inside it, the others walking into it, the twig frame, rays and motes
+  const lg = ctx.createRadialGradient(GX, BY - 190, 20, GX, BY - 190, 300); lg.addColorStop(0, 'rgba(255,248,222,1)'); lg.addColorStop(.5, 'rgba(255,226,160,.85)'); lg.addColorStop(1, 'rgba(255,214,140,0)');
+  ctx.fillStyle = lg; ctx.fillRect(GX - 300, BY - 500, 600, 520);
+  { const p = new Path2D(), r0 = 134; p.moveTo(GX - r0, BY + 6); p.lineTo(GX - r0, GAY); p.arc(GX, GAY, r0, Math.PI, TAU); p.lineTo(GX + r0, BY + 6); p.closePath();
+    const ig = ctx.createLinearGradient(0, GAY - r0, 0, BY); ig.addColorStop(0, '#fff6dc'); ig.addColorStop(1, '#ffe4a8'); ctx.fillStyle = ig; ctx.fill(p); }
+  const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean);
+  for (const P of pils) if (P.F && P.F.inGate) drawHam(ctx, P.F, P.X ? () => drawCross(ctx, P.X.lie ? TX.xLie : TX.xUp, P.X.u0, L, P.X.x, P.X.y, P.X.a, P.F.alpha) : null);
+  drawSheet(ctx, TX.gate);
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .85 + .1 * Math.sin(t * 1.7); ctx.drawImage(FX.beam, GX - 900, BY - 1650, 1400, 1700); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,214,150,.16)'; ctx.beginPath(); ctx.moveTo(GX - 110, BY + 4); ctx.lineTo(GX + 110, BY + 4); ctx.lineTo(GX + 200, BY + 90); ctx.lineTo(GX - 220, BY + 90); ctx.fill(); ctx.restore();
+  for (const m of FX.motes) { const u = ((t * m.v + m.p) % 1), px = lerp(m.x0, GX + m.dx, u) + Math.sin(t * 1.3 + m.p * 9) * 10, py = lerp(BY - 900, BY - 60, u);
+    ctx.fillStyle = `rgba(255,244,205,${m.a * Math.sin(Math.PI * u)})`; ctx.beginPath(); ctx.arc(px, py, m.s, 0, TAU); ctx.fill(); }
+  // back lane: a bridge (only ever one, its owner's), then the others
+  for (const P of pils) if (P.B) { ctx.fillStyle = 'rgba(70,90,90,.18)'; drawCross(ctx, TX.xLie, 0, L, P.B.x, P.B.y, P.B.a); }
+  pils.slice().sort((a, b) => (a.F ? a.F.x : 0) - (b.F ? b.F.x : 0)).forEach(P => { if (P.F && !P.F.inGate) hamShadow(ctx, P.F, .8); });
+  pils.slice().sort((a, b) => (a.F ? a.F.x : 0) - (b.F ? b.F.x : 0)).forEach(P => {
+    if (!P.F || P.F.inGate) return; const X = P.X;
+    drawHam(ctx, P.F, X ? () => drawCross(ctx, X.lie ? TX.xLie : TX.xUp, X.u0, L, X.x, X.y, X.a) : null);
+  });
+  // the guide shows the missing span while my short cross hangs off the lip, and again when the pieces come back
+  if (t >= 18.65 && t < 19.75) guide(ctx, t, eio((t - 18.65) / .3), 1 - ss(19.45, 19.75, t));
+  if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1);
+  // the saw I leave on the road after the last cut
+  const c3 = CUTS[2];
+  if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip;
+    drawSaw(ctx, [lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
+  // the pieces I cut, lying where they fell (my lane); they glow once I look back, and fly into the gap one by one
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .05 + (2 - c.k) * .12, B.back + .4 + (2 - c.k) * .12, t) * (1 - .6 * ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t));
+    const cu = (c.u0 + c.u1) / 2, cx = p.x + Math.cos(p.a) * cu, cy = p.y + Math.sin(p.a) * cu;
+    if (t > FILL[c.k][0] && t < FILL[c.k][1]) for (let q = 4; q >= 1; q--) { const pq = pieceAt(c, t - q * .035); drawCross(ctx, TX.gLie, c.u0, c.u1, pq.x, pq.y, pq.a, .18 * (5 - q) / 4, .6); }   // a light trail
+    if (hl > 0) { const R = 160, g = ctx.createRadialGradient(cx, cy, 10, cx, cy, R), pulse = .8 + .2 * Math.sin((t - B.back) * 5 + c.k);
+      g.addColorStop(0, `rgba(255,222,150,${.6 * hl * pulse})`); g.addColorStop(1, 'rgba(255,200,120,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore(); }
+    else { ctx.fillStyle = 'rgba(70,110,130,.16)'; ctx.beginPath(); ctx.ellipse(cx, c.y + PW / 2 + 2, (c.u1 - c.u0) / 2 + 6, 7, 0, 0, TAU); ctx.fill(); }
+    drawCross(ctx, TX.gLie, c.u0, c.u1, p.x, p.y, p.a, 1, hl); }
+  // me and my cross (and the saw in my paw)
+  const M = poseMe(t), F = M.F; F.pal = PAL.me;
+  hamShadow(ctx, F);
+  const myCross = X => { if (X) drawCross(ctx, X.lie ? TX.gLie : TX.gUp, X.u0, L, X.x, X.y, X.a); };
+  drawHam(ctx, F, () => {
+    if (M.X && M.X.lie && !M.lay) myCross(M.X);
+    if (M.kerf) { ctx.fillStyle = 'rgba(90,55,25,.85)'; ctx.fillRect(M.c.cutX - 1.8, M.c.y - PW / 2, 3.6, M.kerf.kp * PW * .92 + .5); }
+    if (M.X && !M.X.lie) myCross(M.X);
+    if (M.saw) drawSaw(ctx, M.saw.grip, M.saw.ang);
+    if (M.lay) myCross(M.X);
+  });
+  if (M.c && t >= M.c.drop && t < M.c.drop + .09) { const c = M.c; ctx.strokeStyle = 'rgba(255,250,225,.95)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(c.cutX - 18, c.y - PW / 2 - 8); ctx.lineTo(c.cutX - 18, c.y + PW / 2 + 8); ctx.stroke(); }
+  // my cross over the edge: tips, falls (clipped to the gully so it drops between the lips), splashes into the brook
+  const FXc = fallX(t);
+  if (FXc && (FXc.alpha ?? 1) > 0) { ctx.save(); if (FXc.clip) { ctx.beginPath(); ctx.rect(E + 2, -4000, G - 4, 4000 + WATER + 40); ctx.clip(); } drawCross(ctx, TX.gLie, FXc.u0, L, FXc.x, FXc.y, FXc.a, FXc.alpha ?? 1); ctx.restore(); }
+  drawSplash(ctx, t);
+  drawFlecks(ctx, t);
+}
+function drawLadybug(ctx, t, cx, cy) {   // walks along the upper edge of a front leaf
+  const ang = -2.6 + t * .12, x = cx + Math.cos(ang) * 120, y = cy + Math.sin(ang) * 80, dir = Math.atan2(Math.cos(ang) * 80, -Math.sin(ang) * 120);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(dir); ctx.scale(1.4, 1.4); ctx.strokeStyle = '#3a302c'; ctx.lineWidth = 2;
+  for (let i = -1; i <= 1; i++) for (const s of [-1, 1]) { const st = Math.sin(t * 14 + i * 2 + (s > 0 ? Math.PI : 0)) * 3; ctx.beginPath(); ctx.moveTo(i * 7, s * 8); ctx.lineTo(i * 7 + st, s * 16); ctx.stroke(); }
+  ctx.fillStyle = '#3a302c'; ctx.beginPath(); ctx.ellipse(16, 0, 8, 9, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#e2533f'; ctx.beginPath(); ctx.ellipse(-2, 0, 18, 15, 0, 0, TAU); ctx.fill(); ctx.strokeStyle = '#a63a2c'; ctx.lineWidth = 1.6; ctx.stroke(); ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-20, 0); ctx.stroke();
+  ctx.fillStyle = '#fff6ec'; for (const [dx, dy] of [[6, -7], [6, 7], [-6, -9], [-6, 9], [-14, -4], [-14, 4]]) { ctx.beginPath(); ctx.arc(dx, dy, 2.6, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+
+// ---------------- end card plate ----------------
+function endPlate(ctx, t) {
+  const k = ss(B.end - .25, B.end + .45, t); if (k <= 0) return;
+  ctx.save(); ctx.globalAlpha = k; ctx.drawImage(TX.plate, 0, 0); ctx.restore();
+}
+function buildPlate() {
+  const c = Pilot.canvas(W, H), x = c.getContext('2d'), r = rng(77);
+  x.fillStyle = 'rgba(250,247,234,.93)'; x.fillRect(0, 0, W, H);
+  x.save(); x.globalAlpha = .25; x.fillStyle = TX.bloomPat; x.fillRect(0, 0, W, H); x.restore();
+  // two gingham ribbons (the picnic cloth) above and below the card
+  for (const y of [600, 1290]) { const p = smooth(rough([[110, y - 22], [970, y - 22], [970, y + 22], [110, y + 22]], 3, y, 20));
+    wash(x, p, '#dbe9f1', '#9fc3d8', { bloom: .25, ew: 6, pool: .4, line: '#9fc3d8', lw: 1.6 });
+    x.save(); x.clip(p); x.strokeStyle = 'rgba(140,185,212,.6)'; x.lineWidth = 6; for (let xx = 120; xx < 980; xx += 22) { x.beginPath(); x.moveTo(xx, y - 30); x.lineTo(xx, y + 30); x.stroke(); }
+    x.lineWidth = 6; for (const yy of [y - 11, y + 11]) { x.beginPath(); x.moveTo(100, yy); x.lineTo(980, yy); x.stroke(); } x.restore(); }
+  // a clover sprig and a flower at the ribbon ends
+  for (const [px, py, s] of [[130, 1310, 1.1], [950, 580, .9]]) { x.drawImage(LS[3], px - 60 * s, py - 50 * s, 120 * s, 100 * s); }
+  x.drawImage(TX.flowerS, 900, 1250, 80, 80); x.drawImage(TX.flowerS, 100, 540, 66, 66);
+  x.globalCompositeOperation = 'destination-out'; const v = x.createRadialGradient(W / 2, 930, 600, W / 2, 930, 1300); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.25)'); x.fillStyle = v; x.fillRect(0, 0, W, H);
+  return c;
+}
+
+// ---------------- frame ----------------
+function draw(ctx, t) {
+  const cm = camAt(t);
+  ctx.fillStyle = C.sky1; ctx.fillRect(0, 0, W, H);
+  layer(ctx, cm, .1, () => drawSheet(ctx, TX.sky));
+  layer(ctx, cm, .32, () => drawSheet(ctx, TX.far));
+  layer(ctx, cm, .55, z => { const m = ctx.getTransform().inverse(), lx = m.transformPoint(new DOMPoint(-200, 0)).x, rx = m.transformPoint(new DOMPoint(W + 200, 0)).x;
+    for (const f of FX.tall) { if (f.x < lx || f.x > rx) continue; const a = Math.sin(t * f.f + f.p) * .025; ctx.save(); ctx.translate(f.x, f.base); ctx.rotate(a);
+      ctx.strokeStyle = C.stem; ctx.lineWidth = f.w; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(f.bend, -f.h * .5, 0, -f.h); ctx.stroke();
+      ctx.drawImage(f.c, -f.c.width / 2, -f.h - f.c.height / 2); ctx.restore(); } });
+  layer(ctx, cm, .72, () => drawSheet(ctx, TX.mid));
+  layer(ctx, cm, 1, () => world(ctx, t));
+  layer(ctx, cm, 1.18, () => { const m = ctx.getTransform().inverse(), lx = m.transformPoint(new DOMPoint(-300, 0)).x, rx = m.transformPoint(new DOMPoint(W + 300, 0)).x;
+    FX.fore.forEach((l, i) => { if (l.x < lx || l.x > rx) return; ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(Math.sin(t * l.f + l.p) * l.amp); ctx.drawImage(l.c, -l.c.px, -l.c.py);
+      if (i === 4) drawLadybug(ctx, t, 0, -l.c.py + l.c.px * .35 + 20); ctx.restore(); }); });
+  // warm wash once the light is in view, then paper
+  { const lit = ss(12.2, 13.2, t) * (1 - .5 * ss(B.back, B.back + .8, t)) + .5 * ss(B.back, B.back + .8, t);
+    if (lit > 0) { ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = `rgba(255,214,150,${.22 * lit})`; ctx.fillRect(0, 0, W, H); ctx.restore(); } }
+  if (t >= B.fall && t < B.fall + .3) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `rgba(255,255,250,${.35 * (1 - (t - B.fall) / .3)})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  endPlate(ctx, t);
+  ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .07; ctx.drawImage(TX.paperM, 0, 0); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .38; ctx.drawImage(TX.paper, 0, 0); ctx.restore();
+  if (t < B.end) Story.captions(ctx, t, S.lines, { font: "'Hi Melody',sans-serif", weight: 400, size: 76, color: C.ink, srcColor: '#5d6f55', y: 420, shadow: 'rgba(250,252,244,.98)', shadowBlur: 20 });
+  Story.endCard(ctx, t, S.endCard, B.end, { font: "'Hi Melody',sans-serif", color: C.ink, srcColor: '#6f7f63', y: 860, titleShadow: 'rgba(255,255,250,.8)' });
+}
+
+async function init() {
+  TX.bloom = bloomTexture(1024, 1024, 3); TX.bloomPat = Pilot.canvas(1, 1).getContext('2d').createPattern(TX.bloom, 'repeat');
+  TX.paper = paperTexture(W, H, 9);
+  TX.paperM = Pilot.canvas(W, H); { const x = TX.paperM.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); x.globalAlpha = .9; x.drawImage(TX.paper, 0, 0); }
+  TX.flowerS = flowerSprite(40, 77);
+  FX.body = rough(ellPts(0, -58, 60, 54, 24), 1.4, 3, 7);
+  buildTimeline(); buildSheets();
+  TX.gUp = crossSprite(C.gold, C.goldD, C.goldL, false, 3); TX.gLie = crossSprite(C.gold, C.goldD, C.goldL, true, 4); TX.gUp.endc = TX.gLie.endc = '#f7dca0';
+  TX.xUp = crossSprite(C.xw, C.xwD, C.xwL, false, 5); TX.xLie = crossSprite(C.xw, C.xwD, C.xwL, true, 6); TX.xUp.endc = TX.xLie.endc = '#e6dfd0';
+  TX.plate = buildPlate();
+  BACKX = (pieceAt(CUTS[0], 21.9).x + (CUTS[0].u0 + CUTS[0].u1) / 2) + 260;
+  { const p2 = CUTS[1].baseX + CUTS[1].u0; BACKC = { x: p2 + 290, y: 1150, z: 1.12 }; window.__dbg = { E, cuts: CUTS.map(c => [c.mx, c.cutX]), BACKC, BACKX }; }
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 76px 'Hi Melody'", "400 28px 'Noto Sans KR'", "500 34px 'Noto Sans KR'", "600 32px 'Noto Sans KR'"], init, draw });
+</script>
+</body>
+</html>
