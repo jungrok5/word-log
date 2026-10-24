@@ -322,10 +322,12 @@ function poseMe(t) {
   const noStrap = F => { F.strap = null; return F; };
   // a turn while handling the cross: the saw paw and the cross paw keep their jobs; which slot they draw in flips with the body
   const handle = (F, k, crossPaw, sawGrip, sawAng, Xm) => {
-    F.back = () => { drawCross(ctxNow, Xm, HONEY); if (sawGrip && F.f > 0) drawSaw(ctxNow, sawGrip, sawAng); };
-    if (sawGrip && F.f < 0) { F.mid = () => drawSaw(ctxNow, sawGrip, sawAng); F.grip = true; } else F.grip = false;
-    const other = sawGrip || F.hands[F.f > 0 ? 0 : 1];
-    F.hands = F.f > 0 ? [other, crossPaw] : [crossPaw, other]; return F; };
+    // mid-turn (body squashed) the paw on the cross is the near one, drawn over the body, so the cross never moves by itself
+    const nearCross = F.f > 0 || (F.sq ?? 1) < .999;
+    F.back = () => { drawCross(ctxNow, Xm, HONEY); if (sawGrip && nearCross) drawSaw(ctxNow, sawGrip, sawAng); };
+    if (sawGrip && !nearCross) { F.mid = () => drawSaw(ctxNow, sawGrip, sawAng); F.grip = true; } else F.grip = false;
+    const other = sawGrip || F.hands[nearCross ? 0 : 1];
+    F.hands = nearCross ? [other, crossPaw] : [crossPaw, other]; return F; };
   for (const c of CUTS) {
     if (t < c.s || t >= c.up1) continue;
     const mx = c.mx, lieX = u => lying(c.xl, FY - LIE, u, L);
