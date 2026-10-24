@@ -342,10 +342,10 @@ function carryCross(F, left, a0) {
   const contact = left < .6 ? L * (1 - left) + 14 : L - Math.min(250, left * L - 36);
   return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
 }
-function reachOnBeam(F, X) {   // the furthest point along the beam (toward the top) the far hand can really reach, on its underside
-  const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let best = X.contact;
-  for (let u = X.contact; u < L - 24; u += 6) { const q = cpt(X, u, PW / 2); if (Math.hypot(q[0] - sh[0], q[1] - sh[1]) <= R) best = u; }
-  return cpt(X, best, PW / 2 - 4);
+function reachOnBeam(F, X) {   // the far hand steadies the beam behind my back (where it shows past the body), within real reach
+  const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let u = Math.max(X.u0 + 22, X.contact - 100 * F.s);
+  while (u < X.contact) { const q = cpt(X, u, PW / 2); if (Math.hypot(q[0] - sh[0], q[1] - sh[1]) <= R) break; u += 6; }
+  return cpt(X, u, PW / 2 - 4);
 }
 function gripCarry(F, X) { F.hands = [cpt(X, Math.min(L - 16, X.contact + 60)), cpt(X, X.contact + 2, PW * .55)]; F.hand = ['grip', 'grip']; return F; }   // near mitten holds the beam at the shoulder
 const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
