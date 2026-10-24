@@ -175,7 +175,7 @@ function drawChar(ctx, t, f) {
   ctx.save(); ctx.transform(Mb.a, Mb.b, Mb.c, Mb.d, Mb.e, Mb.f); ctx.scale(FIG.k, FIG.k); ctx.drawImage(TX.fig, -FIG.cx, -FIG.by); ctx.restore();
   // the rope over the shoulder (a light brown ink line over the black cloak) while the sack is on
   if (q < 4.15) { const sl = clamp((q - 4.0) / .15), a = HD.pt(Mx, 20, -330), c = HD.pt(Mb, 40, -190 + 40 * sl), d = HD.pt(Mb, 58, -120 + 30 * sl);
-    ink(ctx, HD.spline([a, [lerp(a[0], c[0], .5), Math.min(a[1], c[1]) - 16], c, d], 3), 740, f, { w: 4, col: '#b99064', te: 14 }); }
+    ink(ctx, HD.spline([a, [lerp(a[0], c[0], .5), Math.min(a[1], c[1]) - 16], c, d], 3), 740, f, { w: 3, col: '#8d6c4a', te: 14 }); }
   if (!sackFirst) drawSack();
   // spatter when it lands (stays: it is paint)
   if (q >= B.drop) { const r = rng(750), sx = fx - 150, k = ss(B.drop, B.drop + .1, q);
