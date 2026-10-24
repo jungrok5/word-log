@@ -76,7 +76,8 @@ function buildSky() {
   SKY = mk([[0, '#2c3556'], [.35, '#46557a'], [.7, '#6f7f9f'], [1, '#9aa4b8']]);
   SKYW = mk([[0, '#3d5fa8'], [.3, '#7d8fd0'], [.6, '#ffb0a0'], [.85, '#ffd27a'], [1, '#fff0b8']]);
   const r = rng(7);
-  for (let i = 0; i < 9; i++) CLOUDS.push({ x: r() * 1300 - 100, y: 160 + i * 120 + r() * 60, s: .7 + r() * .7, seed: i * 13 + 3, sp: 6 + r() * 10, side: r() < .5 ? -1 : 1 });
+  for (let i = 0; i < 10; i++) { const cl = { x: r() * 1400 - 100, y: 120 + i * 105 + r() * 50, s: (1.5 - i * .08) * (.8 + r() * .5), seed: i * 13 + 3, sp: 5 + r() * 8 };
+    cl.spr = [cloudSprite(cl, ['#56628a', '#3a4466', '#77839f']), cloudSprite(cl, ['#ffd9b0', '#e8908c', '#fff8d8'])]; CLOUDS.push(cl); }
 }
 function cloudPath(s, seed) {   // a puffy cartoon cloud from overlapping circles
   const r = rng(seed), p = new Path2D(), n = 5 + Math.floor(r() * 3), w = 260 * s;
@@ -85,19 +86,27 @@ function cloudPath(s, seed) {   // a puffy cartoon cloud from overlapping circle
   p.moveTo(-w * .55, 0); p.roundRect(-w * .55, -30 * s, w * 1.1, 34 * s, 17 * s);
   return p;
 }
+function cloudSprite(cl, pal) {   // painted once: base, hard cel underside, lit top (no ink: background)
+  const p = cloudPath(cl.s, cl.seed), w = Math.ceil(420 * cl.s), h = Math.ceil(260 * cl.s), c = Pilot.canvas(w, h), x = c.getContext('2d');
+  x.translate(w / 2, h * .72);
+  x.fillStyle = pal[0]; x.fill(p);
+  x.save(); x.clip(p); x.fillStyle = pal[1]; x.fillRect(-w, -h, 2 * w, 2 * h); x.translate(-8 * cl.s, -30 * cl.s); x.fillStyle = pal[0]; x.fill(p); x.restore();   // underside shadow
+  x.save(); x.clip(p); x.translate(0, 0); const q = new Path2D(); q.addPath(p, new DOMMatrix([1, 0, 0, 1, 10 * cl.s, 22 * cl.s]));
+  x.globalCompositeOperation = 'source-atop'; x.fillStyle = pal[2];
+  // top rim = p minus p shifted down: paint rim everywhere in p, then knock it out where the shifted copy lies
+  const rim = Pilot.canvas(w, h), rx = rim.getContext('2d'); rx.translate(w / 2, h * .72); rx.fillStyle = pal[2]; rx.fill(p); rx.globalCompositeOperation = 'destination-out'; rx.fill(q);
+  x.restore(); x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(rim, 0, 0);
+  return c;
+}
 function sky(ctx, t, warm) {
   ctx.drawImage(SKY, 0, 0);
   if (warm > 0) { ctx.save(); ctx.globalAlpha = warm; ctx.drawImage(SKYW, 0, 0); ctx.restore(); }
-  // clouds: storm grey → lit with gold rims; they drift apart from the break in the clouds
   const part = ss(B.look - .1, B.look + 1.2, t);
   for (const cl of CLOUDS) {
-    const x = ((cl.x + t * cl.sp) % 1400) - 160 + (cl.x > 640 ? 1 : -1) * part * 70 * (cl.y < 800 ? 1 : .4), y = cl.y;
-    const p = cloudPath(cl.s, cl.seed);
-    ctx.save(); ctx.translate(x, y);
-    const base = Pilot.mix(Pilot.hex('#5d6a8c'), Pilot.hex('#ffe2b8'), warm * .85), shade = Pilot.mix(Pilot.hex('#3e4868'), Pilot.hex('#d98a8a'), warm * .8);
-    ctx.fillStyle = Pilot.rgb(base); ctx.fill(p); cel(ctx, p, Pilot.rgb(shade), 0, -26 * cl.s);
-    if (warm > .05) { ctx.save(); ctx.globalAlpha = warm; cel(ctx, p, '#fff6c8', -10, 16 * cl.s); ctx.restore(); }   // gold rim on top
-    ctx.restore();
+    const x = ((cl.x + t * cl.sp) % 1500) - 200 + (cl.x > 600 ? 1 : -1) * part * 90 * (cl.y < 800 ? 1 : .4), y = cl.y;
+    const w = cl.spr[0].width, h = cl.spr[0].height;
+    ctx.drawImage(cl.spr[0], x - w / 2, y - h * .72);
+    if (warm > 0) { ctx.save(); ctx.globalAlpha = warm; ctx.drawImage(cl.spr[1], x - w / 2, y - h * .72); ctx.restore(); }
   }
 }
 // the golden beam breaking through ahead (screen blend wedge + rays)
@@ -280,7 +289,8 @@ function arm(ctx, t, R, onStrap) {   // front arm gripping the strap (or relaxed
 function dustPuff(ctx, x, y, s, a) {   // a cel-shaded cartoon dust cloud
   if (a <= 0 || s <= 0) return; ctx.save(); ctx.globalAlpha = a;
   const p = P2(q => { for (const [dx, dy, r] of [[0, 0, 40], [-38, 10, 30], [36, 8, 32], [-14, -26, 28], [20, -22, 26]]) { q.moveTo(x + dx * s + r * s, y + dy * s); q.arc(x + dx * s, y + dy * s, r * s, 0, TAU); } });
-  inked(ctx, p, '#efe2cf', 5); cel(ctx, p, '#cdb89c', 10, -14); ctx.restore();
+  inked(ctx, p, '#efe2cf', 5); ctx.save(); ctx.clip(p); ctx.fillStyle = '#cdb89c'; ctx.fillRect(x - 200, y - 200, 400, 400); ctx.translate(10, -14); ctx.fillStyle = '#efe2cf'; ctx.fill(p); ctx.restore();
+  shine(ctx, x - 10 * s, y - 34 * s, 14 * s, 6 * s, -.3, 'rgba(255,255,255,.7)'); ctx.restore();
 }
 function speedRing(ctx, cx, cy, a, seed, r0 = 420) {   // anime emphasis lines from the edges toward a point
   if (a <= .01) return; const r = rng(seed); ctx.save(); ctx.fillStyle = `rgba(255,255,255,${.85 * a})`;

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 03 동굴 실루엣과 빛줄기</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;500&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 03 — game-art cave (a hand-painted 2D platformer's look): pure black foreground masses frame the shot with soft blobby
+   edges; behind them flat blue planes (far wall, a big soft blue glow, pillars) slide at their own depth; a diagonal shaft
+   of light falls on the ledge with dust motes turning in it; vines hang in loops and straight strands and sway; small pale
+   leaves and blue dot-flowers glow on the ledge. Everything is flat shapes with at most one soft gradient each.
+   The traveller is a tiny caped figure with a big bundle strapped on; ahead, a seed-pod hanging from a vine lights warm
+   (the only warm colour in the picture). The camera drifts sideways and back (period = DUR), so the loop closes. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2, M = 140;
+const C = { black: '#010409', wall0: '#071a2c', wall1: '#0c2a45', blob: '#2d6aa4', blob2: '#4f8fc8', pil: '#0d3352', pil2: '#0a2843',
+  near: '#06182a', vine: '#06111d', leaf: '#9fd2df', leafD: '#5fa3b8', dot: '#7fd8ff', red: '#e0475a', stone: '#8fbcd4', stoneD: '#5d8eac',
+  fig: '#0e2036', figL: '#2f5a80', face: '#cfe8f4', ink: '#dff1fb' };
+const LEDGE = x => 1262 + Math.sin(x / 130) * 5 - ss(560, 780, x) * 8;   // top of the black ledge (world x, fore-layer coords)
+const POD = { x: 700, y: 1010 };                                         // the warm seed-pod (ledge layer)
+
+// ---------------- shapes ----------------
+function blobEdge(g, pts, close = true) {   // a smooth closed shape through points (quadratic midpoints)
+  g.beginPath(); const n = pts.length, mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  let m = mid(pts[n - 1], pts[0]); g.moveTo(...m);
+  for (let i = 0; i < n; i++) { const p = pts[i], q = pts[(i + 1) % n], mm = mid(p, q); g.quadraticCurveTo(p[0], p[1], mm[0], mm[1]); }
+  if (close) g.closePath();
+}
+function lumpy(x0, y0, x1, y1, n, amp, r, inward) {   // points along a lumpy edge from (x0,y0) to (x1,y1)
+  const o = []; for (let i = 0; i <= n; i++) { const u = i / n; const bump = (r() - .2) * amp; o.push([lerp(x0, x1, u) + inward[0] * bump, lerp(y0, y1, u) + inward[1] * bump]); } return o;
+}
+function leafShape(g, x, y, len, wid, a) { g.save(); g.translate(x, y); g.rotate(a); g.beginPath(); g.moveTo(0, 0);
+  g.quadraticCurveTo(len * .45, -wid, len, 0); g.quadraticCurveTo(len * .45, wid, 0, 0); g.fill(); g.restore(); }
+function layer(depth, build) { const c = Pilot.canvas(W + 2 * M, H), g = c.getContext('2d'); g.translate(M, 0); build(g); return { c, depth }; }
+
+const L = {};
+function build() {
+  const r = rng(303);
+  // far: the cave wall, the big soft glow, far pillars and the far hanging stalactites
+  L.far = layer(.12, g => {
+    const bg = g.createLinearGradient(0, 300, 0, 1700); bg.addColorStop(0, '#0a2540'); bg.addColorStop(.5, C.wall1); bg.addColorStop(1, C.wall0);
+    g.fillStyle = bg; g.fillRect(-M, 0, W + 2 * M, H);
+    const gl = g.createRadialGradient(660, 700, 30, 660, 720, 430); gl.addColorStop(0, C.blob2); gl.addColorStop(.55, C.blob); gl.addColorStop(.85, 'rgba(45,106,164,.35)'); gl.addColorStop(1, 'rgba(45,106,164,0)');
+    g.fillStyle = gl; g.beginPath(); g.ellipse(660, 730, 430, 380, 0, 0, TAU); g.fill();
+    g.fillStyle = '#123a5e'; for (const [x, w, top] of [[120, 120, 500], [960, 150, 420], [360, 60, 820]]) { g.beginPath(); g.roundRect(x - w / 2, top, w, 1400, [w / 2, w / 2, 0, 0]); g.fill(); }
+    g.fillStyle = '#0f3150'; for (let i = 0; i < 9; i++) { const x = 80 + i * 120 + r() * 40, l = 60 + r() * 140, w = 18 + r() * 30; g.beginPath(); g.moveTo(x - w, 380); g.quadraticCurveTo(x - w * .3, 380 + l * .7, x, 380 + l); g.quadraticCurveTo(x + w * .3, 380 + l * .7, x + w, 380); g.fill(); }
+    // a far stair of ruined blocks, barely lit
+    g.fillStyle = '#143f63'; for (let i = 0; i < 5; i++) g.fillRect(780 + i * 30, 1180 - i * 26, 160 - i * 30, 26);
+  });
+  // mid: two pillars of rock and a hanging root curtain, flat darker blue
+  L.mid = layer(.38, g => {
+    g.fillStyle = C.pil;
+    blobEdge(g, [[180, 330], [250, 420], [236, 700], [262, 1000], [248, 1300], [150, 1340], [120, 1000], [140, 700], [110, 420]]); g.fill();
+    blobEdge(g, [[800, 300], [900, 380], [880, 640], [930, 900], [910, 1260], [760, 1300], [780, 1000], [760, 700], [790, 420]]); g.fill();
+    g.fillStyle = C.pil2; g.beginPath(); g.moveTo(-M, 1400); for (let x = -M; x <= W + M; x += 40) g.lineTo(x, 1330 + Math.sin(x / 90) * 18 + Math.sin(x / 31) * 6); g.lineTo(W + M, H); g.lineTo(-M, H); g.fill();
+    // a candelabra-like dead sapling (thin, stiff)
+    g.strokeStyle = '#0a2238'; g.lineWidth = 4; g.lineCap = 'round';
+    const br = (x, y, h, d) => { if (d < 0) return; g.beginPath(); g.moveTo(x, y); g.lineTo(x, y - h); g.stroke(); g.fillStyle = '#0a2238'; g.fillRect(x - 5, y - h - 8, 10, 10);
+      if (d > 0) { g.beginPath(); g.moveTo(x - h * .45, y - h * .45); g.lineTo(x + h * .45, y - h * .45); g.stroke(); br(x - h * .45, y - h * .45, h * .55, d - 1); br(x + h * .45, y - h * .45, h * .55, d - 1); } };
+    g.lineWidth = 3; br(860, 1250, 120, 2);
+  });
+  // the ledge layer: plants, a fallen carved slab, little glowing things (on top of the black ledge, which is in front)
+  L.ledge = layer(1, g => {
+    // a fallen carved slab lying on the ledge, pale where the shaft hits it
+    g.fillStyle = C.stoneD; g.beginPath(); g.moveTo(420, LEDGE(420) + 4); g.lineTo(440, LEDGE(440) - 30); g.lineTo(640, LEDGE(640) - 18); g.lineTo(650, LEDGE(650) + 4); g.closePath(); g.fill();
+    g.fillStyle = C.stone; g.beginPath(); g.moveTo(440, LEDGE(440) - 30); g.lineTo(640, LEDGE(640) - 18); g.lineTo(636, LEDGE(636) - 8); g.lineTo(446, LEDGE(446) - 20); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(16,50,80,.6)'; for (let i = 0; i < 5; i++) g.fillRect(470 + i * 34, LEDGE(470 + i * 34) - 17 + i * 1.5, 18, 3);
+    // a big pale plant at the left of the ledge
+    g.fillStyle = C.leafD; leafShape(g, 250, LEDGE(250) - 2, 150, 40, -1.95); leafShape(g, 252, LEDGE(252) - 2, 120, 30, -1.2); leafShape(g, 248, LEDGE(248), 100, 26, -2.6);
+    g.fillStyle = C.leaf; leafShape(g, 252, LEDGE(252) - 2, 190, 52, -1.55); leafShape(g, 256, LEDGE(256), 140, 36, -.75);
+    g.strokeStyle = 'rgba(40,90,120,.7)'; g.lineWidth = 2; g.beginPath(); g.moveTo(252, LEDGE(252)); g.lineTo(252 + Math.cos(-1.55) * 170, LEDGE(252) + Math.sin(-1.55) * 170); g.stroke();
+    // a small pale plant ahead near the edge, and dark spiky silhouette plants at the far left
+    g.fillStyle = C.leaf; leafShape(g, 620, LEDGE(620) - 16, 70, 18, -1.9); leafShape(g, 622, LEDGE(622) - 16, 60, 15, -1.1);
+    g.fillStyle = C.black; for (let k = 0; k < 7; k++) leafShape(g, 150 + k * 9, LEDGE(150) + 2, 70 + r() * 50, 16, -Math.PI / 2 + (k - 3) * .28);
+    // the vine the pod hangs from (static part)
+  });
+  // fore: the black frame — the cave mouth above, rock on both sides, the ledge itself, blobs at the bottom
+  L.fore = layer(1, g => {
+    g.fillStyle = C.black;
+    // top mass with a soft, lumpy underside
+    blobEdge(g, [[-M - 50, -50], [W + M + 50, -50], [W + M + 50, 380], [1010, 470], [930, 380], [820, 330], [700, 360], [560, 300], [430, 350], [300, 300], [180, 420], [60, 560], [-M - 50, 600]]); g.fill();
+    // left wall down to the ledge
+    blobEdge(g, [[-M - 40, 400], [90, 560], [130, 760], [70, 980], [140, 1150], [-M - 40, 1300]]); g.fill();
+    // the ledge: flat top, rounded overhanging lip, dropping away under it
+    g.beginPath(); g.moveTo(-M, LEDGE(-M)); for (let x = -M; x <= 760; x += 8) g.lineTo(x, LEDGE(x));
+    g.bezierCurveTo(800, 1262, 812, 1300, 790, 1330); g.bezierCurveTo(770, 1380, 790, 1420, 760, 1460); g.bezierCurveTo(700, 1560, 640, 1590, 560, 1600);
+    g.lineTo(560, 1640); g.lineTo(-M, 1640); g.closePath(); g.fill();
+    // right wall with a bulge
+    blobEdge(g, [[W + M + 40, 300], [1000, 470], [960, 640], [1010, 820], [950, 1000], [990, 1200], [1040, 1380], [W + M + 40, 1500]]); g.fill();
+    // the bottom: a lower chamber seen between black boulders
+    blobEdge(g, [[-M - 40, 1560], [200, 1600], [430, 1660], [520, 1760], [470, 1900], [-M - 40, 2000]]); g.fill();
+    blobEdge(g, [[W + M + 40, 1520], [960, 1600], [860, 1700], [900, 1860], [W + M + 40, 2000]]); g.fill();
+    g.fillRect(-M, 1880, W + 2 * M, 60);
+  });
+  // the lower chamber (between the bottom boulders): a pale potted plant on a stone stand, mid-blue
+  L.low = layer(.7, g => {
+    g.fillStyle = '#0b2a46'; g.fillRect(-M, 1600, W + 2 * M, 320);
+    g.fillStyle = '#123c60'; g.beginPath(); g.ellipse(700, 1700, 300, 120, 0, 0, TAU); g.fill();
+    g.fillStyle = C.stoneD; g.fillRect(620, 1800, 130, 34); g.fillStyle = C.stone; g.fillRect(630, 1770, 110, 32); g.fillRect(640, 1748, 90, 24);
+    g.strokeStyle = C.red; g.lineWidth = 4; g.beginPath(); g.moveTo(685, 1748); g.bezierCurveTo(700, 1720, 660, 1700, 690, 1660); g.stroke();
+    g.fillStyle = C.leaf; for (const [a, l] of [[-2.2, 60], [-1.6, 70], [-.9, 60], [-2.6, 46], [-.5, 44]]) leafShape(g, 690, 1662, l, 16, a);
+    g.fillStyle = C.leafD; for (const [a, l] of [[-1.9, 48], [-1.2, 52]]) leafShape(g, 688, 1700, l, 13, a);
+  });
+}
+
+// ---------------- vines (live: they sway) ----------------
+const VINES = [];
+function makeVines() {
+  const r = rng(808);
+  // loops hanging between two points of the cave mouth (catenary-ish), and straight strands
+  for (const [x0, x1, y0, sag, d] of [[330, 640, 330, 170, .55], [560, 860, 320, 210, .55], [420, 760, 340, 330, .7], [250, 420, 330, 110, .55]]) VINES.push({ kind: 'loop', x0, x1, y0, sag, d, ph: r() * 6, w: 3 });
+  for (let i = 0; i < 9; i++) { const x = 500 + i * 46 + r() * 30, top = 320 + r() * 40; VINES.push({ kind: 'hang', x, y0: top, len: 300 + r() * 520, d: .55 + r() * .15, ph: r() * 6, w: 2.4 + r() * 1.4, leaves: r() < .5 }); }
+  VINES.push({ kind: 'hang', x: POD.x, y0: 330, len: POD.y - 330, d: 1, ph: 1.3, w: 3, pod: true });
+  for (const [x, len] of [[90, 260], [150, 180], [1000, 300], [960, 160]]) VINES.push({ kind: 'hang', x, y0: 420, len, d: 1.35, ph: r() * 6, w: 5, black: true, leaves: true });
+}
+function vinePath(v, t, cam) {
+  const ox = -cam * v.d, sw = Math.sin(TAU * t / 3 + v.ph);
+  if (v.kind === 'loop') { const mx = (v.x0 + v.x1) / 2 + ox + sw * 10, my = v.y0 + v.sag + Math.cos(TAU * t / 3 + v.ph) * 4;
+    return { a: [v.x0 + ox, v.y0], c: [mx, my + v.sag * .9], b: [v.x1 + ox, v.y0 - 10] }; }
+  const tip = [v.x + ox + sw * v.len * .018, v.y0 + v.len];
+  return { a: [v.x + ox, v.y0], c: [v.x + ox + sw * v.len * .01, v.y0 + v.len * .55], b: tip };
+}
+function drawVines(ctx, t, cam, front) {
+  for (const v of VINES) { if (!!v.black !== front || v.pod) continue;
+    const p = vinePath(v, t, cam); ctx.strokeStyle = v.black ? C.black : C.vine; ctx.lineWidth = v.w; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(...p.a); ctx.quadraticCurveTo(...p.c, ...p.b); ctx.stroke();
+    if (v.kind === 'hang') { ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.ellipse(p.b[0], p.b[1] + 4, v.w * 1.3, v.w * 2.2, 0, 0, TAU); ctx.fill();
+      if (v.leaves) for (let k = 1; k < 6; k++) { const u = k / 6, x = (1 - u) * (1 - u) * p.a[0] + 2 * u * (1 - u) * p.c[0] + u * u * p.b[0], y = (1 - u) * (1 - u) * p.a[1] + 2 * u * (1 - u) * p.c[1] + u * u * p.b[1];
+        leafShape(ctx, x, y, 14 + v.w * 2, 5 + v.w * .6, (k % 2 ? .5 : Math.PI - .5) + Math.sin(TAU * t / 3 + v.ph + k) * .15); } }
+  }
+}
+
+// ---------------- the traveller (model units: feet y = 0, facing +x) ----------------
+const FS = 1.7, X0 = 318, WALK = 84, V = WALK / (B.stop - .3);
+function distAt(t) { const a = B.stop - .6; if (t <= a) return V * t; const u = clamp((t - a) / .6); return V * a + V * .6 * (u - u * u / 2); }
+const t12 = t => Math.floor(t * 12 + 1e-6) / 12;   // the body poses on twos (12 fps), like hand-keyed game animation
+function pose(t) {
+  const tq = t12(t), D = distAt(tq), STEP = 14, ph = D / (2 * STEP), stopK = ss(B.stop - .3, B.stop + .1, tq), rel = ss(B.drop - .05, B.drop + .7, tq);
+  const lean = lerp(.3, .38, ss(B.stop, B.stop + .3, tq)) * (1 - rel) + .02 * rel;
+  const head = lerp(.45, -.35, eio(clamp((tq - B.look) / .5))) * (1 - .25 * rel);
+  const feet = [0, .5].map((o, i) => { const p = (ph + o) % 1; let fx, lift = 0;
+    if (p < .6) fx = STEP * .6 * (1 - 2 * p / .6); else { const q = (p - .6) / .4; fx = -STEP * .6 + STEP * 1.2 * eio(q); lift = Math.sin(Math.PI * q) * 5; }
+    return [D + lerp(fx, i ? -4 : 5, stopK), -lift * (1 - stopK)]; });
+  const bob = (1 - stopK) * 1.5 * Math.abs(Math.cos(ph * TAU)) + 2.5 * ss(B.stop, B.stop + .3, tq) * (1 - rel) - (rel > .9 ? 1.2 * Math.sin((tq - B.drop) * 2.2) : 0);
+  return { D, ph, stopK, rel, lean, head, feet, hip: [D, -22 + bob], tq };
+}
+const PK = { w: 38, h: 40 };
+function packAt(t, P, sh, U, F) {
+  const at = (f, u) => [sh[0] + F[0] * f + U[0] * u, sh[1] + F[1] * f + U[1] * u], c = at(-19, -2), tq = P.tq, t0 = B.drop - .3;
+  if (tq < t0) { const pre = ss(B.drop - .9, t0, tq); return { x: c[0] - pre * 2, y: c[1] + pre * 6, a: P.lean + pre * .14 }; }
+  const land = { x: P.D - 26, y: -PK.h / 2 + 1, a: -.12 }, u = clamp((tq - t0) / (B.drop - t0));
+  if (tq < B.drop) return { x: lerp(c[0] - 2, land.x, u), y: lerp(c[1] + 6, land.y, u * u), a: lerp(P.lean + .14, land.a - .4, u) };
+  const v = clamp((tq - B.drop) / .25);   // squash on landing, then settle
+  return { x: land.x, y: land.y + (v < 1 ? 2 * Math.sin(v * Math.PI) : 0), a: lerp(land.a - .4, land.a, eo(v)), sq: Math.max(0, 1 - (tq - B.drop) / .17) };
+}
+function drawPack(g, p) {
+  g.save(); g.translate(p.x, p.y); g.rotate(p.a); if (p.sq) g.scale(1 + .18 * p.sq, 1 - .2 * p.sq);
+  const { w, h } = PK; g.fillStyle = '#14304d'; g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, 9); g.fill();
+  g.fillStyle = '#1d4468'; g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h * .32, [9, 9, 2, 2]); g.fill();            // lit top flap
+  g.fillStyle = '#0c2238'; g.beginPath(); g.ellipse(-3, -h / 2 - 5, w * .48, 7, 0, 0, TAU); g.fill();                 // bedroll
+  g.strokeStyle = '#2e5d86'; g.lineWidth = 1.6; g.beginPath(); g.ellipse(-3, -h / 2 - 5, w * .48, 7, 0, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+  g.fillStyle = '#081a2c'; g.fillRect(-w / 2 + 6, -h * .1, 4, h * .55); g.fillRect(w / 2 - 12, -h * .1, 4, h * .55);   // buckled straps
+  g.restore();
+}
+function figure(g, t) {
+  const P = pose(t), U = [Math.sin(P.lean), -Math.cos(P.lean)], F = [Math.cos(P.lean), Math.sin(P.lean)];
+  const sh = [P.hip[0] + U[0] * 22, P.hip[1] + U[1] * 22], at = (f, u) => [sh[0] + F[0] * f + U[0] * u, sh[1] + F[1] * f + U[1] * u];
+  const pk = packAt(t, P, sh, U, F);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  // thin legs under the cape
+  g.strokeStyle = '#0a1828'; g.lineWidth = 3.4;
+  for (const f of [P.feet[1], P.feet[0]]) { g.beginPath(); g.moveTo(P.hip[0] + (f[0] - P.hip[0]) * .2, P.hip[1] + 4); g.lineTo(f[0], f[1] - 1); g.stroke(); g.beginPath(); g.moveTo(f[0] - 1, f[1] - 1); g.lineTo(f[0] + 4, f[1] - 1); g.stroke(); }
+  if (!pk.on && P.tq >= B.drop - .3) drawPack(g, pk);
+  // the cape: a long bell from the neck, its hem swinging with the step and trailing back
+  const sw = Math.sin(P.ph * TAU) * 2 * (1 - P.stopK), drift = Math.sin(TAU * t12(t) / 3) * 1.5;
+  const neck = at(1, 2), hemB = [P.hip[0] - 15 - P.lean * 10 + sw + drift, -6], hemF = [P.hip[0] + 11 + sw * .5 + P.lean * 8, -8];
+  g.fillStyle = C.fig; g.beginPath(); g.moveTo(...neck); g.quadraticCurveTo(...at(-12, -4), hemB[0], hemB[1]);
+  g.lineTo(lerp(hemB[0], hemF[0], .33), -3 + sw * .3); g.lineTo(lerp(hemB[0], hemF[0], .66), -7); g.lineTo(...hemF); g.quadraticCurveTo(...at(10, -6), ...at(5, 1)); g.closePath(); g.fill();
+  g.fillStyle = C.figL; g.beginPath(); g.moveTo(...at(3, 1)); g.quadraticCurveTo(...at(9, -6), hemF[0], hemF[1]); g.lineTo(hemF[0] - 3, hemF[1] + 1); g.quadraticCurveTo(...at(5, -6), ...at(1, 0)); g.fill();   // the lit front fold
+  // head: dark hair, a pale face turned forward
+  const hp = P.head, hd = [neck[0] + 3 + Math.sin(hp) * 3, neck[1] - 8 + Math.abs(hp) * 1.5];
+  g.save(); g.translate(...hd); g.rotate(hp * .8);
+  g.fillStyle = '#0b1b2e'; g.beginPath(); g.arc(0, 0, 8.5, 0, TAU); g.fill();
+  g.beginPath(); g.moveTo(-6, -5); g.quadraticCurveTo(-15, -2, -14, 8); g.quadraticCurveTo(-9, 4, -5, 6); g.fill();           // hair tail
+  g.fillStyle = C.face; g.beginPath(); g.ellipse(4, 1.5, 4.6, 6, .1, -Math.PI / 2, Math.PI / 2); g.fill();
+  g.fillStyle = '#7fb6d8'; g.beginPath(); g.arc(-1, -6, 3, Math.PI, TAU); g.fill();                                       // hair shine
+  g.restore();
+  if (P.tq < B.drop - .3) drawPack(g, pk);
+  // strap over the shoulder and the little hand holding it (until it lets go)
+  const grip = 1 - ss(B.drop - .6, B.drop - .3, P.tq);
+  if (grip > 0) { g.strokeStyle = '#081a2c'; g.lineWidth = 2.6; g.beginPath(); g.moveTo(pk.x + 10, pk.y - PK.h / 2 + 4); g.quadraticCurveTo(...at(4, 3), ...at(7, -9)); g.stroke();
+    g.fillStyle = C.face; g.beginPath(); g.arc(...at(7.5, -9), 2.4, 0, TAU); g.fill(); }
+  return { P, pk, hd };
+}
+
+// ---------------- light ----------------
+const SHAFT = [[250, 360], [470, 330], [760, 1262], [470, 1262]];   // top edge → foot on the ledge (screen coords at cam 0)
+let SH = null, GLOW = null, WARMG = null, FIGC = null, MOTES = [];
+function buildShaft() {   // a soft-edged wedge of light (built once at quarter res, blurred)
+  const q = 4, c = Pilot.canvas(W / q, H / q), g = c.getContext('2d'); g.scale(1 / q, 1 / q);
+  const lg = g.createLinearGradient(360, 340, 610, 1262); lg.addColorStop(0, 'rgba(150,205,255,.55)'); lg.addColorStop(.6, 'rgba(120,185,245,.32)'); lg.addColorStop(1, 'rgba(120,185,245,.12)');
+  g.fillStyle = lg; g.beginPath(); g.moveTo(...SHAFT[0]); for (const p of SHAFT.slice(1)) g.lineTo(...p); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(190,230,255,.25)'; g.beginPath(); g.moveTo(330, 345); g.lineTo(390, 340); g.lineTo(640, 1262); g.lineTo(560, 1262); g.closePath(); g.fill();   // a brighter core streak
+  const c2 = Pilot.canvas(W / q, H / q), g2 = c2.getContext('2d'); g2.filter = 'blur(6px)'; g2.drawImage(c, 0, 0); return c2;
+}
+function sprite(N, stops) { const c = Pilot.canvas(N, N), g = c.getContext('2d'), gr = g.createRadialGradient(N / 2, N / 2, 0, N / 2, N / 2, N / 2); for (const [o, col] of stops) gr.addColorStop(o, col); g.fillStyle = gr; g.fillRect(0, 0, N, N); return c; }
+
+// ---------------- frame ----------------
+const camAt = t => 46 * (.5 - .5 * Math.cos(TAU * t / S.DUR));
+const lightK = t => ss(B.look - .25, B.look + .45, t);
+function put(ctx, Lr, cam) { ctx.drawImage(Lr.c, -M - cam * Lr.depth, 0); }
+function draw(ctx, t) {
+  const cam = camAt(t), lk = lightK(t);
+  put(ctx, L.far, cam);
+  put(ctx, L.mid, cam);
+  drawVines(ctx, t, cam, false);
+  // the shaft of light and the motes turning in it (motes catch light only inside the shaft)
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.drawImage(SH, -cam * .6, 0, W, H); ctx.restore();
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const m of MOTES) { const u = ((m.u + t * m.s) % 1 + 1) % 1, v = m.v + Math.sin(TAU * t / 6 * m.k + m.ph) * .05;
+    const x = lerp(lerp(SHAFT[0][0], SHAFT[1][0], v), lerp(SHAFT[3][0], SHAFT[2][0], v), u) - cam * .6 + Math.sin(t * 1.3 + m.ph) * 6, y = lerp(345, 1250, u);
+    const tw = .5 + .5 * Math.sin(t * m.f + m.ph), edge = Math.sin(Math.PI * u) * Math.sin(Math.PI * clamp(v * 1.1));
+    ctx.globalAlpha = .9 * tw * edge; ctx.fillStyle = '#cfeaff'; ctx.fillRect(x - m.r / 2, y - m.r / 2, m.r, m.r); }
+  ctx.restore();
+  // the low chamber behind the bottom boulders
+  put(ctx, L.low, cam);
+  // the ledge things, the warm pod and its vine, the traveller
+  put(ctx, L.ledge, cam);
+  const pv = VINES.find(v => v.pod), pp = vinePath(pv, t, cam), px = pp.b[0], py = pp.b[1];
+  ctx.strokeStyle = C.vine; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(...pp.a); ctx.quadraticCurveTo(...pp.c, px, py - 14); ctx.stroke();
+  if (lk > 0) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = lk * (.9 + .1 * Math.sin(t * 5)); ctx.drawImage(WARMG, px - 230, py - 230, 460, 460); ctx.restore(); }
+  ctx.fillStyle = lk > 0 ? `rgb(${lerp(20, 255, lk) | 0},${lerp(50, 200, lk) | 0},${lerp(80, 120, lk) | 0})` : '#14304d';
+  ctx.beginPath(); ctx.ellipse(px, py, 13, 17, Math.sin(TAU * t / 3 + pv.ph) * .1, 0, TAU); ctx.fill();
+  ctx.fillStyle = C.vine; ctx.beginPath(); ctx.moveTo(px - 9, py - 12); ctx.lineTo(px, py - 22); ctx.lineTo(px + 9, py - 12); ctx.fill();
+  if (lk > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = lk; ctx.drawImage(WARMG, px - 24, py - 24, 48, 48); ctx.restore(); }
+  // glowing dot-flowers and red seeds on the ledge (twinkling)
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const d of DOTS) { const a = .55 + .45 * Math.sin(TAU * t / d.p + d.ph); const x = d.x - cam, y = d.y;
+    ctx.globalAlpha = a * .5; ctx.drawImage(GLOW, x - d.r * 4, y - d.r * 4, d.r * 8, d.r * 8); ctx.globalAlpha = a; ctx.fillStyle = d.red ? C.red : C.dot; ctx.beginPath(); ctx.arc(x, y, d.r, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  // the traveller
+  const fc = FIGC.getContext('2d'); fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, FIGC.width, FIGC.height);
+  const OX = 80, OY = 150; fc.setTransform(FS, 0, 0, FS, OX, OY); const fg = figure(fc, t); fc.setTransform(1, 0, 0, 1, 0, 0);
+  // light from the shaft on the figure's back edge (it walks into the beam), warm from the pod on its face side
+  fc.save(); fc.globalCompositeOperation = 'source-atop';
+  const shx = lerp(470, 760, .97) - cam * .6 - (X0 - cam - OX);
+  const lg2 = fc.createLinearGradient(0, 0, FIGC.width, 0); lg2.addColorStop(0, 'rgba(140,200,255,0)'); lg2.addColorStop(clamp((shx - 120) / FIGC.width), 'rgba(140,200,255,0)'); lg2.addColorStop(clamp(shx / FIGC.width), 'rgba(140,200,255,.18)'); lg2.addColorStop(1, 'rgba(140,200,255,.1)');
+  fc.fillStyle = lg2; fc.fillRect(0, 0, FIGC.width, FIGC.height);
+  if (lk > 0) { fc.globalAlpha = lk * .35; const wg = fc.createLinearGradient(0, 0, FIGC.width, 0); wg.addColorStop(0, 'rgba(255,170,90,0)'); wg.addColorStop(.7, 'rgba(255,170,90,.2)'); wg.addColorStop(1, 'rgba(255,190,110,.9)'); fc.fillStyle = wg; fc.fillRect(0, 0, FIGC.width, FIGC.height); }
+  fc.restore();
+  ctx.drawImage(FIGC, X0 - cam - OX, LEDGE(X0 + 40) - OY);
+  // landing puff: a ring of dust motes
+  if (t > B.drop) { const u = clamp((t - B.drop) / .9), lx = X0 - cam + fg.pk.x * FS, ly = LEDGE(X0) - 2;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = '#bfe3ff'; for (let k = 0; k < 10; k++) { const a = Math.PI + (k / 9) * Math.PI, R = 10 + eo(u) * 46;
+      ctx.globalAlpha = .7 * (1 - u); ctx.fillRect(lx + Math.cos(a) * R * 1.4, ly + Math.sin(a) * R * .5 - u * 10, 3, 3); } ctx.restore(); }
+  // the black frame and the front vines
+  put(ctx, L.fore, cam * 1.0);
+  drawVines(ctx, t, cam, true);
+  // warm bounce on the far glow once the pod is lit (very faint: one warm accent only)
+  Story.captions(ctx, t, S.lines, { font: "'Noto Sans KR',sans-serif", weight: 300, size: 60, color: C.ink, y: 400, shadow: 'rgba(0,10,25,.85)', shadowBlur: 16 });
+}
+const DOTS = [];
+async function init() {
+  build(); makeVines(); SH = buildShaft();
+  GLOW = sprite(64, [[0, 'rgba(127,216,255,.9)'], [.4, 'rgba(80,170,240,.3)'], [1, 'rgba(60,140,220,0)']]);
+  WARMG = sprite(256, [[0, 'rgba(255,240,200,1)'], [.12, 'rgba(255,196,110,.85)'], [.4, 'rgba(240,140,70,.25)'], [1, 'rgba(200,100,60,0)']]);
+  FIGC = Pilot.canvas(420, 220);
+  const r = rng(91);
+  for (let i = 0; i < 70; i++) MOTES.push({ u: r(), v: r(), s: (.01 + r() * .025) * (r() < .5 ? 1 : -1) + .02, k: 1 + (r() * 2 | 0), ph: r() * TAU, f: 1 + r() * 3, r: 1.5 + r() * 2.5 });
+  for (let i = 0; i < 26; i++) { const x = 180 + r() * 560; DOTS.push({ x, y: LEDGE(x) - 2 - r() * 18, r: 2 + r() * 2.5, red: r() < .25, p: [2, 3, 6][r() * 3 | 0], ph: r() * TAU }); }
+  for (let i = 0; i < 8; i++) DOTS.push({ x: 640 + r() * 80, y: 1660 + r() * 60, r: 2 + r() * 2, red: false, p: 3, ph: r() * TAU });
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["300 60px 'Noto Sans KR'"], init, draw });
+</script>
+</body>
+</html>

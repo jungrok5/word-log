@@ -132,7 +132,9 @@ const GY = 1410, X0 = 250, X1 = 560, A = 15, POSTX = 700;
 const walkX = HD.walker(X0, X1, B.stop, .3);
 const bf = t => Math.floor(t * 8 + 1e-6) % 3;
 const TX = {};
-function pen(g, pts, seed, f, o = {}) { HD.ink(g, HD.boil(HD.wob(pts, seed, o.wob ?? 1.5, 90), seed, f, o.boil ?? 1.3, 60), { w: 3.8, ts: 5, te: 9, mn: .45, press: .22, pw: 50, rough: .1, seed, col: INK, ...o }); }
+let PENK = 1;
+const WZ = 1.45, WM = [WZ, 0, 0, WZ, 540 - 540 * WZ, 1330 - 1330 * WZ];   // post, bird and light are drawn 1.45x about (540, 1330); rain and puddle marks in screen space
+function pen(g, pts, seed, f, o = {}) { HD.ink(g, HD.boil(HD.wob(pts, seed, o.wob ?? 1.5, 90), seed, f, o.boil ?? 1.3, 60), { ts: 5, te: 9, mn: .45, press: .22, pw: 50, rough: .1, seed, col: INK, ...o, w: (o.w ?? 3.8) * PENK }); }
 
 // ---------------- ground scribbles (puddle marks), each with 3 ripple drawings ----------------
 const MARKS = [];
@@ -140,7 +142,7 @@ function buildMarks() {
   const r = rng(77);
   for (let i = 0; i < 150; i++) {
     const y = 1150 + Math.pow(r(), .8) * 390, depth = (y - 1150) / 390, x = 30 + r() * 1020;
-    if (Math.abs(x - POSTX) < 60 && y > GY - 30 && y < GY + 40) continue;
+    if (Math.abs(x - (540 + (POSTX - 540) * WZ)) < 70 && y > 1400) continue;
     const s = .55 + .7 * depth, ty = r();
     MARKS.push({ x, y, s, type: ty < .36 ? 'paren' : ty < .62 ? 'dash' : ty < .8 ? 'wave' : ty < .9 ? 'cup' : 'tick', seed: 1000 + i, ph: Math.floor(r() * 3), len: 10 + r() * 22 });
   }
@@ -159,40 +161,53 @@ function drawMark(g, m, k, f) {   // k: ripple drawing 0..2
 
 // ---------------- the lamp post (static, 3 drawings) ----------------
 function drawPost(g, f) {
-  const x = POSTX, top = 840;
-  // pole: two wobbly lines, a little hatching on the shade side
-  pen(g, HD.seg([x - 9, GY + 6], [x - 7, top + 40], 5), 1, f, { w: 4.2 }); pen(g, HD.seg([x + 9, GY + 4], [x + 8, top + 40], 5), 2, f, { w: 4.2 });
-  for (let y = top + 70; y < GY; y += 16) pen(g, HD.seg([x + 2, y], [x + 8, y - 8], 2), 3 + y, f, { w: 2.6, mn: .4 });
-  // base collar + a few bands
-  pen(g, HD.poly([[x - 18, GY + 6], [x - 16, GY - 30], [x + 17, GY - 30], [x + 18, GY + 4]]), 4, f, { w: 3.6 });
-  pen(g, HD.seg([x - 12, top + 120], [x + 12, top + 120], 2), 5, f, { w: 3.4 });
-  // arm + lamp head (a little bell), a hanging bulb
-  pen(g, HD.spline([[x - 4, top + 40], [x - 4, top + 6], [x - 40, top - 8], [x - 92, top + 4]], 3), 6, f, { w: 4 });
-  pen(g, HD.spline([[x + 4, top + 40], [x + 2, top + 14], [x - 40, top + 4], [x - 90, top + 16]], 3), 7, f, { w: 3.4 });
-  const hx = x - 104, hy = top + 18;
-  pen(g, HD.spline([[hx - 46, hy + 40], [hx - 30, hy + 4], [hx, hy - 10], [hx + 30, hy + 4], [hx + 46, hy + 40]], 3), 8, f, { w: 4.2 });
-  pen(g, HD.spline([[hx - 50, hy + 40], [hx, hy + 48], [hx + 50, hy + 40]], 3), 9, f, { w: 4 });
-  for (let i = -3; i <= 3; i++) pen(g, HD.seg([hx + i * 10, hy + 2 + Math.abs(i) * 3], [hx + i * 12 + 6, hy + 36], 2), 10 + i, f, { w: 2.6 });
-  pen(g, HD.seg([hx, hy - 10], [hx, hy - 24], 2), 20, f, { w: 3.6 });
+  const x = POSTX, top = 905;
+  // pole: two wobbly lines, hatching on its shade side
+  pen(g, HD.seg([x - 8, GY + 6], [x - 6, top], 5), 1, f, { w: 4.2 }); pen(g, HD.seg([x + 8, GY + 4], [x + 7, top], 5), 2, f, { w: 4.2 });
+  for (let y = top + 30; y < GY - 30; y += 13) pen(g, HD.seg([x + 1, y], [x + 7, y - 6], 2), 3 + y, f, { w: 2.4, mn: .4 });
+  pen(g, HD.poly([[x - 17, GY + 6], [x - 15, GY - 34], [x + 16, GY - 34], [x + 17, GY + 4]]), 4, f, { w: 3.6 });
+  pen(g, HD.seg([x - 13, GY - 44], [x + 13, GY - 44], 2), 5, f, { w: 3.2 });
+  // a little crossbar with two curls, then the lantern: a glass box, a pointed cap, a finial
+  pen(g, HD.seg([x - 30, top], [x + 30, top], 3), 6, f, { w: 4 });
+  pen(g, HD.spline([[x - 28, top], [x - 36, top + 12], [x - 26, top + 20], [x - 20, top + 12]], 2), 7, f, { w: 3.2 });
+  pen(g, HD.spline([[x + 28, top], [x + 36, top + 12], [x + 26, top + 20], [x + 20, top + 12]], 2), 8, f, { w: 3.2 });
+  const L = [[x - 24, top - 4], [x - 34, top - 72], [x + 34, top - 72], [x + 24, top - 4]];
+  pen(g, HD.poly(L, true), 9, f, { w: 4 });
+  pen(g, HD.seg([x, top - 6], [x, top - 70], 3), 10, f, { w: 3 }); pen(g, HD.seg([x - 30, top - 40], [x + 30, top - 40], 3), 11, f, { w: 3 });
+  pen(g, HD.poly([[x - 44, top - 72], [x, top - 108], [x + 44, top - 72]]), 12, f, { w: 4.2 });
+  pen(g, HD.seg([x - 40, top - 76], [x + 40, top - 76], 3), 13, f, { w: 3.4 });
+  for (let i = -2; i <= 2; i++) pen(g, HD.seg([x + i * 12, top - 80 + Math.abs(i) * 3], [x + i * 9, top - 96 + Math.abs(i) * 6], 2), 14 + i, f, { w: 2.4 });
+  HD.fillPts(g, HD.boil(HD.arc(x, top - 116, 7, 7, 0, TAU, 2), 20, f, .5, 10), INK);
   // reflection of the post in the puddle: broken vertical hatching, mirrored and wobbling
   const r = rng(31);
-  for (let y = GY + 20; y < GY + 270; y += 9 + r() * 7) { const w2 = 16 * (1 - (y - GY) / 340), xo = (r() - .5) * 6 + Math.sin(y * .08) * 3;
-    for (let k = 0; k < 3; k++) if (r() > .25) pen(g, HD.seg([x - w2 + k * w2 + xo, y], [x - w2 + k * w2 + xo, y + 6 + r() * 10], 2), 40 + y * 3 + k, f, { w: 3, mn: .3 }); }
-  for (let y = GY + 30; y < GY + 220; y += 14) pen(g, HD.seg([x - 60 - (y - GY) * .1, y], [x - 30, y], 2), 300 + y, f, { w: 2.8, mn: .3 });
+  for (let y = GY + 18; y < GY + 250; y += 8 + r() * 7) { const w2 = 12 * (1 - (y - GY) / 360), xo = Math.sin(y * .07) * 4;
+    for (let k = 0; k < 3; k++) if (r() > .3) pen(g, HD.seg([x - w2 + k * w2 + xo, y], [x - w2 + k * w2 + xo + (r() - .5) * 3, y + 5 + r() * 9], 2), 40 + y * 3 + k, f, { w: 3, mn: .3 }); }
+  for (let y = GY + 40; y < GY + 230; y += 34) { const pts = []; for (let i = 0; i <= 10; i++) pts.push([x - 34 + i * 7, y + Math.sin(i * 1.4 + y) * 2.5]); pen(g, pts, 300 + y, f, { w: 2.6 }); }
 }
 
 // ---------------- the bird ----------------
 // body sprite: a round scribble-filled bird (pen hatched back and forth until nearly solid), 3 drawings
-function birdBody(f) {
-  const c = Pilot.canvas(260, 260), g = c.getContext('2d'), cx = 130, cy = 132, R = 64, r = rng(500 + f * 7);
-  g.lineJoin = g.lineCap = 'round';
-  const shape = HD.boil(HD.spline([[cx, cy - R], [cx + R * .9, cy - R * .4], [cx + R * .95, cy + R * .5], [cx + R * .3, cy + R * 1.05], [cx - R * .4, cy + R * 1.02], [cx - R * .95, cy + R * .45], [cx - R * .85, cy - R * .45]], 3, true), 501, f, 1.4, 50);
+function scribble(g, shape, seed, dens, alpha) {   // pen hatching back and forth inside a shape until it is nearly solid
+  const r = rng(seed); let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const p of shape) { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); }
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, R = Math.max(x1 - x0, y1 - y0) * .8;
   g.save(); g.clip(HD.pathOf(shape));
-  for (let pass = 0; pass < 3; pass++) { const a = [-.9, .55, -.2][pass];
-    for (let s = -R * 1.6; s < R * 1.6; s += 4.2 + r() * 2) { const p0 = [cx + Math.cos(a) * -R * 1.6 - Math.sin(a) * s, cy + Math.sin(a) * -R * 1.6 + Math.cos(a) * s], p1 = [cx + Math.cos(a) * R * 1.6 - Math.sin(a) * s, cy + Math.sin(a) * R * 1.6 + Math.cos(a) * s];
-      HD.ink(g, HD.wob(HD.seg(p0, p1, 6), 600 + pass * 97 + s | 0, 1.4, 40), { w: 3.4, ts: 3, te: 3, mn: .6, press: .2, seed: 700 + s | 0, col: 'rgba(34,31,40,.62)' }); } }
+  for (let pass = 0; pass < dens.length; pass++) { const a = dens[pass][0], sp = dens[pass][1];
+    for (let s = -R; s < R; s += sp * (.8 + .5 * r())) { const ca = Math.cos(a), sa = Math.sin(a), p0 = [cx - ca * R - sa * s, cy - sa * R + ca * s], p1 = [cx + ca * R - sa * s, cy + sa * R + ca * s];
+      HD.ink(g, HD.wob(HD.seg(p0, p1, 5), seed + pass * 97 + s * 3 | 0, 1.2, 30), { w: 3.2, ts: 3, te: 3, mn: .6, press: .25, seed: seed + 31 + s | 0, col: `rgba(34,31,40,${alpha})` }); } }
   g.restore();
-  HD.ink(g, shape, { w: 4.2, ts: 4, te: 4, mn: .7, press: .2, seed: 502, col: INK });
+}
+function birdBody(f) {   // sprite 300x300, origin (hip) at (150, 170)
+  const c = Pilot.canvas(300, 300), g = c.getContext('2d'), o = [150, 170];
+  g.lineJoin = g.lineCap = 'round';
+  const P = pts => pts.map(p => [p[0] + o[0], p[1] + o[1]]);
+  const body = HD.boil(P(HD.spline([[-12, -56], [26, -40], [40, -8], [24, 24], [-10, 32], [-44, 18], [-78, 2], [-50, -26]], 3, true)), 501, f, 1.3, 50);
+  scribble(g, body, 600 + f * 13, [[-.9, 5], [.6, 6]], .6);
+  HD.ink(g, body, { w: 4, ts: 4, te: 4, mn: .7, press: .2, seed: 502, col: INK });
+  const head = HD.boil(P(HD.arc(16, -78, 40, 38, 0, TAU, 3)), 503, f, 1.2, 40);
+  scribble(g, head, 700 + f * 13, [[-.7, 4.6], [.8, 5], [.1, 7]], .62);
+  HD.ink(g, head, { w: 4, ts: 4, te: 4, mn: .7, press: .2, seed: 504, col: INK });
+  // tail ticks
+  for (const [a, b, cc, d] of [[-76, 0, -96, -8], [-74, 6, -98, 6]]) HD.ink(g, HD.boil(P(HD.seg([a, b], [cc, d], 2)), 505 + a, f, .8, 20), { w: 3.4, ts: 3, te: 6, mn: .4, seed: 506, col: INK });
   return c;
 }
 function pose(t) {
@@ -214,8 +229,6 @@ function bundle(g, M, f, seed = 800) {
   pen(g, P(HD.spline([[-70, -128], [-58, -150], [-44, -146], [-50, -126]], 2)), seed + 2, f, { w: 3.6 });
   pen(g, P(HD.spline([[-50, -128], [-30, -152], [-18, -140], [-36, -122]], 2)), seed + 3, f, { w: 3.6 });
   pen(g, P(HD.spline([[-96, -96], [-80, -60], [-86, -20]], 3)), seed + 4, f, { w: 3 }); pen(g, P(HD.spline([[-30, -80], [-16, -40]], 3)), seed + 5, f, { w: 3 });
-  pen(g, P(HD.poly([[-74, -52], [-46, -56], [-44, -30], [-72, -26]], true)), seed + 6, f, { w: 3 });
-  for (const [a, b] of [[-74, -48], [-66, -30], [-50, -50]]) pen(g, P(HD.seg([a, b], [a + 6, b + 4], 2)), seed + 7 + a, f, { w: 2.4 });
   for (let i = 0; i < 9; i++) { const x = -118 + i * 15; pen(g, P(HD.seg([x, -6 + Math.abs(i - 4) * 2], [x + 10, 10 - Math.abs(i - 4)], 2)), seed + 20 + i, f, { w: 2.6, mn: .3 }); }
 }
 function drawBird(g, t, f) {
@@ -236,19 +249,19 @@ function drawBird(g, t, f) {
   if (q < 4.1) { const sl = clamp((q - 4.02) / .08); pen(g, HD.xf(HD.spline([[-50, -88 + 30 * sl], [0, -56], [44, -10], [30, 24]], 3), Mb), 950, f, { w: 3.6 }); }
   if (behind) bundle(g, Mx, f);
   // body sprite
-  g.save(); g.setTransform(Mb.a, Mb.b, Mb.c, Mb.d, Mb.e, Mb.f); g.drawImage(TX.bird[f], -130, -130 - 40); g.restore();
+  g.save(); g.setTransform(Mb.a, Mb.b, Mb.c, Mb.d, Mb.e, Mb.f); g.drawImage(TX.bird[f], -150, -170); g.restore();
   if (q < 4.1) { const sl = clamp((q - 4.02) / .08); pen(g, HD.xf(HD.spline([[-40, -40 + 16 * sl], [20, -16], [52, 14]], 3), Mb), 951, f, { w: 4 }); }
   // eye (white disc + pupil), beak
-  const eyeC = HD.pt(Mb, 22, -64), eyeR = 17;
+  const eyeC = HD.pt(Mb, 26, -84), eyeR = 17;
   HD.fillPts(g, HD.boil(HD.arc(eyeC[0], eyeC[1], eyeR, eyeR, 0, TAU, 2), 960, f, 1, 20), '#fff');
   pen(g, HD.arc(eyeC[0], eyeC[1], eyeR, eyeR, .3, TAU + .2, 2), 961, f, { w: 3.6 });
   const look = p.look, blink = q > 5.2 && q < 5.3;
   if (!blink) { const pc = [eyeC[0] + lerp(5, 3, look), eyeC[1] + lerp(3, -6, look)]; HD.fillPts(g, HD.boil(HD.arc(pc[0], pc[1], 7.5, 7.5, 0, TAU, 2), 962, f, .6, 10), INKS); }
   else pen(g, HD.seg([eyeC[0] - 12, eyeC[1]], [eyeC[0] + 12, eyeC[1]], 2), 963, f, { w: 3.6 });
-  const bk = HD.pt(Mb, 62, -60), bk2 = HD.pt(Mb, 112, -58), bk3 = HD.pt(Mb, 64, -48);
+  const bk = HD.pt(Mb, 54, -84), bk2 = HD.pt(Mb, 92, -78), bk3 = HD.pt(Mb, 55, -70);
   pen(g, [bk, ...HD.seg(bk, bk2, 3).slice(1), ...HD.seg(bk2, bk3, 3).slice(1)], 964, f, { w: 4 });
   // little worry ticks round the head once it looks up (like a doodle's emphasis marks)
-  if (q > B.look + .1 && q < B.drop + .2) { const hc = HD.pt(Mb, 4, -80);
+  if (q > B.look + .1 && q < B.drop + .2) { const hc = HD.pt(Mb, 16, -84);
     for (let i = 0; i < 5; i++) { const a = -Math.PI * (.25 + i * .12), r0 = 82, r1 = 98; pen(g, HD.seg([hc[0] + Math.cos(a) * r0, hc[1] + Math.sin(a) * r0], [hc[0] + Math.cos(a) * r1, hc[1] + Math.sin(a) * r1], 2), 970 + i, f, { w: 3.2 }); } }
   // splash when the bundle lands
   if (q >= B.drop && q < B.drop + .5) { const k = (q - B.drop) / .5, sx = fx - 120, sy = GY + 16;
@@ -272,20 +285,25 @@ function rain(g, t, f) {
 }
 
 // ---------------- the lamp's light: yellow highlighter (the one colour) + tick marks ----------------
-function lampLight(ctx, g, t, f) {
+function lampLight(ctx, t, f) {
   const q = HD.t12(t); if (q < B.look) return;
-  const on = q < B.look + .09 ? .5 : 1, hx = POSTX - 104, hy = 858 + 36, r = rng(55 + f);
-  ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.lineCap = 'round';
-  // the pool of light under the lamp: highlighter strokes, roughly vertical, inside a soft cone
-  ctx.strokeStyle = `rgba(255,232,92,${.42 * on})`;
-  for (let i = 0; i < 18; i++) { const u = i / 17, xTop = hx - 40 + u * 80 + (r() - .5) * 6, xBot = hx - 210 + u * 420 + (r() - .5) * 12; ctx.lineWidth = 30 + r() * 8; ctx.beginPath(); ctx.moveTo(xTop, hy + 10); ctx.lineTo(xBot, GY + 30 + (r() - .5) * 30); ctx.stroke(); }
-  // the glow round the head: a scribbled ring of highlighter
-  ctx.strokeStyle = `rgba(255,224,70,${.5 * on})`; ctx.lineWidth = 34;
-  ctx.beginPath(); for (let i = 0; i <= 26; i++) { const a = i / 26 * TAU * 1.15, rr = 70 + 12 * Math.sin(i * 1.7 + f); ctx.lineTo(hx + Math.cos(a) * rr, hy - 6 + Math.sin(a) * rr * .8); } ctx.stroke();
-  // its reflection in the puddle: a few horizontal highlighter dashes
-  ctx.strokeStyle = `rgba(255,226,80,${.4 * on})`; ctx.lineWidth = 16;
-  for (let i = 0; i < 7; i++) { const y = GY + 40 + i * 26, w2 = 140 - i * 14 + r() * 20; ctx.beginPath(); ctx.moveTo(hx - w2 / 2 + (r() - .5) * 20, y); ctx.lineTo(hx + w2 / 2, y + (r() - .5) * 4); ctx.stroke(); }
+  const on = q < B.look + .09 ? .5 : 1, hx = POSTX, hy = 905 - 40, r = rng(55 + f);
+  ctx.save(); ctx.setTransform(...WM); ctx.globalCompositeOperation = 'multiply'; ctx.lineCap = 'round';
+  // the pool of light: highlighter strokes fanning down from the lantern
+  ctx.strokeStyle = `rgba(255,238,120,${.3 * on})`;
+  for (let i = 0; i < 11; i++) { const u = i / 10, xTop = hx - 26 + u * 52, xBot = hx - 170 + u * 340 + (r() - .5) * 14; ctx.lineWidth = 22 + r() * 6; ctx.beginPath(); ctx.moveTo(xTop, hy + 30); ctx.lineTo(xBot, GY + 10 + (r() - .5) * 24); ctx.stroke(); }
+  // round the lantern: a quick scribbled ring, twice
+  ctx.strokeStyle = `rgba(255,232,96,${.42 * on})`; ctx.lineWidth = 24;
+  ctx.beginPath(); for (let i = 0; i <= 30; i++) { const a = i / 30 * TAU * 1.2 + f, rr = 56 + 8 * Math.sin(i * 1.9 + f); ctx.lineTo(hx + Math.cos(a) * rr, hy + Math.sin(a) * rr); } ctx.stroke();
+  // its reflection in the puddle: horizontal dashes
+  ctx.strokeStyle = `rgba(255,236,110,${.32 * on})`; ctx.lineWidth = 12;
+  for (let i = 0; i < 6; i++) { const y = GY + 30 + i * 24, w2 = 120 - i * 14 + r() * 16; ctx.beginPath(); ctx.moveTo(hx - w2 / 2 + (r() - .5) * 14, y); ctx.lineTo(hx + w2 / 2, y + (r() - .5) * 4); ctx.stroke(); }
   ctx.restore();
+}
+function lampTicks(g, t, f) {
+  const q = HD.t12(t); if (q < B.look) return;
+  const hx = POSTX, hy = 905 - 40;
+  for (let i = 0; i < 11; i++) { const a = Math.PI * (.95 + i * .11), r0 = 66, r1 = 84 + (i % 2) * 10; pen(g, HD.seg([hx + Math.cos(a) * r0, hy + Math.sin(a) * r0], [hx + Math.cos(a) * r1, hy + Math.sin(a) * r1], 2), 1200 + i, f, { w: 3.4 }); }
 }
 
 // ---------------- frame ----------------
@@ -293,13 +311,14 @@ let INKL;
 function draw(ctx, t) {
   const f = bf(t), g = INKL.g, q = HD.t12(t);
   ctx.drawImage(TX.paper, 0, 0);
-  lampLight(ctx, g, t, f);
+  lampLight(ctx, t, f);
   HD.clearWhite(g);
   g.drawImage(TX.post[f], 0, 0);
   for (const m of MARKS) drawMark(g, m, (Math.floor(q * 12 / 3) + m.ph) % 3, f);
   rain(g, t, f);
-  drawBird(g, t, f);
-  if (q >= B.look) { const hx = POSTX - 104, hy = 858 + 36; for (let i = 0; i < 9; i++) { const a = Math.PI * (1.1 + i * .11), r0 = 72, r1 = 94 + (i % 2) * 12; pen(g, HD.seg([hx + Math.cos(a) * r0, hy - 6 + Math.sin(a) * r0 * .8], [hx + Math.cos(a) * r1, hy - 6 + Math.sin(a) * r1 * .8], 2), 1200 + i, f, { w: 3.4 }); } }
+  g.setTransform(...WM); PENK = .8;
+  drawBird(g, t, f); lampTicks(g, t, f);
+  g.setTransform(1, 0, 0, 1, 0, 0); PENK = 1;
   HD.dropout(g, TX.drop, .5);
   HD.multiply(ctx, INKL.c);
   // hand-lettered words: pen script, ink, boiling with the drawing
@@ -312,7 +331,7 @@ async function init() {
   TX.paper = HD.paper(T, { base: [238, 231, 226], mott: 5, emb: 10, grain: 3, vig: .5, mscale: 300, tint: [2, 0, -2] });
   TX.drop = HD.toothMask(T, '#ffffff', 'valley', .3, .12, .8);
   buildMarks(); buildRain();
-  TX.post = [0, 1, 2].map(f => { const L = HD.layer(); HD.clearWhite(L.g); drawPost(L.g, f); return L.c; });
+  TX.post = [0, 1, 2].map(f => { const L = HD.layer(); HD.clearWhite(L.g); L.g.setTransform(...WM); PENK = .8; drawPost(L.g, f); PENK = 1; return L.c; });
   TX.bird = [0, 1, 2].map(birdBody);
   INKL = HD.layer();
 }
