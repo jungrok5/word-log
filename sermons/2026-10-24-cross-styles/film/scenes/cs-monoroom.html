@@ -291,7 +291,7 @@ function vMe(t) {
 const strideMe = t => t < 4.6 ? 104 : t < 8.8 ? 250 : 160;
 const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
-const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .26, saw0: 9.28, drop: 9.8, up1: 10.12 }, { s: 10.4, d: .22, saw0: 10.63, drop: 11.2, up1: 11.47 }];
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .36, saw0: 9.38, drop: 9.8, up1: 10.12 }, { s: 10.4, d: .32, saw0: 10.73, drop: 11.2, up1: 11.47 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
 const FLECKS = [];
 let E = 2000, GX = 0, SAWLIE = null, CACHE = null;
@@ -353,7 +353,7 @@ function holdShort(F, left) {   // near mitten on the beam ahead of me, far mitt
 const mirrorX = (X, px, sx) => ({ ...X, px, sx: Math.sign(sx || 1) * Math.max(.08, Math.abs(sx)) });   // a yaw turn with the beam, drawn as a horizontal squash
 function reachOnBeam(F, X) {   // the far hand steadies the beam behind my back (where it shows past the body), within real reach
   const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let u = Math.max(X.u0 + 22, X.contact - 100 * F.s);
-  while (u < X.contact) { const q = cpt(X, u, PW / 2); if (Math.hypot(q[0] - sh[0], q[1] - sh[1]) <= R) break; u += 6; }
+  while (u < X.contact) { const q = cpt(X, u, PW / 2); if (Math.hypot(q[0] - sh[0], q[1] - sh[1]) <= R && (q[0] - F.hip[0]) * F.f < -58 * F.s) break; u += 6; }
   return cpt(X, u, PW / 2 - 4);
 }
 function gripCarry(F, X) { F.hands = [cpt(X, Math.min(L - 16, X.contact + 60)), cpt(X, X.contact + 2, PW * .55)]; F.hand = ['grip', 'grip']; return F; }   // near mitten holds the beam at the shoulder
@@ -389,16 +389,17 @@ function poseMe(t) {
       const lf0 = S.left[c.k], lf1 = S.left[c.k + 1], [W0, a0] = walk(c.s, c.mx), [W1, a1] = walk(c.up1, c.mx), last = c.k === 2;
       const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
-      const onBeam = (X, F, k) => {   // the free hand on the beam: the point nearest the far shoulder, sliding to where it will pin the cut
-        const sh = frame(F).P(SHF[0], SHF[1]); let best = c.u1 + 104, bd = 1e9;
-        for (let u = X.u0 + 24; u < L - 20; u += 8) { const q = cpt(X, u), d = Math.hypot(q[0] - sh[0], q[1] - sh[1]); if (d < bd) { bd = d; best = u; } }
+      const onBeam = (X, F, k, avoid) => {   // the free hand on the beam: the point nearest the far shoulder, sliding to where it will pin the cut
+        const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let best = c.u1 + 104, bd = 1e9;
+        for (let u = X.u0 + 24; u < L - 20; u += 8) { const q = cpt(X, u), d = Math.hypot(q[0] - sh[0], q[1] - sh[1]), clear = Math.abs(q[0] - F.hip[0]) > 66 * F.s;
+          const sc = d + (clear ? 0 : 400) + (d > R ? 800 : 0) + (avoid && Math.hypot(q[0] - avoid[0], q[1] - avoid[1]) < 70 * F.s ? 600 : 0); if (sc < bd) { bd = sc; best = u; } }
         return cpt(X, lerp(best, c.u1 + 104, ss(.55, 1, k)), -PW / 2 - 4); };
-      if (tp < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k), Xm = mixX(XA, XL, k); F.me = true; F.farOver = true;
-        F.hands = [onBeam(Xm, F, k), lerp2(WA.hands[1], cg, ss(.35, 1, k))]; F.hand = k > .6 ? ['flat', 'grip'] : ['grip', 'grip'];
+      if (tp < c.s + c.d) { const k = ss(0, 1, (tp - c.s) / c.d), F = mixSpec(WA, SP, k), Xm = mixX(XA, XL, k); F.me = true; F.farOver = true;
+        const nh = lerp2(WA.hands[1], cg, ss(.35, 1, k)); F.hands = [onBeam(Xm, F, k, nh), nh]; F.hand = k > .6 ? ['flat', 'grip'] : ['grip', 'grip'];
         F.eye = 'dot'; return { F, X: Xm, c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, ss(.35, 1, k)) } }; }
       if (tp < c.drop) { const st = sawState(c, tp); return { F: SP, X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k), Xm = mixX(XL, XB, k); F.me = true; F.farOver = true;
-      F.hands = [lerp2(onBeam(Xm, F, 1 - k), WB.hands[0], ss(.75, 1, k)), lerp2(cg, WB.hands[1], ss(0, .55, k))]; F.hand = k < .4 ? ['flat', 'grip'] : ['grip', 'grip'];   // the saw comes away first, clear of the beam
+      const nh = lerp2(cg, WB.hands[1], ss(0, .55, k)); F.hands = [lerp2(onBeam(Xm, F, 1 - k, nh), WB.hands[0], ss(.75, 1, k)), nh]; F.hand = k < .4 ? ['flat', 'grip'] : ['grip', 'grip'];   // the saw comes away first, clear of the beam
       if (last) {   // the saw is left on the road: both hands lift the short cross to the waist, then I turn round with it
         const FL = { ...WB, f: -1, ang: -WB.ang, hip: WB.hip.slice() }, [, XLh] = holdShort(FL, lf1), y = clamp((k - .62) / .38);
         if (y <= 0) { const Xh = mixX(XL, XLh, eio(k / .62)); F.f = -1; F.headF = -1; F.hands = [cpt(Xh, Xh.u0 + 150, PW / 2 - 2), lerp2(cg, cpt(Xh, Xh.u0 + 30, -PW / 2 - 2), ss(0, .5, k))]; F.farMid = true; F.farOver = false;
