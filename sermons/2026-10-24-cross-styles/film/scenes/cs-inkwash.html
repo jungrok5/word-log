@@ -259,7 +259,8 @@ function drawFig(ctx, F, mid, back) {
     ctx.fillStyle = PAT.paper; ctx.beginPath(); ctx.arc(d[0] + 1.8 * s, d[1] - 2 * s, 1.7 * s, 0, TAU); ctx.fill(); }
   if (mid) mid();
   if (F.farFront) arm(shF, F.hands[0], F.hand?.[0] || 'fist', me);
-  arm(sh, F.hands[1], F.hand?.[1] || 'fist', me);
+  const rootN = T => T && f * (T[0] - F.hip[0]) < -6 * s ? P(-14, 134) : sh;   // rig: an arm reaching back starts at the back of the shoulder
+  arm(rootN(F.hands[1]), F.hands[1], F.hand?.[1] || 'fist', me);
   ctx.restore();
 }
 

@@ -224,12 +224,12 @@ function drawCat(ctx, t, F) {
 }
 // the carried cross: fixed to the cat (the crossbar ahead of its face), material [u0, L]
 // The carried cross. Long (full, after the 1st cut): on the shoulder — the post rests across the back of the neck (the far paw
-// holds it there), the crossbar rides ahead of the face, the foot trails behind. Short (after the 2nd cut): held out in front
-// with both paws (near paw at the chest on the stump end, far paw higher up the post, ahead of the muzzle).
+// holds it there), the crossbar rides ahead of the face, the foot trails behind. Short (after the 2nd cut): held up in front, nearly upright
+// (a † ahead of the face, never an X), both paws on the post: near paw at the chest on the stump end, far paw higher up, ahead of the muzzle.
 function carryGeom(F, left) {   // cat-local
   const s = F.s, u0 = L * (1 - left);
   if (left > .7) { const J = [250, -372], g = [-100, -172]; return { J, a: -.52, far: CBX - Math.hypot(J[0] - g[0], J[1] - g[1]) * s, near: null }; }
-  const a = -1.0, d = [Math.cos(a), Math.sin(a)], Pn = [158, -172], st = [Pn[0] - 25 * d[0], Pn[1] - 25 * d[1]], dl = (CBX - u0) / s;
+  const a = -1.35, d = [Math.cos(a), Math.sin(a)], Pn = [205, -185], st = [Pn[0] - 25 * d[0], Pn[1] - 25 * d[1]], dl = (CBX - u0) / s;
   return { J: [st[0] + dl * d[0], st[1] + dl * d[1]], a, far: u0 + 150 * s, near: u0 + 25 * s };
 }
 function carryX(F, left = 1) { const g = carryGeom(F, left), M = catMatrix(F), up = 50 * (F.crouch || 0) + (F.bob || 0);
@@ -350,7 +350,7 @@ function poseMe(t) {
   }
   if (t < 12) { const [F, X] = carried(walk(tp), left); const onBeam = !!F.near; if (!F.near) F.near = nearHang(F); return { F, X, saw: sawHeld ? { grip: F.near, ang: sawAng(F, onBeam) } : null, held: left }; }
   // at the edge: skid to a stop; stand my short cross upright at my side (near paw on the post), step back for the others, come back
-  const XU = xm => ({ x: xm + 62, y: FY - 4 + L * (1 - left), a: -Math.PI / 2, hb: CBH });
+  const XU = xm => ({ x: xm + 100, y: FY - 4 + L * (1 - left), a: -Math.PI / 2, hb: CBH });
   const upGrip = (F, X) => { F.near = cpt(X, CBX - 34, 0); F.nearKind = 'fist'; F.far = null; F.farFront = false; return F; };
   if (t < 18.4) { const F0 = walk(12, E - 70), k = eio((tp - 12) / .3);
     const bx = -170 * eio((tp - 12.95) / .7) + 170 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.9, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.7, 17.55, .12, .12));

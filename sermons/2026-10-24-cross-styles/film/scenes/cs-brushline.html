@@ -416,7 +416,7 @@ function poseMe(t) {
       if (t < c.drop) { const st = sawState(c, t); return { F: me(sawSpec(c, t)), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), k2 = eio((tp - c.drop) / ((c.up1 - c.drop) * .55)), F = mixSpec(SP, WB, k), X = mixX(XL, XB, k, .3);
       F.hands[0] = cpt(X, lerp(PIN, farU(XB), k), -PW / 2 * (1 - k));   // ...and lifts it back onto the shoulder
-      const rT = last ? cpt(X, nearU(XB)) : WB.hands[1], kk = last ? k : k2;   // the saw hand gets out of the beam's way first
+      const rT = last ? cpt(X, nearU(XB)) : WB.hands[1], kk = last ? k : eio(clamp((k - .5) / .5));   // the saw hand stays low at the cut while the beam lifts away, then comes up
       F.hands[1] = [lerp(cg[0], rT[0], kk), lerp(cg[1], rT[1], kk)]; F.hand = ['grip', 'grip'];
       const saw = last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), k2) };
       return { F: me(F), X, c, saw };
@@ -426,14 +426,15 @@ function poseMe(t) {
   // at the edge: stop short (shock), stand the short cross on the ground in front of me (both paws on its post), step back for the others, come back
   const XUP = bx => ({ x: EDGE + bx + 118, y: FY - 2 + L * (1 - left), a: -Math.PI / 2, u0: L * (1 - left), lie: false });   // its cut foot on the ground
   const upHands = X => [cpt(X, X.u0 + 178, PW / 2), cpt(X, X.u0 + 112, -PW / 2)];
-  if (t < 18.4) { const [F0] = walk(12, EDGE), k = eio((tp - 12) / .3);
-    const bx = -190 * eio((tp - 12.9) / .7) + 190 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
-    const ST0 = standSpec(EDGE + bx, FY, SME, 1, .04), STx = mv > 0 ? mixSpec(ST0, walkSpec(EDGE + bx, FY, SME, 1, (EDGE + bx) / 140, 140, .06, 20), mv) : ST0;
-    const F = mixSpec(F0, STx, k);
+  if (t < 18.4) { const [F0] = walk(12, EDGE), k = eio((tp - 12) / .3), F = mixSpec(F0, standSpec(EDGE, FY, SME, 1, .04), k);
     F.ang += -.14 * Math.sin(Math.PI * clamp((tp - 12) / .5)) * (tp < 12.5 ? 1 : 0); F.eye = tp < 13.2 ? 'shock' : 'dot'; F.ticks = tp > 12.05 && tp < 13.2;
-    const [Fc, XC] = carried(F0, -1.05, left, false), XU = XUP(bx), kx = eio((tp - 12.2) / .5), X = mixX(XC, XU, kx), uh = upHands(XU);
-    F.hands = [cpt(X, lerp(farU(XC), XU.u0 + 178, kx), PW / 2 * kx), cpt(X, lerp(nearU(XC), XU.u0 + 112, kx), -PW / 2 * kx)];   // the paws carry it round and set it down
-    F.hand = ['grip', 'grip']; F.carry = kx < .5;
+    // the cross slides down my back till its foot is on the ground (paws on the beam), then I swing it round to stand in front of me —
+    // it stays behind the body the whole way (no crossbar over the head)
+    const [, XC] = carried(F0, -1.05, left, false), XU = XUP(0), XD = { ...XC, y: XC.y + (FY - 2 - cpt(XC, XC.u0)[1]) };
+    const ka = eio((tp - 12.2) / .3), kb = eio((tp - 12.5) / .4); let X;
+    if (kb <= 0) { X = mixX(XC, XD, ka, 2); F.hands = [cpt(X, farU(XC)), cpt(X, nearU(XC))]; F.carry = true; }
+    else { X = mixX(XD, XU, kb, 2); F.hands = [cpt(X, lerp(farU(XC), XU.u0 + 178, kb), PW / 2 * kb), cpt(X, lerp(nearU(XC), XU.u0 + 112, kb), -PW / 2 * kb)]; F.carry = kb < .5; }
+    F.hand = ['grip', 'grip'];
     return { F: me(F), X }; }
   const u0 = L * (1 - left), XLay = { x: E - REST - u0, y: LYY, a: 0, u0, lie: true };
   const LAY = me({ ...standSpec(EDGE, FY, SME, 1), hip: [EDGE + 6, FY - 78 * SME], ang: .62, feet: [[EDGE - 30, FY], [EDGE + 30, FY]], tilt: .3, eye: 'down' });
@@ -510,7 +511,7 @@ function camAt(t) {   // the line sits low (≈1440 on screen), so the figures f
   if (t >= 18.2) c = mixCam(c, { x: E + 140, y: cy(1.12), z: 1.12 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 120, y: cy(1.32) + 60, z: 1.32 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 110, y: cy(1.12), z: 1.12 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 600, y: cy(1.3), z: 1.3 }, eio((t - B.back - .05) / .72));    // one move back along the line: the pieces glow where they lie
+  if (t >= B.back) c = mixCam(c, { x: E - 345, y: cy(1.3), z: 1.3 }, eio((t - B.back - .05) / .72));    // one move back along the line: the pieces glow where they lie
   if (t >= 22.2) c = mixCam(c, { x: E + 160, y: cy(1.14), z: 1.14 }, eio((t - 22.2) / .65));            // and back: the gap, me at the lip, the outline
   const k = 1 - ss(B.fall, B.fall + .55, t);
   c.sx = t >= B.fall ? 18 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 14 * k * Math.sin(t * 131 + 1) : 0;
@@ -576,7 +577,7 @@ function litSlots(t) {   // each slot of the missing span lights warm — exactl
   for (const [t0, k] of SLOTS) { const a = eo((t - t0) / .3); if (a <= 0) continue; const c = CUTS[k];
     const P = xf(HD.poly(clipU(crossOutline(true), c.u0 + 2, c.u1 - 2), true, 3), S0);
     G_.save(); G_.globalAlpha = a; G_.fillStyle = PAPER; pathS(G_, P); G_.fill(); G_.restore();
-    dabPoly(P, a);
+    dabPoly(P, a); dabPoly(P, a * .8);
     const fl = 1 - ss(t0 + .15, t0 + .7, t); if (fl > 0) { const cc = xf([[(c.u0 + c.u1) / 2, 0]], S0)[0], rx = ((c.u1 - c.u0) / 2 + 26) * CAM.z, ry = 46 * CAM.z;
       for (let i = 0; i < 6; i++) { const an = -Math.PI * (.1 + i * .16); G_.save(); G_.globalAlpha = fl;
         brS(HD.seg([cc[0] + Math.cos(an) * rx, cc[1] + Math.sin(an) * ry], [cc[0] + Math.cos(an) * rx * 1.3, cc[1] + Math.sin(an) * ry * 1.5], 2), 4900 + k * 10 + i, { w: 6, ts: 3, te: 10, dry: 0 }); G_.restore(); } } }

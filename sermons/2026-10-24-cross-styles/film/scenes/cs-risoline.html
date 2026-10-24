@@ -225,8 +225,9 @@ function drawKid(ctx, F, back, mid) {
   const AF = armGeo(F, P(SHF[0], SHF[1]), F.hands[0], true), AN = armGeo(F, P(SHN[0], SHN[1]), F.hands[1], false);
   const hand = F.hand || ['grip', 'grip'];
   // far arm (behind the body)
-  sleeve(ctx, AF, s, C.cream2, me ? null : tP); if (!F.farOver) mitten(ctx, AF, s, hand[0], f);
+  sleeve(ctx, AF, s, C.cream2, me ? null : tP); if (!F.farOver && !F.farMid) mitten(ctx, AF, s, hand[0], f);
   if (back) back();
+  if (F.farMid) mitten(ctx, AF, s, hand[0], f);   // the far hand on a beam carried on the far shoulder: over the beam, under the head
   drawLeg(ctx, F, 0, P, tD); drawLeg(ctx, F, 1, P, tP);
   // sweater
   const sw = [[-48, -12], [-57, 36], [-56, 92], [-42, 128], [-14, 144], [20, 142], [44, 124], [56, 92], [62, 50], [64, 12], [52, -14], [0, -20]].map(q => P(q[0], q[1]));
@@ -368,6 +369,11 @@ function carryCross(F, left, a0) {
   const contact = left < .6 ? L * (1 - left) + 14 : L - Math.min(250, left * L - 36);
   return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
 }
+function reachOnBeam(F, X) {   // the furthest point along the beam (toward the top) the far hand can really reach, on its underside
+  const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let best = X.contact;
+  for (let u = X.contact; u < L - 24; u += 6) { const q = cpt(X, u, PW / 2); if (Math.hypot(q[0] - sh[0], q[1] - sh[1]) <= R) best = u; }
+  return cpt(X, best, PW / 2 - 4);
+}
 function gripCarry(F, X) { F.hands = [cpt(X, Math.min(L - 16, X.contact + 60)), cpt(X, X.contact + 2, PW * .55)]; F.hand = ['grip', 'grip']; return F; }   // near mitten holds the beam at the shoulder
 const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
 function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
@@ -394,7 +400,7 @@ function poseMe(t) {
   };
   const sawHeld = tp < CUTS[2].drop;
   const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, a0); gripCarry(F, X);
-    if (held) { F.hands[0] = cpt(X, X.contact - 4, -PW / 2 - 2); F.farOver = true; F.hands[1] = hangGrip(F, F.ph != null ? 14 * Math.sin(TAU * F.ph) : 0); F.hand = ['grip', 'grip']; }
+    if (held) { F.hands[0] = reachOnBeam(F, X); F.farMid = true; F.hands[1] = hangGrip(F, F.ph != null ? 14 * Math.sin(TAU * F.ph) : 0); F.hand = ['grip', 'grip']; }
     F.me = true; return [F, X]; };
   for (const c of CUTS) {
     if (tp >= c.s && tp < c.up1) {

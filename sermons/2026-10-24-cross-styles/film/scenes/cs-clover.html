@@ -436,9 +436,9 @@ function poseMe(t) {
     F.lean += -.22 * Math.sin(Math.PI * clamp((tp - 12) / .5)); F.eye = tp < 13.2 ? 'shock' : 'open'; F.head = tp < 13.2 ? .2 : .1;
     const [G2, X] = carried(F, .34, left, false); return { F: G2, X }; }
   const XLay = { x: E - REST - L * (1 - left), y: FY + 30, a: 0, u0: L * (1 - left), lie: true };
-  const LAY = { ...standSpec(E - 172, FY, KM, 1), lean: .52, crouch: .55, head: -.15, eye: 'open', pal: PAL.me, tag: 'lay' };
+  const LAY = { ...standSpec(E - 156, FY, KM, 1), lean: .52, crouch: .55, head: -.15, eye: 'open', pal: PAL.me, tag: 'lay' };
   LAY.paws = [upOn(XLay, L * (1 - left) + 46, PW / 2 - 3), upOn(XLay, L * (1 - left) + 12, PW / 2 - 3)];   // pressing the cut end down on the lip
-  const REACH = { ...LAY, x: E - 160, lean: .48, crouch: .35, paws: [[E - 30, FY - 120], [E + 6, FY - 60]], eye: 'shock', head: .15, tag: 'reach' };
+  const REACH = { ...LAY, x: E - 148, lean: .48, crouch: .35, paws: [[E - 30, FY - 120], [E + 6, FY - 60]], eye: 'shock', head: .15, tag: 'reach' };
   if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 168, FY, KM, 1, { lean: .08 }); ST.pal = PAL.me; const STc = carried(ST, .34, left, false), k = eio((tp - 18.4) / .4);
       const F = mixSpec(STc[0], LAY, k); F.pal = PAL.me; return { F, X: mixX(STc[1], XLay, eio((t - 18.4) / .4)), lay: true }; }
     const F = { ...LAY, breath: 1 + .01 * Math.sin(t * 9) }; return { F, X: XLay, lay: true }; }
@@ -465,24 +465,24 @@ const PIL = [{ x0: -700, ph: .3 }, { x0: -400, ph: .75 }, { x0: 300, ph: .1 }, {
 const BRIDGE_Y = [BY + 22, BY + 30, BY + 38], PULL = 150;
 function pilState(i, t) {
   const tp = t12(t), P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY, pal = PAL.p[i];
-  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 50 * tt; const xa = P.x0 + 450, xb = E - 430 - 280 * j, xc = E - 152;
+  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 50 * tt; const xa = P.x0 + 450, xb = E - 430 - 280 * j, xc = E - 128;
     if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, clamp((tt - 12) / (T - .35 - 12))); };
   const carry = (tt, x, gy = BY, cyc = 90) => { const F = hamWalk(x, gy, KP, 1, P.ph + x / cyc, { stride: 22, lift: 7, lean: .22, head: -.15, eye: 'closed' }); F.pal = pal; F.tag = 'pcarry'; const X = carryX(F, 1, .4); gripCarry(F, X, false); return [F, X]; };
   if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   if (t < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
-  const LAY = { ...standSpec(E - 152, BY, KP, 1), lean: .5, crouch: .5, head: -.1, eye: 'open', pal };
-  LAY.paws = [upOn(XB, 46, PW / 2 - 3), upOn(XB, 14, PW / 2 - 3)];
-  if (t < T) { const [F0, X0] = carry(T - .35, E - 152), k = eio((tp - T + .35) / .35); return { F: { ...mixSpec(F0, LAY, k), pal }, X: mixX(X0, XB, eio((t - T + .35) / .35)) }; }
-  const xs0 = E - 70, xs1 = E + G + 150;
+  const LAY = { ...standSpec(E - 128, BY, KP, 1), lean: .5, crouch: .55, head: -.1, eye: 'open', pal, tag: 'play' };
+  LAY.paws = [upOn(XB, 30, PW / 2 - 3), upOn(XB, 6, PW / 2 - 3)];
+  if (t < T) { const [F0, X0] = carry(T - .35, E - 128), k = eio((tp - T + .35) / .35); return { F: { ...mixSpec(F0, LAY, k), pal }, X: mixX(X0, XB, eio((t - T + .35) / .35)) }; }
+  const xs0 = E - 70, xs1 = E + G + 140;
   if (t < T + .3) { const F = mixSpec(LAY, { ...standSpec(xs0, yb - PW / 2, KP, 1, { lean: .1 }) }, eio((tp - T) / .25)); F.pal = pal; return { F, B: XB }; }
   if (t < T + .8) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .5))), gy = x < E + G + 30 ? yb - PW / 2 : BY;
     const F = hamWalk(x, gy, KP, 1, P.ph + x / 110, { stride: 30, lift: 11, lean: .2, head: .05, eye: 'open' }); F.pal = pal; return { F, B: XB }; }
   // from the far side: turn, crouch, take the top end and pull it back, levering it up out of the gully over the far lip
   const pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, [E + G + PULL * k, yb + PW / 2], .8 * k * k);
-  const xpAt = k => xs1 + 30 + PULL * k;
-  const PULLS = k => { const X = pullX(k), x = xpAt(k); const F = { ...standSpec(x, BY, KP, -1), lean: .45 - .15 * k, crouch: .5, head: -.1, eye: 'strain', pal, feet: [[-20, 0], [18, 0]] };
-    F.paws = [upOn(X, L - 30, PW / 2 - 3), upOn(X, L - 62, PW / 2 - 3)]; return [F, X]; };
+  const xpAt = k => E + G + REST + 100 + PULL * k;
+  const PULLS = k => { const X = pullX(k), x = xpAt(k); const F = { ...standSpec(x, BY, KP, -1), lean: .62 - .22 * k, crouch: .85 - .3 * k, head: -.1, eye: 'strain', pal, feet: [[-20, 0], [18, 0]], tag: 'pull' };
+    F.paws = [upOn(X, L - 40, PW / 2 - 3), upOn(X, L - 66, PW / 2 - 3)]; return [F, X]; };
   if (t < T + 1.2) { const k = eio(clamp((tp - T - .8) / .4)), [F, X] = PULLS(k);
     const k0 = eio((tp - T - .8) / .1); return { F: k0 < 1 ? { ...mixSpec(hamWalk(xs1, BY, KP, 1, 0, {}), F, k0), pal } : F, X }; }
   const [Fp, Xp] = PULLS(1), xg = xpAt(1);

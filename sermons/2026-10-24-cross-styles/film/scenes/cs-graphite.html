@@ -147,7 +147,7 @@ function walkSpec(x, gy, s, f, ph, stride, lean, lift = 22) {
   return { s, f, gy, hip: [x, gy - hipH], ang: f * lean, feet, hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: -f * 7 * Math.sin(TAU * ph), ph };
 }
 function standSpec(x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - 178 * s], ang: f * lean, feet: [[x - f * 18 * s, gy], [x + f * 22 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: 0 }; }
-function hangHands(F, swing = 0) { const fr = frame(F), sh = fr.P(4, 136); return [[sh[0] - F.f * (10 + swing) * F.s, sh[1] + 140 * F.s], [sh[0] - F.f * (10 - swing) * F.s, sh[1] + 140 * F.s]]; }
+function hangHands(F, swing = 0) { const fr = frame(F), sh = fr.P(52, 118); return [[sh[0] - F.f * (10 + swing) * F.s, sh[1] + 140 * F.s], [sh[0] - F.f * (10 - swing) * F.s, sh[1] + 140 * F.s]]; }
 function mixSpec(A, Bs, k) {
   if (k <= 0) return A; if (k >= 1) return Bs;
   const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = hangHands(A), hB = hangHands(Bs);
@@ -449,7 +449,8 @@ function drawFig(ctx, F, mid, back) {
   if (eye === 'shock') { const m = Q(29, 34); ctx.fillStyle = 'rgba(30,28,27,.85)'; ctx.beginPath(); ctx.ellipse(m[0], m[1], 4 * s, 5.5 * s, 0, 0, TAU); ctx.fill(); }
   if (mid) mid();
   if (F.farFront) arm(shF, F.hands[0], F.hand?.[0] || 'fist');
-  arm(sh, F.hands[1], F.hand?.[1] || 'fist');
+  const rootN = T => T && f * (T[0] - F.hip[0]) < -6 * s ? P(-46, 112) : sh;   // rig: sleeves start at the shoulder on the outline — front, or back when reaching behind
+  arm(rootN(F.hands[1]), F.hands[1], F.hand?.[1] || 'fist');
   if (F.after) F.after();
   ctx.restore();
 }
