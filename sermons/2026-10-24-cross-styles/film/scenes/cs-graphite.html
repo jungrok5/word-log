@@ -569,7 +569,7 @@ function friendX() { return GX + 196; }
 function beamAim(t) {   // → { c: pool centre, rx, ry, on }
   const q = t12(t), on = q < 12.7 ? 0 : q < 12.8 ? .5 : 1;
   const P0 = [GX - 40, BY + 36], P1 = [E - 30, BY + 30], P2 = [E + 130, FY + 30];
-  const pc = [(pieceX(CUTS[1]) + pieceX(CUTS[2])) / 2, FY + 30], P4 = [E - REST + (S.left[3] + 1) / 2 * L, FY + 34];
+  const pc = [(pieceX(CUTS[1]) + pieceX(CUTS[2])) / 2, FY + 30], P4 = [E - 30, FY + 30];   // v2: the beam comes back to rest on me at the lip, so the outline's slots light on their own in the dark
   let c = P0;
   c = mixP(c, P1, eio((q - 12.8) / .9));
   c = mixP(c, P2, eio((q - 18.2) / .45));

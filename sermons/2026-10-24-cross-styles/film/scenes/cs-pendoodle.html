@@ -544,34 +544,35 @@ function rain(t, a = 1, keep = []) {   // keep: screen boxes round the figures' 
 }
 // the gap: a HOLE in the road — far and near lips in perspective, the road going on beyond it and in front of it;
 // sparse hatching on the far wall just under the far lip, dense hatching deepening toward the near lip (the deepest part)
-const NR = FY + 116, HF = BY - 40;   // the hole's near lip and far lip
+const NR = FY + 128, HF = BY - 46;   // the hole's near lip and far lip
 let HOLE = null;
-function buildHole() {
-  const r = rng(71), far = [], near = [], lft = [], rgt = [];
-  for (let i = 0; i <= 24; i++) { const u = i / 24; far.push([E + 14 + (G - 28) * u, HF - 10 * Math.sin(Math.PI * u) + (r() - .5) * 3]); near.push([E - 8 + (G + 16) * u, NR + 16 * Math.sin(Math.PI * u) + (r() - .5) * 4]); }
-  for (let i = 1; i < 10; i++) { const u = i / 10, y = lerp(HF, NR, u); lft.push([lerp(E + 14, E - 8, u) + (r() - .5) * 5, y]); rgt.push([lerp(E + G - 14, E + G + 8, u) + (r() - .5) * 5, y]); }
-  HOLE = { far, near, lft, rgt, poly: HD.spline(far.slice().reverse().concat(lft, near, rgt.slice().reverse()), 4, true), cracks: [] };
-  for (let k = 0; k < 9; k++) HOLE.cracks.push([E + 40 + r() * (G - 80), HF + 12 + r() * 8, 20 + r() * 34]);
-  HOLE.road = [];   // cracks running out from the lips into the road surface
-  for (let k = 0; k < 10; k++) { const side = k % 2, y = lerp(HF + 10, NR - 10, r()), x = side ? E + G + 4 : E - 4, d = side ? 1 : -1; HOLE.road.push([[x, y], [x + d * (14 + r() * 20), y + (r() - .5) * 10], [x + d * (30 + r() * 30), y + (r() - .5) * 16]]); }
+function buildHole() {   // an oval opening in the road (a rounded super-ellipse), ragged
+  const r = rng(71), cx = E + G / 2, cy = (HF + NR) / 2, a = G / 2 + 8, b = (NR - HF) / 2, n = 2.6, pts = [];
+  for (let i = 0; i < 72; i++) { const th = i / 72 * TAU, c = Math.cos(th), sn = Math.sin(th);
+    pts.push([cx + a * Math.sign(c) * Math.pow(Math.abs(c), 2 / n) + (r() - .5) * 5, cy + b * Math.sign(sn) * Math.pow(Math.abs(sn), 2 / n) + (r() - .5) * 4]); }
+  const near = pts.slice(0, 37), far = pts.slice(36).concat([pts[0]]);   // lower half (near lip) / upper half (far lip)
+  HOLE = { poly: pts, near, far, cracks: [], road: [], cx, cy, a, b };
+  for (let k = 0; k < 9; k++) HOLE.cracks.push([cx + (r() - .5) * G * .7, HF + 16 + r() * 8, 18 + r() * 30]);
+  for (let k = 0; k < 10; k++) { const side = k % 2 ? 1 : -1, y = cy + (r() - .5) * b * 1.2, x = cx + side * (a + 2), d = side;
+    HOLE.road.push([[x, y], [x + d * (14 + r() * 20), y + (r() - .5) * 10], [x + d * (30 + r() * 30), y + (r() - .5) * 16]]); }
 }
 function drawHole() {
   const P = HOLE.poly.map(toS), o = toS([E, RT]);
   whiteS(P);
+  // the far wall, seen just under the far lip: sparse hatching; then dense hatching, darkest deep down in the middle
   TX.pHoleL.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(o[0]) + FD * 29, Math.round(o[1]) + FD * 17])); G_.fillStyle = TX.pHoleL; pathS(G_, P); G_.fill();
   const hg = TX.holeG; hg.globalCompositeOperation = 'source-over'; hg.clearRect(0, 0, W, H);
   TX.pHoleD.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(o[0]) + FD * 37, Math.round(o[1]) + FD * 23])); hg.fillStyle = TX.pHoleD; pathS(hg, P); hg.fill();
-  const yA = toS([0, HF + 10])[1], yB = toS([0, NR - 6])[1], gr = hg.createLinearGradient(0, yA, 0, yB);
-  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(.5, 'rgba(0,0,0,.7)'); gr.addColorStop(1, 'rgba(0,0,0,1)');
-  hg.globalCompositeOperation = 'destination-in'; hg.fillStyle = gr; hg.fillRect(0, 0, W, H); hg.globalCompositeOperation = 'source-over';
+  const c = toS([HOLE.cx, HOLE.cy + HOLE.b * .35]), rx = HOLE.a * CAM.z, ry = HOLE.b * CAM.z;
+  hg.save(); hg.translate(c[0], c[1]); hg.scale(1, ry * 1.25 / rx);
+  const gr = hg.createRadialGradient(0, 0, rx * .1, 0, 0, rx * 1.02); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.55, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  hg.globalCompositeOperation = 'destination-in'; hg.fillStyle = gr; hg.fillRect(-rx * 3, -rx * 3, rx * 6, rx * 6); hg.restore(); hg.globalCompositeOperation = 'source-over';
   G_.drawImage(TX.holeC, 0, 0);
-  for (const [x, y, l] of HOLE.cracks) penS([toS([x, y]), toS([x + 3, y + l])], 4010 + (x | 0), { w: 2.6, col: 'rgba(34,31,40,.6)' });
-  penS(HOLE.far.map(toS), 4003, { w: 3.8 });
-  penS(HOLE.far.slice(2, -2).map(p => toS([p[0], p[1] + 13])), 4004, { w: 2.6, col: 'rgba(34,31,40,.7)' });   // the earth edge under the far lip
-  penS([toS(HOLE.far[0]), ...HOLE.lft.map(toS), toS(HOLE.near[0])], 4001, { w: 4 });
-  penS([toS(HOLE.far[HOLE.far.length - 1]), ...HOLE.rgt.map(toS), toS(HOLE.near[HOLE.near.length - 1])], 4002, { w: 4 });
-  penS(HOLE.near.map(toS), 4005, { w: 5 });
-  HOLE.road.forEach((c, i) => penS(c.map(toS), 4060 + i, { w: 2.8 }));
+  for (const [x, y, l] of HOLE.cracks) penS([toS([x, y]), toS([x + 3, y + l])], 4010 + (x | 0), { w: 2.6, col: 'rgba(34,31,40,.55)' });
+  penS(HOLE.far.map(toS), 4003, { w: 3.6 });
+  penS(HOLE.far.slice(6, -6).map(p => toS([p[0], p[1] + 12])), 4004, { w: 2.4, col: 'rgba(34,31,40,.6)' });   // the earth edge under the far lip
+  penS(HOLE.near.map(toS), 4005, { w: 5.2 });
+  HOLE.road.forEach((cr, i) => penS(cr.map(toS), 4060 + i, { w: 2.8 }));
 }
 // the doorway on the far side: a plain arch, two leaves ajar, the yellow light pouring out
 function drawGate(t) {
