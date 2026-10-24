@@ -70,11 +70,14 @@
    7. **MP4는 사용자가 고른 버전만**: `python3 tools/export.py sermons/<폴더>` (몇 분 — 백그라운드 작업으로) →
       `film/out/<id>-upload.mp4`(올릴 파일: H.264, 닫힌 GOP, 2초마다 키프레임, B프레임 없음 — 플랫폼 재인코딩 때
       컷 직후 화면이 튀지 않게) + `<id>-cover.jpg`(커버). `out/`은 git에 넣지 않음.
-6. **업로드**(OAuth 준비 중 — 지금은 사용자가 직접): upload.md 문구로. 48시간·7일 뒤 `tools/metrics.template.md`를
+6. **업로드**: upload.md 문구로 — 유튜브는 `tools/youtube.py`(아래), 인스타·틱톡은 사용자가 직접. 48시간·7일 뒤 `tools/metrics.template.md`를
    `sermons/<폴더>/metrics.md`로 채우고, 확인된 교훈을 LEARNINGS.md에.
    - 인스타: `-upload.mp4`(H.264)를 올리고 앱 설정의 **"최고 화질로 업로드"**를 켠다(안드로이드는 기본 꺼짐).
      커버의 얼굴·제목은 가운데 3:4(y 240–1680) 안에 — 프로필 격자는 그만큼만 보인다.
-   - 유튜브 API 자동 업로드(나중에): 구글 감사를 통과하지 않은 프로젝트는 **비공개·잠김**으로만 올라가고(주인도 공개 못 함),
+   - **유튜브 API** (`tools/youtube.py` — word-log 브랜드 채널, onescrollbible 계정): 환경 변수 `YT_CLIENT_ID`,
+     `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN_WORDLOG`(환경 설정에 등록 — 새 세션부터 보인다). `whoami`로 채널 확인 →
+     `upload sermons/<폴더> --scene <id> [--dry-run]`(upload.md의 제목·설명·태그, 커버 썸네일, 자막 SRT 트랙) → `youtube.json`.
+     고정 댓글은 API가 없어 Studio에서. 구글 감사를 통과하지 않은 프로젝트는 **비공개·잠김**으로만 올라가고(주인도 공개 못 함),
      OAuth 동의 화면이 "테스트" 상태면 갱신 토큰이 7일 뒤 만료된다 → 감사 신청 + 프로덕션 게시. 브랜드 계정 채널은 동의
      화면에서 채널을 골라야 그 채널로 올라간다. 키·토큰은 환경 변수/Secret에만(대화에 쓰지 않음).
    - 썸네일·설명의 문구는 영상 그대로 사실이어야 한다.
