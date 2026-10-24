@@ -374,6 +374,11 @@ function heldX(F, left) {
   const u0 = L * (1 - left), f = F.f, s = F.s, g = [F.hip[0] + f * 44 * s, F.hip[1] - 30 * s], a = f > 0 ? Math.PI - .08 : .08, ug = u0 + 56;
   return { x: g[0] - Math.cos(a) * ug, y: g[1] - Math.sin(a) * ug, a, u0, lie: false };
 }
+function holdLow(F, left) {   // between cuts 2 and 3 (a few steps): carried low on the far side, crossbar ahead; far mitten on it behind my back, saw in the near hand
+  const u0 = L * (1 - left), f = F.f, s = F.s, ug = u0 + 120, g = [F.hip[0] + f * 20 * s, F.hip[1] - 34 * s], a = f > 0 ? -.06 : Math.PI + .06;
+  const X = { x: g[0] - Math.cos(a) * ug, y: g[1] - Math.sin(a) * ug, a, u0, lie: false };
+  F.hands = [cpt(X, u0 + 26, PW / 2 - 2), hangGrip(F, F.ph != null ? 10 * Math.sin(TAU * F.ph) : 0)]; F.hand = ['grip', 'grip']; F.farMid = true; return [F, X];
+}
 function holdShort(F, left) {   // near mitten on the beam ahead of me, far mitten on it behind my back
   const X = heldX(F, left); F.hands = [cpt(X, X.u0 + 150, PW / 2 - 2), cpt(X, X.u0 + 30, -PW / 2 - 2)]; F.hand = ['grip', 'grip']; F.farMid = true; return [F, X];
 }
@@ -414,7 +419,7 @@ function poseMe(t) {
   for (const c of CUTS) {
     if (tp >= c.s && tp < c.up1) {
       const lf0 = S.left[c.k], lf1 = S.left[c.k + 1], [W0, a0] = walk(c.s, c.mx), [W1, a1] = walk(c.up1, c.mx), last = c.k === 2;
-      const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
+      const [WA, XA] = c.k === 2 ? holdLow(W0, lf0) : carried(W0, a0, lf0, true), [WB, XB] = c.k === 1 ? holdLow(W1, lf1) : carried(W1, a1, lf1, !last);
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       const onBeam = (X, F, k, avoid) => {   // the free hand on the beam: the point nearest the far shoulder, sliding to where it will pin the cut
         const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let best = c.u1 + 104, bd = 1e9;
@@ -437,7 +442,7 @@ function poseMe(t) {
       return { F, X: Xm, c, saw: last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), ss(0, .55, k)) } };
     }
   }
-  if (tp < 12) { const [F, a] = walk(tp); if (left < .6) { const [G2, X] = holdShort(F, left); G2.me = true; return { F: G2, X }; } const [G2, X] = carried(F, a, left, sawHeld); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
+  if (tp < 12) { const [F, a] = walk(tp); if (tp >= CUTS[1].up1 && tp < CUTS[2].s) { const [G2, X] = holdLow(F, left); G2.me = true; return { F: G2, X, saw: { grip: G2.hands[1], ang: hangAng(1) } }; } if (left < .6) { const [G2, X] = holdShort(F, left); G2.me = true; return { F: G2, X }; } const [G2, X] = carried(F, a, left, sawHeld); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
   // at the edge: stop (shock), step back to make room for the others, come back
   if (tp < 18.4) { const [F0] = walk(12, E - 52), k = eio((tp - 12) / .3);
     const bx = -170 * eio((tp - 12.9) / .7) + 170 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));

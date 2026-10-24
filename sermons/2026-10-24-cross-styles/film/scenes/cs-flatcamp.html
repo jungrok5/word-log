@@ -123,7 +123,7 @@ function vMe(t) {
 const strideMe = t => t < 4.6 ? 112 : t < 8.8 ? 262 : 170;
 const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
-const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .28, saw0: 9.28, drop: 9.75, up1: 10.0 }, { s: 10.4, d: .25, saw0: 10.65, drop: 11.12, up1: 11.35 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
 const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];
 const FLECKS = [];
@@ -186,7 +186,7 @@ function sawState(c, t) {
 }
 function sawSpec(c, t) {
   const f = -1, mx = c.mx, s = SME, st = sawState(c, t);
-  return { s, f, gy: FY, hip: [mx, FY - 44 * s], ang: f * .62, feet: [[mx + 66 * s, FY], [mx - 44 * s, FY]], hands: [st.grip, [c.cutX + 116 * s, c.y - PW / 2 - 3]],
+  return { s, f, gy: FY, hip: [mx, FY - 44 * s], ang: f * .62, feet: [[mx + 66 * s, FY], [mx - 44 * s, FY]], hands: [st.grip, [c.cutX + 116 * s, c.y - PW / 2 + 5]],
     hand: ['fist', 'flat'], tilt: .35, eye: 'calm', sway: 0, farFront: true };
 }
 const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (18 + sw) * F.s, sh[1] + 92 * F.s]; };
@@ -243,7 +243,7 @@ function poseMe(t) {
   const REACH = { ...LAY, hip: [E - 72, FY - 112 * SME], ang: .5, hands: [[E - 170, FY - 100], [E + 70, FY - 10]], hand: ['fist', 'open'], eye: 'shock', tilt: .4 };
   if (t < 19.45) {
     if (t < 18.95) {   // tip it forward about its foot (hand sliding down the shaft), then slide it out onto the lip
-      const ST = standSpec(E - 150, FY, SME, 1, .08), STc = holdUp(ST, left), k = eio((tp - 18.4) / .55), k1 = eio(clamp((tp - 18.4) / .38)), k2 = eio(clamp((tp - 18.7) / .25));
+      const ST = standSpec(E - 150, FY, SME, 1, .08), STc = holdUp(ST, left), k = eio((tp - 18.4) / .4), k1 = eio(clamp((tp - 18.4) / .38)), k2 = eio(clamp((tp - 18.7) / .25));
       const pv = [lerp(STc[1].x, E - REST, k2), lerp(FY - 2, FY + 34, k2)], a = lerp(-Math.PI / 2, 0, k1);
       const X = { x: pv[0] - Math.cos(a) * u0L, y: pv[1] - Math.sin(a) * u0L, a, u0: u0L, lie: k1 > .6 };
       const F = mixSpec(STc[0], LAY, k), hb = onBeam(X), hs = cpt(X, lerp(CBX - 40, u0L + 100, k1), lerp(4, -PW / 2 - 4, k1));
@@ -274,8 +274,8 @@ const PIL = [{ x0: -470, ph: .3 }, { x0: -230, ph: .75 }, { x0: 190, ph: .1 }, {
 const BRIDGE_Y = [BY - 6, BY + 4, BY + 14], PULL = 210;
 function pilState(i, t) {
   const tp = t, P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY;
-  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 400 - 150 * j, xc = E - 46;
-    if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, clamp((tt - 12) / (T - .35 - 12))); };
+  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 430 - 120 * j, xc = E - 46;
+    if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, eio(clamp((tt - (T - 1.3)) / .95))); };
   const carry = (tt, x, gy = BY, stride = 118, lean = .27) => { const F = walkSpec(x, gy, SPI, 1, P.ph + x / (stride * SPI), stride, lean, 18); F.tilt = .1; F.eye = 'closed'; const X = carryCross(F, 1, -.5); gripCarry(F, X); return [F, X]; };
   if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   if (t < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
@@ -492,8 +492,8 @@ function crossOutline(x, y) {
   const hb = CBHL; return [[0, -PW / 2], [CBX - CBW / 2, -PW / 2], [CBX - CBW / 2, -hb], [CBX + CBW / 2, -hb], [CBX + CBW / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
     [CBX + CBW / 2, PW / 2], [CBX + CBW / 2, hb], [CBX - CBW / 2, hb], [CBX - CBW / 2, PW / 2], [0, PW / 2]].map(([a, b]) => [x + a, y + b]);
 }
-function guidePx(c, t, k) {   // the dashed outline of my whole cross across the chasm, in marching pixel dashes
-  const ol = crossOutline(E - REST, FY + 34).map(B2), xmax = B2([E - REST + L * k, 0])[0], off = Math.floor(step8(t) * 8);
+function guidePx(c, t, k, x0 = E - REST) {   // the dashed outline of my whole cross across the chasm, in marching pixel dashes
+  const ol = crossOutline(x0, FY + 34).map(B2), xmax = B2([x0 + L * k, 0])[0], off = Math.floor(step8(t) * 8);
   c.fillStyle = '#f4f0dc'; let s = 0;
   for (let i = 0; i < ol.length; i++) { const a = ol[i], b = ol[(i + 1) % ol.length], n = Math.max(1, Math.round(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
     for (let j = 0; j < n; j++, s++) { const x = Math.round(lerp(a[0], b[0], j / n)), y = Math.round(lerp(a[1], b[1], j / n)); if (x > xmax) continue; if (((s + off) >> 1) % 2 === 0) c.fillRect(x, y, 1, 1); } }
@@ -501,7 +501,7 @@ function guidePx(c, t, k) {   // the dashed outline of my whole cross across the
 
 function slotsPx(c, t) {
   for (const p of CUTS) { if (t < SLOT[p.k]) continue; const fresh = t < SLOT[p.k] + .25;
-    const a = B2([E - REST + p.u0 + 4, FY + 34 - PW / 2 + 4]), b = B2([E - REST + p.u1 - 4, FY + 34 + PW / 2 - 4]);
+    const a = B2([E + 4 + p.u0 + 4, FY + 34 - PW / 2 + 4]), b = B2([E + 4 + p.u1 - 4, FY + 34 + PW / 2 - 4]);
     for (let y = Math.round(a[1]); y < Math.round(b[1]); y++) for (let x = Math.round(a[0]); x < Math.round(b[0]); x++)
       if (fresh || ((x + y) & 1) === 0) R(c, x, y, 1, 1, fresh ? '#fff0a0' : ((x + 2 * y) % 3 ? '#f8b830' : '#f08424')); }
 }
@@ -528,7 +528,7 @@ function lightsAt(t) {   // in design units
   if (q >= B.gap) D.push({ x: GX - 40, y: BY - 150, r: 470 * backEase(clamp((q - B.gap - .1) / .5)) });
   for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, step12(t)), sw = ss(B.back + .2 + (2 - c.k) * .2, B.back + .6 + (2 - c.k) * .2, q);
     const r = 130 * sw * (q >= SLOT[c.k] && q < SLOT[c.k] + .25 ? 1.2 : 1); if (r > 8) D.push({ x: p.cx, y: p.cy, r }); }
-  for (const c of CUTS) if (q >= SLOT[c.k]) D.push({ x: E - REST + (c.u0 + c.u1) / 2, y: FY + 34, r: 100 * eo(clamp((q - SLOT[c.k]) / .25)) });
+  for (const c of CUTS) if (q >= SLOT[c.k]) D.push({ x: E + 4 + (c.u0 + c.u1) / 2, y: FY + 34, r: 100 * eo(clamp((q - SLOT[c.k]) / .25)) });
   return D;
 }
 
@@ -586,7 +586,7 @@ function draw(ctx, t) {
   if (t >= B.gap) { const g = GATE(); embers(bb.n, t, g.gx, g.ay - 14, 7, 40, 14); }
   for (const p of pieces) if (p.glow > .5) { const b = B2([p.cx, p.cy]); embers(bb.n, t, Math.round(b[0]), Math.round(b[1]) - 3, 4, 60 + p.c.k * 7, 8); }
   if (t >= 18.75 && t < 19.75) guidePx(bb.n, t, eio((t - 18.75) / .35));
-  if (t >= 22.45) { guidePx(bb.n, t, eio((t - 22.45) / .4)); slotsPx(bb.n, t); }
+  if (t >= 22.45) { guidePx(bb.n, t, eio((t - 22.45) / .4), E + 4); slotsPx(bb.n, t); }
   haze(bb.n, t);
   ctx.imageSmoothingEnabled = false; ctx.drawImage(bb.n.canvas, 0, 0, bb.n.canvas.width * K, bb.n.canvas.height * K);
   // the lab's frame on its own 6× grid; at the end it closes in, whole pixels at a time, to a plain plate for the card

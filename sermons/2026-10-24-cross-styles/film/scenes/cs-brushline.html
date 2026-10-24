@@ -421,7 +421,7 @@ function poseMe(t) {
       if (t < c.drop) { const st = sawState(c, t); return { F: me(sawSpec(c, t)), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), k2 = eio((tp - c.drop) / ((c.up1 - c.drop) * .55)), F = mixSpec(SP, WB, k), X = mixX(XL, XB, eio(clamp(k * 1.6)), .3);   // ...and up onto the shoulder before the saw hand moves
       const XX = attach(F, X, 0, lerp(PIN, farU(XB), k), -PW / 2 * (1 - k));   // ...and lifts it back onto the shoulder
-      const rT = last ? cpt(XX, nearU(XB)) : WB.hands[1], kk = last ? k : eio(clamp((k - .5) / .5));   // the saw hand stays low at the cut while the beam lifts away, then comes up
+      const rT = last ? cpt(XX, nearU(XB)) : WB.hands[1], kk = last ? k : k2;   // the saw paw moves off forward first (the far paw has the beam, low behind)
       F.hands[1] = [lerp(cg[0], rT[0], kk), lerp(cg[1], rT[1], kk)]; F.hand = ['grip', 'grip'];
       const saw = last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), k2) };
       return { F: me(F), X: XX, c, saw };
