@@ -205,9 +205,9 @@ function poseMe(t) {
   const tp = Math.max(0, t12(t)), dx = meX(t) - meX(tp), left = leftAt(t);
   const walk = (tt, xx) => {
     const x = xx ?? meX(tt) + dx, ph = meP(tt);
-    if (tt < 3.2) { const F = walkSpec(x, FY, SME, 1, ph, 116, .3 + .1 * Math.sin(tt * TAU / 1.15), 16); F.tilt = .12; F.hip[1] += 6 * Math.max(0, Math.sin(tt * TAU / 1.15 + 2)); return [F, -.5 + .07 * Math.sin(tt * TAU / 1.15 + .6)]; }
-    if (tt < 8.8) { const k = ss(4.6, 5.2, tt); const F = walkSpec(x, FY, SME, 1, ph, lerp(116, 270, k), lerp(.16, .3, k), lerp(20, 62, k)); return [F, -.62]; }
-    const F = walkSpec(x, FY, SME, 1, ph, 170, .16, 34); return [F, -.6];
+    if (tt < 3.2) { const F = walkSpec(x, FY, SME, 1, ph, 116, .3 + .1 * Math.sin(tt * TAU / 1.15), 16); F.tilt = .12; F.hip[1] += 6 * Math.max(0, Math.sin(tt * TAU / 1.15 + 2)); return [F, -.4 + .06 * Math.sin(tt * TAU / 1.15 + .6)]; }
+    if (tt < 8.8) { const k = ss(4.6, 5.2, tt); const F = walkSpec(x, FY, SME, 1, ph, lerp(116, 270, k), lerp(.16, .3, k), lerp(20, 62, k)); return [F, -.46]; }
+    const F = walkSpec(x, FY, SME, 1, ph, 170, .16, 34); return [F, -.45];
   };
   const sawHeld = t < CUTS[2].drop;
   const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, a0); gripCarry(F, X);
@@ -241,12 +241,12 @@ function poseMe(t) {
     const STx = mv > 0 ? mixSpec(standSpec(E - 52 + bx, FY, SME, 1, .08), walkSpec(E - 52 + bx, FY, SME, 1, (E + bx) / 150, 150, .1, 24), mv) : standSpec(E - 52 + bx, FY, SME, 1, .08);
     const F = mixSpec(F0, STx, k);
     F.ang += .16 * Math.sin(Math.PI * clamp((tp - 12) / .5)) * (tp < 12.5 ? -1 : 0);
-    const [G2, X] = carried(F, -.6, left, false); return { F: G2, X }; }
+    const [G2, X] = carried(F, -.45, left, false); return { F: G2, X }; }
   const XLay = { x: E - REST - L * (1 - left), y: FY + 34, a: 0, u0: L * (1 - left), lie: true };
   const LAY = { ...standSpec(E - 52, FY, SME, 1), hip: [E - 92, FY - 74], ang: 1.12, feet: [[E - 92 - 74 * SME, FY], [E - 92 + 60 * SME, FY]], tilt: .3 };   // kneeling at the lip, pressing the foot end down
   LAY.hands = [cpt(XLay, L * (1 - left) + 70, -PW / 2 - 4), cpt(XLay, L * (1 - left) + 26, -PW / 2 - 4)]; LAY.hand = ['flat', 'flat'];
   const REACH = { ...LAY, hip: [E - 66, FY - 160 * SME], ang: .46, hands: [null, [E + 70, FY - 20]], hand: ['fist', 'open'], tilt: .45 };
-  if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = carried(ST, -.6, left, false), k = eio((tp - 18.4) / .4);
+  if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = carried(ST, -.45, left, false), k = eio((tp - 18.4) / .4);
       const F = mixSpec(STc[0], LAY, k), Xm = { ...mixX(STc[1], XLay, k), lie: k > .85 }, uC = [Math.min(L - 16, STc[1].contact + 26), Math.min(L - 14, STc[1].contact + 80)], uL = [L * (1 - left) + 70, L * (1 - left) + 26];
       F.hands = [0, 1].map(i => cpt(Xm, lerp(uC[i], uL[i], k), lerp(0, -PW / 2 - 4, k))); F.hand = k > .7 ? ['flat', 'flat'] : ['fist', 'fist']; return { F, X: Xm, lay: true }; }
     return { F: LAY, X: XLay, lay: true }; }
@@ -272,7 +272,7 @@ function pilState(i, t) {
   const tp = t12(t), P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY;
   const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 300 - 130 * j, xc = E - 46;
     if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, clamp((tt - 12) / (T - .35 - 12))); };
-  const carry = (tt, x, gy = BY, stride = 118, lean = .27) => { const F = walkSpec(x, gy, SPI, 1, P.ph + x / (stride * SPI), stride, lean, 18); F.col = C.pil; F.tilt = .05; const X = carryCross(F, 1, -.5); gripCarry(F, X); return [F, X]; };
+  const carry = (tt, x, gy = BY, stride = 118, lean = .27) => { const F = walkSpec(x, gy, SPI, 1, P.ph + x / (stride * SPI), stride, lean, 18); F.col = C.pil; F.tilt = .05; const X = carryCross(F, 1, -.4); gripCarry(F, X); return [F, X]; };
   if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   if (t < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
