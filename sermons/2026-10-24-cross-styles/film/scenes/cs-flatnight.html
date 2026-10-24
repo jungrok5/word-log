@@ -379,14 +379,14 @@ function poseMe(t) {
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k);
         F.hands[rIdx(F)] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)];
-        const Xm = mixX(XA, XL, k), onX = cpt(Xm, CBX, 58 * (1 - k)), k2 = ss(.55, 1, k);   // the hand rides the crossbar down, then slides to the beam
+        const Xm = { ...mixX(XA, XL, k), lie: k > .8 }, onX = cpt(Xm, CBX, 58 * (1 - k)), k2 = ss(.55, 1, k);   // the hand rides the crossbar down, then slides to the beam
         F.hands[lIdx(F)] = [lerp(onX[0], SP.hands[1][0], k2), lerp(onX[1], SP.hands[1][1], k2)];
         F.hand = F.f > 0 ? ['fist', 'fist'] : ['fist', 'flat'];
         return { F, X: Xm, c, saw: { grip: F.hands[rIdx(F)], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t); return { F: sawSpec(c, t), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k);
       const rT = WB.hands[1], lT = WB.hands[0];
-      const Xm = mixX(XL, XB, k), k1 = ss(0, .4, k), onX = last ? cpt(Xm, CBX - 40, 4) : cpt(Xm, CBX, 58 * k);   // one hand: the saw (to my hip); the other: the cross
+      const Xm = { ...mixX(XL, XB, k), lie: k < .2 }, k1 = ss(0, .4, k), onX = last ? cpt(Xm, CBX - 40, 4) : cpt(Xm, CBX, 58 * k);   // one hand: the saw (to my hip); the other: the cross
       F.hands[rIdx(F)] = last ? [lerp(SP.hands[1][0], onX[0], k1), lerp(SP.hands[1][1], onX[1], k1)] : [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)];
       F.hands[lIdx(F)] = last ? hangHands(F)[lIdx(F)] : [lerp(SP.hands[1][0], onX[0], k1), lerp(SP.hands[1][1], onX[1], k1)];
       F.hand = ['fist', 'fist'];

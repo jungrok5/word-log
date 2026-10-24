@@ -138,6 +138,7 @@ const REST = 26, G = L - 2 * REST;                                        // a f
 const SME = 1.0, SPI = .84;                                               // me (nearest) bigger than the others
 const t12 = HD.t12, frac = x => x - Math.floor(x), bf = t => Math.floor(t * 8 + 1e-6) % 3;
 const TX = {};
+const PINU = 52;   // where the free hand pins the beam while I saw (from the cut)
 
 // ---------------- camera + brush in screen space ----------------
 let CAM = { x: 0, y: 1000, z: 1, sx: 0, sy: 0 }, CMX = null, PZ = 1, FD = 0, G_ = null, HLg = null, HLc = null, INKL = null;
@@ -260,10 +261,20 @@ function drawBear(F, back, mid) {
   const M = bearM(F), S = mulM(CMX, M), Mh = mulM(M, HD.mat(NECK[0], NECK[1], F.tilt || 0)), Sh = mulM(CMX, Mh);
   const B_ = (pts, s2, o = {}) => brS(pts, s2, { col, ...o, w: (o.w ?? BW) * w * F.s });
   if (back) back();
-  if (!F.farFront) arm(F, M, 0, me, sd + 100);
+  if (!F.farFront && !F.carry) arm(F, M, 0, me, sd + 100);
   legB(F, M, 0, me, sd + 200); legB(F, M, 1, me, sd + 210);
   whiteS(HD.boil(xf(BODYF, S), sd + 1, FD, 1.2, 80));
   B_(xf(BODYB, S), sd + 2, { te: 30 }); B_(xf(BODYFR, S), sd + 3, { ts: 26 });
+  if (F.carry && !F.farFront) arm(F, M, 0, me, sd + 100);   // carrying: the far paw reaches back over the shoulder to the beam
+  if (F.front) {   // turning: a face-on drawing for a beat (both ears, snout in the middle, two eyes)
+    const Sf = mulM(CMX, mulM(HD.mat(F.hip[0], F.hip[1], F.ang, F.s, F.s), HD.mat(NECK[0] - 6, NECK[1] + 4, F.tilt || 0)));
+    for (const [ex, k] of [[-56, 0], [56, 1]]) { whiteS(xf(HD.arc(ex, -58, 22, 21, 0, TAU, 4), Sf)); B_(xf(HD.arc(ex, -58, 22, 21, Math.PI * (k ? .78 : .82), Math.PI * (k ? 2.18 : 2.2), 3), Sf), sd + 6 + k, { w: 9 }); }
+    whiteS(HD.boil(xf(HD.arc(0, 0, 84, 76, 0, TAU, 4), Sf), sd + 8, FD, 1.2, 80)); B_(xf(HD.arc(0, 0, 84, 76, Math.PI * .58, Math.PI * 2.42, 3), Sf), sd + 9, { w: 10.5, ts: 10, te: 30 });
+    whiteS(xf(HD.arc(0, 26, 34, 24, 0, TAU, 3), Sf)); B_(xf(HD.arc(0, 26, 34, 24, Math.PI * .1, Math.PI * 2.05, 3), Sf), sd + 11, { w: 8, ts: 6, te: 12 });
+    G_.fillStyle = col; pathS(G_, xf(HD.arc(0, 14, 11, 8.5, 0, TAU, 2), Sf)); G_.fill();
+    B_(xf(HD.spline([[-9, 36], [0, 40], [9, 36]], 2), Sf), sd + 13, { w: 5, ts: 4, te: 6, dry: 0 });
+    for (const ex of [-30, 30]) { G_.fillStyle = col; pathS(G_, xf(HD.arc(ex, -14, 6.3, 7, 0, TAU, 2), Sf)); G_.fill(); }
+  } else {
   // head: ears, head, snout, nose, eye
   for (const [ex, ey, k] of [[-46, -58, 0], [30, -76, 1]]) { whiteS(HD.boil(xf(HD.arc(ex, ey, 22, 21, 0, TAU, 4), Sh), sd + 4 + k, FD, 1.2, 80)); B_(xf(HD.arc(ex, ey, 22, 21, Math.PI * .82, Math.PI * 2.2, 3), Sh), sd + 6 + k, { w: 9 }); }
   whiteS(HD.boil(xf(HEADF, Sh), sd + 8, FD, 1.2, 80)); B_(xf(HEADO, Sh), sd + 9, { w: 10.5, ts: 10, te: 30 });
@@ -278,6 +289,7 @@ function drawBear(F, back, mid) {
     if (eye === 'shock') { whiteS(xf(HD.arc(c[0], c[1], 15, 15, 0, TAU, 2), Sh)); B_(xf(HD.arc(c[0], c[1], 15, 15, 0, TAU, 2), Sh), sd + 15, { w: 4.5, ts: 3, te: 3, mn: .6, dry: 0 }); }
     G_.fillStyle = col; pathS(G_, HD.boil(xf(HD.arc(c[0], c[1], r * .9, r, 0, TAU, 2), Sh), sd + 16, FD, .6, 20)); G_.fill();
     if (eye === 'down') B_(xf(HD.seg([34, -26], [58, -28], 2), Sh), sd + 17, { w: 4.5, ts: 3, te: 4, dry: 0 }); }
+  }
   if (mid) mid();
   if (F.farFront) arm(F, M, 0, me, sd + 100);
   arm(F, M, 1, me, sd + 100);
@@ -301,16 +313,16 @@ function vMe(t) {
   if (t < 8.3) return 380;
   if (t < 8.6) return lerp(380, 150, (t - 8.3) / .3);
   if (t < 9.0) return 150 * (1 - ss(8.6, 9.0, t));
-  if (t < 10.0) return 0;
-  if (t < 10.4) return 450 * Math.sin(Math.PI * (t - 10) / .4);
-  if (t < 11.35) return 0;
-  if (t < 12.0) return 640 * Math.sin(Math.PI * (t - 11.35) / .65);
+  if (t < 10.15) return 0;
+  if (t < 10.4) return 720 * Math.sin(Math.PI * (t - 10.15) / .25);
+  if (t < 11.5) return 0;
+  if (t < 12.0) return 832 * Math.sin(Math.PI * (t - 11.5) / .5);
   return 0;
 }
 const strideMe = t => t < 4.6 ? 110 : t < 8.8 ? 270 : 170;
 const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
-const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .3, saw0: 9.3, drop: 9.8, up1: 10.15 }, { s: 10.4, d: .3, saw0: 10.7, drop: 11.2, up1: 11.5 }];   // set-down / pick-up take 3–4 drawings
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
 const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];
 const FLECKS = [];
@@ -318,7 +330,7 @@ let E = 1600, GX = 0, GAY = 0, SAWLIE = null, EDGE = 0;
 function buildTimeline() {
   let x = 0, p = 0;
   for (let i = 0; i < NT; i++) { const t = i * DT; MEX[i] = x; MEP[i] = p; const v = vMe(t); x += v * DT; p += v / strideMe(t) * DT; }
-  E = meX(12) + 70; EDGE = E - 92; GX = E + G + 380; GAY = FY - 250;
+  E = meX(12) + 70; EDGE = E - 92; GX = E + G + 300; GAY = FY - 250;
   CUTS.forEach((c, k) => {
     c.k = k; c.mx = meX(c.s); c.cutX = c.mx - 168; c.u0 = L * (1 - S.left[k]); c.u1 = L * (1 - S.left[k + 1]); c.baseX = c.cutX - c.u1; c.y = LYY;
     const r = rng(100 + k);
@@ -329,14 +341,11 @@ function buildTimeline() {
   const r = rng(200);
   for (let n = 0; n < 12; n++) FLECKS.push({ t0: B.fall + r() * .1, x: E + 6 + r() * 30, y: LYY, vx: (r() - .2) * 240, vy: -(60 + r() * 200), land: 2800, r0: r() * TAU, vr: (r() - .5) * 24, sz: 5 + r() * 6, seed: 2300 + n });
 }
-function pieceAt(c, t) {   // a cut piece lying where it fell, or flying into the gap at the end
-  const sh = 18 * eo((t - c.drop) / .25), cu = (c.u0 + c.u1) / 2;
-  let cx = c.baseX + cu - sh, cy = c.y, a = -.04 * eo((t - c.drop) / .25);
-  const [f0, f1] = FILL[c.k]; let u = 0;
-  if (t > f0) { u = clamp((t - f0) / (f1 - f0)); const e = eio(u), tx = E - REST + cu, ty = LYY;
-    cx = lerp(cx, tx, e); cy = lerp(cy, ty, e) - (c.k ? 220 : 320) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .5 * (1 - u); }
-  return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, u, cx, cy };
+function pieceAt(c, t) {   // a cut piece lying on the line where it fell — it never moves again
+  const sh = 18 * eo((t - c.drop) / .25), cu = (c.u0 + c.u1) / 2, cx = c.baseX + cu - sh, cy = c.y, a = -.04 * eo((t - c.drop) / .25);
+  return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, cx, cy };
 }
+const SLOTS = [[22.9, 0], [23.6, 1], [24.3, 2]];   // the outline's missing span lights one piece-length at a time (soft knocks in the soundtrack)
 
 // ---------------- poses ----------------
 function walkSpec(x, gy, s, f, ph, stride, lean, lift = 18) {
@@ -352,18 +361,19 @@ function mixSpec(A, Bs, k) {
   if (k <= 0) return A; if (k >= 1) return Bs;
   const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = restHands(A), hB = restHands(Bs), pick = k < .5 ? A : Bs;
   return { ...pick, s: lerp(A.s, Bs.s, k), gy: lerp(A.gy, Bs.gy, k), hip: l2(A.hip, Bs.hip), ang: lerp(A.ang, Bs.ang, k), feet: [l2(A.feet[0], Bs.feet[0]), l2(A.feet[1], Bs.feet[1])],
-    hands: [0, 1].map(i => l2(A.hands[i] || hA[i], Bs.hands[i] || hB[i])), hand: pick.hand.slice(), tilt: lerp(A.tilt || 0, Bs.tilt || 0, k) };
+    hands: [0, 1].map(i => l2(A.hands[i] || hA[i], Bs.hands[i] || hB[i])), hand: pick.hand.slice(), tilt: lerp(A.tilt || 0, Bs.tilt || 0, k), front: A.f !== Bs.f && k > .22 && k < .78 };
 }
 // the cross on a bear's shoulder: it rests on the back shoulder, foot trailing down behind, the crossing up above the head
 const TOPX = 312;
 function carryCross(F, left, a0) {
   const T = HD.pt(bearM(F), ...CONTACT), a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
   const contact = L - Math.min(TOPX * F.s, left * L - 40);
-  return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
+  return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false, gf: 30 * F.s, gn: 72 * F.s };
 }
 // far paw holds the post up behind the head; near paw holds it lower down (or carries the saw)
-function gripCarry(F, X, held) { F.hands = [cpt(X, X.contact + 70 * F.s), held ? null : cpt(X, Math.max(X.u0 + 14, X.contact - 70 * F.s))]; F.hand = ['grip', 'grip']; return F; }
-const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
+function gripCarry(F, X, held) { F.hands = [cpt(X, farU(X)), held ? null : cpt(X, nearU(X))]; F.hand = ['grip', 'grip']; F.carry = true; return F; }   // far paw over the shoulder on the beam (drawn over the back), near paw lower (or the saw)
+const mixX = (A, Bx, k, sw = .62) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > sw ? Bx.lie : A.lie };   // sw: when it changes from behind the body to in front
+const farU = X => X.contact - X.gf, nearU = X => Math.max(X.u0 + 12, X.contact - X.gn);   // where the free hands grip a carried cross
 function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
 const hangAng = f => f > 0 ? .5 : Math.PI - .5;
 const hangGrip = (F, sw = 0) => { const R = HD.pt(bearM(F), ...SHOULDER[1]); return [R[0] + F.f * (40 + sw) * F.s, R[1] + 96 * F.s]; };
@@ -398,42 +408,48 @@ function poseMe(t) {
       const lf0 = S.left[c.k], lf1 = S.left[c.k + 1], [W0, a0] = walk(c.s, c.mx), [W1, a1] = walk(c.up1, c.mx), last = c.k === 2;
       const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
-      if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k);
+      const PIN = c.u1 + PINU;
+      if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k), X = mixX(XA, XL, k, .7);
+        F.hands[0] = cpt(X, lerp(farU(XA), PIN, k), -PW / 2 * k);   // the free hand stays on the beam all the way down
         F.hands[1] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)]; F.hand = ['grip', 'grip'];
-        return { F: me(F), X: mixX(XA, XL, k), c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
+        return { F: me(F), X, c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t); return { F: me(sawSpec(c, t)), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
-      const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k);
-      const rT = WB.hands[1] || restHands(WB)[1];
-      F.hands[1] = [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)]; F.hand = ['grip', 'grip'];
-      const saw = last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), k) };
-      return { F: me(F), X: mixX(XL, XB, k), c, saw };
+      const k = eio((tp - c.drop) / (c.up1 - c.drop)), k2 = eio((tp - c.drop) / ((c.up1 - c.drop) * .55)), F = mixSpec(SP, WB, k), X = mixX(XL, XB, k, .3);
+      F.hands[0] = cpt(X, lerp(PIN, farU(XB), k), -PW / 2 * (1 - k));   // ...and lifts it back onto the shoulder
+      const rT = last ? cpt(X, nearU(XB)) : WB.hands[1], kk = last ? k : k2;   // the saw hand gets out of the beam's way first
+      F.hands[1] = [lerp(cg[0], rT[0], kk), lerp(cg[1], rT[1], kk)]; F.hand = ['grip', 'grip'];
+      const saw = last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), k2) };
+      return { F: me(F), X, c, saw };
     }
   }
   if (t < 12) { const [F, a] = walk(tp); const [G2, X] = carried(F, a, left, sawHeld); return { F: me(G2), X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
-  // at the edge: stop short (shock), set the short cross down upright beside me, step back for the others, come back
-  const XUP = bx => ({ x: EDGE + bx + 66, y: FY - 2, a: -Math.PI / 2, u0: L * (1 - left), lie: false });   // standing on its foot, held by the near paw
+  // at the edge: stop short (shock), stand the short cross on the ground in front of me (both paws on its post), step back for the others, come back
+  const XUP = bx => ({ x: EDGE + bx + 118, y: FY - 2 + L * (1 - left), a: -Math.PI / 2, u0: L * (1 - left), lie: false });   // its cut foot on the ground
+  const upHands = X => [cpt(X, X.u0 + 178, PW / 2), cpt(X, X.u0 + 112, -PW / 2)];
   if (t < 18.4) { const [F0] = walk(12, EDGE), k = eio((tp - 12) / .3);
     const bx = -190 * eio((tp - 12.9) / .7) + 190 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
     const ST0 = standSpec(EDGE + bx, FY, SME, 1, .04), STx = mv > 0 ? mixSpec(ST0, walkSpec(EDGE + bx, FY, SME, 1, (EDGE + bx) / 140, 140, .06, 20), mv) : ST0;
     const F = mixSpec(F0, STx, k);
-    F.ang += -.2 * Math.sin(Math.PI * clamp((tp - 12) / .5)) * (tp < 12.5 ? 1 : 0); F.eye = tp < 13.2 ? 'shock' : 'dot'; F.ticks = tp > 12.05 && tp < 13.2;
-    const [, XC] = carried(F0, -1.05, left, false), XU = XUP(bx), kx = eio((tp - 12.2) / .45);
-    const X = kx <= 0 ? XC : mixX(XC, XU, kx);
-    F.hands = [kx > .5 ? null : XC && cpt(XC, XC.contact + 70), cpt(X, L - (left * L) + 120)]; F.hand = [kx > .5 ? 'rest' : 'grip', 'grip'];
-    if (kx < 1) F.hands[0] = cpt(X, Math.min(L - 30, X.u0 + 200));
+    F.ang += -.14 * Math.sin(Math.PI * clamp((tp - 12) / .5)) * (tp < 12.5 ? 1 : 0); F.eye = tp < 13.2 ? 'shock' : 'dot'; F.ticks = tp > 12.05 && tp < 13.2;
+    const [Fc, XC] = carried(F0, -1.05, left, false), XU = XUP(bx), kx = eio((tp - 12.2) / .5), X = mixX(XC, XU, kx), uh = upHands(XU);
+    F.hands = [cpt(X, lerp(farU(XC), XU.u0 + 178, kx), PW / 2 * kx), cpt(X, lerp(nearU(XC), XU.u0 + 112, kx), -PW / 2 * kx)];   // the paws carry it round and set it down
+    F.hand = ['grip', 'grip']; F.carry = kx < .5;
     return { F: me(F), X }; }
   const u0 = L * (1 - left), XLay = { x: E - REST - u0, y: LYY, a: 0, u0, lie: true };
   const LAY = me({ ...standSpec(EDGE, FY, SME, 1), hip: [EDGE + 6, FY - 78 * SME], ang: .62, feet: [[EDGE - 30, FY], [EDGE + 30, FY]], tilt: .3, eye: 'down' });
   LAY.hands = [cpt(XLay, u0 + 64, -PW / 2), cpt(XLay, u0 + 22, -PW / 2)]; LAY.hand = ['flat', 'flat'];   // pressing the near end down on the line
-  const REACH = me({ ...LAY, hip: [EDGE, FY - 84 * SME], ang: .4, hands: [[EDGE - 40, FY - 260], [EDGE + 200, FY - 120]], hand: ['open', 'open'], eye: 'shock', tilt: .4, ticks: true });
-  if (t < B.tip) { if (t < 18.9) { const XU = XUP(0), ST = me({ ...standSpec(EDGE, FY, SME, 1, .04), hands: [cpt(XU, Math.min(L - 30, XU.u0 + 200)), cpt(XU, u0 + 120)], hand: ['grip', 'grip'] }), k = eio((tp - 18.4) / .4);
-      const F = mixSpec(ST, LAY, k); F.hand = k > .5 ? ['flat', 'flat'] : ['grip', 'grip']; return { F: me(F), X: mixX(XU, XLay, eio((t - 18.4) / .4)) }; }
+  const REACH = me({ ...LAY, hip: [EDGE, FY - 84 * SME], ang: .34, hands: [[EDGE + 120, FY - 40], [EDGE + 176, FY - 60]], hand: ['open', 'open'], eye: 'shock', tilt: .3, ticks: true });   // both paws reach down after it, below the chin
+  if (t < B.tip) { if (t < 18.9) { const XU = XUP(0), ST = me({ ...standSpec(EDGE, FY, SME, 1, .04), hands: upHands(XU), hand: ['grip', 'grip'] }), k = eio((tp - 18.4) / .4);
+      const X = mixX(XU, XLay, k, .55), F = mixSpec(ST, LAY, k);   // both paws stay on the post while I lay it down
+      F.hands = [cpt(X, lerp(XU.u0 + 178, u0 + 64, k), lerp(PW / 2, -PW / 2, k)), cpt(X, lerp(XU.u0 + 112, u0 + 22, k), -PW / 2)];
+      F.hand = k > .5 ? ['flat', 'flat'] : ['grip', 'grip']; return { F: me(F), X }; }
     return { F: LAY, X: XLay }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .22), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; F.bang = tp >= B.tip && tp < B.fall + .7; F.ticks = tp < 20.6;
     if (tp > 20.4) { F.eye = 'down'; F.ticks = false; } return { F: me(F), X: null }; }
-  const BACK = me({ ...standSpec(EDGE, FY, SME, -1, .04), tilt: .05, eye: 'dot' }), FWD = me({ ...standSpec(EDGE, FY, SME, 1, .06), tilt: -.08, eye: 'up' });
-  if (t < 23.0) { const F = mixSpec(REACH, BACK, eio((tp - B.back) / .3)); F.eye = tp > B.back + .15 ? 'dot' : 'down'; F.ticks = tp > 21.7 && tp < 22.5; return { F, X: null }; }
-  const F = mixSpec(BACK, FWD, eio((tp - 23.0) / .3)); if (tp > 24.2) F.eye = 'dot'; return { F, X: null };
+  // I stay at the lip: turn and look back down the line at the pieces, then turn back to the gap and look down at the outline
+  const BACK = me({ ...standSpec(EDGE, FY, SME, -1, .04), tilt: .05, eye: 'dot' }), FWD = me({ ...standSpec(EDGE, FY, SME, 1, .1), tilt: .22, eye: 'down' });
+  if (t < 22.45) { const F = mixSpec(REACH, BACK, eio((tp - B.back) / .45)); F.eye = tp > B.back + .15 ? 'dot' : 'down'; F.ticks = tp > 21.75 && tp < 22.3; return { F, X: null }; }
+  const F = mixSpec(BACK, FWD, eio((tp - 22.45) / .45)); return { F, X: null };
 }
 // my cross once my paws slip: it tips over the end of the line, then falls into the white below
 function fallX(t) {
@@ -460,7 +476,8 @@ function pilState(i, t) {
   const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
   const LAY = tag({ ...standSpec(pe, FY, SPI, 1), hip: [pe + 6, FY - 76 * SPI], ang: .6, feet: [[pe - 26, FY], [pe + 26, FY]], tilt: .25 });
   LAY.hands = [cpt(XB, 60, -PW / 2), cpt(XB, 20, -PW / 2)]; LAY.hand = ['flat', 'flat'];
-  if (t < T) { const [F0, X0] = carry(T - .35, pe), k = eio((tp - T + .35) / .35); return { F: tag(mixSpec(F0, LAY, k)), X: mixX(X0, XB, eio((t - T + .35) / .35)) }; }
+  if (t < T) { const [F0, X0] = carry(T - .35, pe), k = eio((tp - T + .35) / .35), X = mixX(X0, XB, k, .55), F = tag(mixSpec(F0, LAY, k));
+    F.hands = [cpt(X, lerp(farU(X0), 60, k), -PW / 2 * k), cpt(X, lerp(nearU(X0), 20, k), -PW / 2 * k)]; F.hand = ['grip', 'grip']; F.carry = k < .5; return { F, X }; }
   const xs0 = E + 4, xs1 = E + G + 70;
   if (t < T + .3) { const F = tag(mixSpec(LAY, standSpec(xs0, yb - PW / 2, SPI, 1, .1), eio((tp - T) / .25))); return { F, B: XB }; }
   if (t < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 4 ? yb - PW / 2 : FY;
@@ -472,7 +489,8 @@ function pilState(i, t) {
   if (t < T + 1.25) { const k = eio(clamp((tp - T - .9) / .35)), [F, X] = PULLS(k);
     const k0 = eio((tp - T - .9) / .1); return { F: k0 < 1 ? tag(mixSpec(walkSpec(xs1, FY, SPI, 1, 0, 150, .1), F, k0)) : F, X }; }
   const [Fp, Xp] = PULLS(1), xg = xpAt(1);
-  if (t < T + 1.5) { const k = eio((tp - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, 130, .16); return { F: tag(mixSpec(Fp, Fc, k)), X: mixX(Xp, Xc, eio((t - T - 1.25) / .25)) }; }
+  if (t < T + 1.5) { const k = eio((tp - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, 130, .16), X = mixX(Xp, Xc, k, .3), F = tag(mixSpec(Fp, Fc, k));
+    F.hands = [cpt(X, lerp(L - 30, farU(Xc), k), -PW / 2 * (1 - k)), cpt(X, lerp(L - 76, nearU(Xc), k), -PW / 2 * (1 - k))]; F.hand = ['grip', 'grip']; F.carry = k > .5; return { F, X }; }
   const x = lerp(xg, GX + 10, clamp((tp - T - 1.5) / .35)), [F, X] = carry(tp, x, 130, .16);
   F.alpha = 1 - ss(T + 1.55, T + 1.85, t); if (F.alpha <= 0) return null;
   return { F, X };
@@ -480,19 +498,20 @@ function pilState(i, t) {
 
 // ---------------- camera ----------------
 const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
-function camAt(t) {
-  let c = { x: meX(t) + 70 + 80 * ss(4.3, 5.4, t), y: 1040, z: .98 };
-  c = mixCam({ x: meX(t) + 40, y: 1010, z: 1.42 }, c, eio((t - 1.5) / 1.1));       // the hook: close on me (the saw in my paw), widening to the procession by ~2.6
-  const c1 = CUTS[0], c2 = CUTS[1], c3 = CUTS[2], at = cc => ({ x: (cc.mx + cc.cutX) / 2 + 10, y: 1110, z: 1.25 });
+function camAt(t) {   // the line sits low (≈1440 on screen), so the figures fill the frame
+  const cy = z => FY - 470 / z;
+  let c = { x: meX(t) + 70 + 80 * ss(4.3, 5.4, t), y: cy(1.12), z: 1.12 };
+  c = mixCam({ x: meX(t) + 40, y: cy(1.4), z: 1.4 }, c, eio((t - 1.5) / 1.1));       // the hook: close on me (the saw in my paw), widening to the procession by ~2.6
+  const c1 = CUTS[0], c2 = CUTS[1], c3 = CUTS[2], at = cc => ({ x: (cc.mx + cc.cutX) / 2 + 10, y: cy(1.3), z: 1.3 });
   c = mixCam(c, at(c1), Pilot.win(t, c1.s - .05, c1.up1 + .2, .32, .35));
-  c = mixCam(c, mixCam(at(c2), at(c3), eio((t - 10.0) / .45)), Pilot.win(t, c2.s - .1, c3.up1 + .25, .3, .4));
+  c = mixCam(c, mixCam(at(c2), at(c3), eio((t - 10.1) / .45)), Pilot.win(t, c2.s - .1, c3.up1 + .25, .3, .4));
   if (t < 12.4) c.x = Math.min(c.x, E - 540 / c.z - 10 + 1600 * ss(11.45, 12.4, t) * ss(11.45, 12.4, t));   // the break in the line stays out of frame until I reach it
-  if (t >= 12) c = mixCam(c, { x: E + 340, y: 1040, z: .72 }, eio((t - 12.05) / .95));
-  if (t >= 18.2) c = mixCam(c, { x: E + 140, y: 1110, z: 1.0 }, eio((t - 18.2) / .45));
-  if (t >= B.fall) c = mixCam(c, { x: E + 120, y: 1220, z: 1.3 }, eo((t - B.fall) / .09));
-  if (t >= B.fall + .65) c = mixCam(c, { x: E + 110, y: 1110, z: 1.0 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 390, y: 1030, z: 1.32 }, eio((t - B.back) / .55));    // looking back down the line: the pieces lie there, dabbed warm
-  if (t >= 22.6) c = mixCam(c, { x: E + 160, y: 1070, z: 1.18 }, eio((t - 22.6) / 1.1));
+  if (t >= 12) c = mixCam(c, { x: E + 330, y: cy(.86), z: .86 }, eio((t - 12.05) / .95));
+  if (t >= 18.2) c = mixCam(c, { x: E + 140, y: cy(1.12), z: 1.12 }, eio((t - 18.2) / .45));
+  if (t >= B.fall) c = mixCam(c, { x: E + 120, y: cy(1.32) + 60, z: 1.32 }, eo((t - B.fall) / .09));
+  if (t >= B.fall + .65) c = mixCam(c, { x: E + 110, y: cy(1.12), z: 1.12 }, eio((t - B.fall - .65) / .7));
+  if (t >= B.back) c = mixCam(c, { x: E - 600, y: cy(1.3), z: 1.3 }, eio((t - B.back - .05) / .72));    // one move back along the line: the pieces glow where they lie
+  if (t >= 22.2) c = mixCam(c, { x: E + 160, y: cy(1.14), z: 1.14 }, eio((t - 22.2) / .65));            // and back: the gap, me at the lip, the outline
   const k = 1 - ss(B.fall, B.fall + .55, t);
   c.sx = t >= B.fall ? 18 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 14 * k * Math.sin(t * 131 + 1) : 0;
   return c;
@@ -552,6 +571,16 @@ function guide(t, k, al) {   // brushed dashes: the outline of my whole cross ac
   if (on && seg.length > 1) brS(seg, 4399, { w: 6, ts: 4, te: 6, mn: .4, wob: .5, boil: .6, dry: 0 });
   G_.restore();
 }
+function litSlots(t) {   // each slot of the missing span lights warm — exactly one piece long; the outline stays a ghost, the gap stays open
+  const S0 = mulM(CMX, HD.mat(E - REST, LYY, 0));
+  for (const [t0, k] of SLOTS) { const a = eo((t - t0) / .3); if (a <= 0) continue; const c = CUTS[k];
+    const P = xf(HD.poly(clipU(crossOutline(true), c.u0 + 2, c.u1 - 2), true, 3), S0);
+    G_.save(); G_.globalAlpha = a; G_.fillStyle = PAPER; pathS(G_, P); G_.fill(); G_.restore();
+    dabPoly(P, a);
+    const fl = 1 - ss(t0 + .15, t0 + .7, t); if (fl > 0) { const cc = xf([[(c.u0 + c.u1) / 2, 0]], S0)[0], rx = ((c.u1 - c.u0) / 2 + 26) * CAM.z, ry = 46 * CAM.z;
+      for (let i = 0; i < 6; i++) { const an = -Math.PI * (.1 + i * .16); G_.save(); G_.globalAlpha = fl;
+        brS(HD.seg([cc[0] + Math.cos(an) * rx, cc[1] + Math.sin(an) * ry], [cc[0] + Math.cos(an) * rx * 1.3, cc[1] + Math.sin(an) * ry * 1.5], 2), 4900 + k * 10 + i, { w: 6, ts: 3, te: 10, dry: 0 }); G_.restore(); } } }
+}
 function world(t) {
   drawLine();
   if (toS([GX - 300, 0])[0] < W + 40) drawGate(t);
@@ -562,25 +591,21 @@ function world(t) {
     drawBear(P.F, X && !X.lie ? dc : null, X && X.lie ? dc : null);
   });
   if (t >= 18.75 && t < 19.75) guide(t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
-  if (t >= B.fill[0] - .2) guide(t, eio((t - B.fill[0] + .2) / .45), 1);
+  if (t >= 22.35) { guide(t, eio((t - 22.35) / .45), 1); litSlots(t); }
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip; drawSaw([lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
-  // the pieces I cut, lying on the line where they fell; dabbed warm again once I look back; they fly into the gap one by one
-  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t);
-    const cc = toS([p.cx, p.cy]), pulse = (1 - ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t)) * hl;
-    if (pulse > 0) dabS(cc[0], cc[1], ((c.u1 - c.u0) / 2 + 60) * CAM.z, 70 * CAM.z, pulse, c.k * 3, pulse);
+  // the pieces I cut, lying on the line where they fell; once I look back each one glows warm where it lies (they never move)
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .3 + (2 - c.k) * .18, B.back + .75 + (2 - c.k) * .18, t);
+    const cc = toS([p.cx, p.cy]), pulse = hl * (.85 + .15 * Math.sin((t - B.back) * 4 + c.k));
+    if (hl > 0) dabS(cc[0], cc[1], ((c.u1 - c.u0) / 2 + 56) * CAM.z, 66 * CAM.z, 1, c.k * 3, pulse);
     drawCross(p, c.u0, c.u1, { lying: true, mine: true, seed: 360 + c.k * 7 });
-    if (pulse > 0) for (let i = 0; i < 6; i++) { const a = -Math.PI * (.12 + i * .15), rx = ((c.u1 - c.u0) / 2 + 40) * CAM.z, ry = 50 * CAM.z;
-      G_.save(); G_.globalAlpha = pulse; brS(HD.seg([cc[0] + Math.cos(a) * rx, cc[1] + Math.sin(a) * ry], [cc[0] + Math.cos(a) * rx * 1.3, cc[1] + Math.sin(a) * ry * 1.5], 2), 4500 + c.k * 10 + i, { w: 6, ts: 3, te: 10, dry: 0 }); G_.restore(); }
-    if (p.u > 0 && p.u < .95) { const fv = pieceAt(c, t - .06), vx = p.cx - fv.cx, vy = p.cy - fv.cy, vl = Math.hypot(vx, vy) || 1;
-      for (let i = -1; i <= 1; i++) { const nx = -vy / vl, ny = vx / vl, b = [p.cx - vx / vl * 80 + nx * i * 26, p.cy - vy / vl * 80 + ny * i * 26];
-        brW([b, [b[0] - vx / vl * 110, b[1] - vy / vl * 110]], 4600 + c.k * 5 + i, { w: 6, ts: 4, te: 30, mn: .2 }); } } }
+    if (hl > 0) for (let i = 0; i < 6; i++) { const a = -Math.PI * (.12 + i * .15), rx = ((c.u1 - c.u0) / 2 + 40) * CAM.z, ry = 50 * CAM.z;
+      G_.save(); G_.globalAlpha = hl; brS(HD.seg([cc[0] + Math.cos(a) * rx, cc[1] + Math.sin(a) * ry], [cc[0] + Math.cos(a) * rx * 1.3, cc[1] + Math.sin(a) * ry * 1.5], 2), 4500 + c.k * 10 + i, { w: 6, ts: 3, te: 10, dry: 0 }); G_.restore(); } }
   // me and my cross (and the saw in my near paw)
   const M = poseMe(t), F = M.F;
   const myCross = X => { if (X) drawCross(X, X.u0, L, { lying: X.lie, mine: true, seed: 300 }); };
-  const upright = M.X && !M.X.lie && Math.abs(M.X.a + Math.PI / 2) < .05;
-  drawBear(F, M.X && !M.X.lie && !upright ? () => myCross(M.X) : null, () => {
-    if (M.X && (M.X.lie || upright)) myCross(M.X);
+  drawBear(F, M.X && !M.X.lie ? () => myCross(M.X) : null, () => {
+    if (M.X && M.X.lie) myCross(M.X);
     if (M.kerf) { const a = toS([M.c.cutX, M.c.y - PW / 2]), b = toS([M.c.cutX, M.c.y - PW / 2 + M.kerf.kp * PW * .92 + .5]); brS([a, b], 4700, { w: 5, raw: true, ts: 1, te: 1, mn: 1, dry: 0 }); }
     if (M.saw) drawSaw(M.saw.grip, M.saw.ang);
   });

@@ -335,6 +335,7 @@ function sawSpec(c, t) {
 }
 const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (16 + sw) * F.s, sh[1] + 128 * F.s]; };
 const rIdx = F => F.f > 0 ? 1 : 0, lIdx = F => F.f > 0 ? 0 : 1;
+const HOLD = 160;   // how far up the beam (past the shoulder) my front hand grips — clear of the head
 const UPIN = c => c.cutX + 44 * SME - c.baseX;   // where my pinning hand presses the lying cross (along the post)
 
 // how I carry my cross: the shorter it gets, the flatter it rides on my shoulder (a short cross tilted 45° would read as an X)
@@ -349,8 +350,8 @@ function poseMe(t) {
   };
   const sawHeld = t < CUTS[2].drop;
   // carried: the far (left) hand holds the post ahead of my face; the near (right) hand carries the saw — or, once the saw is gone, the post too
-  const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, a0); gripCarry(F, X);
-    if (held) { F.hands[0] = cpt(X, Math.min(L - 14, X.contact + 80)); F.hands[1] = hangGrip(F, F.ph != null ? 18 * Math.sin(TAU * F.ph) : 0); }
+  const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, a0); F.hands = [cpt(X, Math.min(L - 16, X.contact + HOLD)), cpt(X, Math.min(L - 16, X.contact + HOLD - 46))]; F.hand = ['fist', 'fist'];
+    if (held) F.hands[1] = hangGrip(F, F.ph != null ? 18 * Math.sin(TAU * F.ph) : 0);
     return [F, X]; };
   for (const c of CUTS) {
     if (t >= c.s && t < c.up1) {
@@ -359,15 +360,15 @@ function poseMe(t) {
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k);
         F.hands[rIdx(F)] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)];
-        const Xm = mixX(XA, XL, k); F.hands[lIdx(F)] = cpt(Xm, lerp(Math.min(L - 14, XA.contact + 80), UPIN(c), k), lerp(0, -PW / 2 - 3, k));
+        const Xm = mixX(XA, XL, k); F.hands[lIdx(F)] = cpt(Xm, lerp(Math.min(L - 16, XA.contact + HOLD), UPIN(c), k), lerp(0, -PW / 2 - 3, k));
         F.hand = F.f > 0 ? ['fist', 'fist'] : ['fist', 'flat'];
         return { F, X: Xm, c, saw: { grip: F.hands[rIdx(F)], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t); return { F: sawSpec(c, t), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k);
       const rT = WB.hands[1], lT = WB.hands[0];
       const Xm = mixX(XL, XB, k);
-      F.hands[rIdx(F)] = last ? cpt(Xm, lerp(UPIN(c) + 60, XB.contact + 80, k), lerp(-PW / 2 - 3, 0, k)) : [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)];
-      F.hands[lIdx(F)] = cpt(Xm, lerp(UPIN(c), last ? XB.contact + 26 : Math.min(L - 14, XB.contact + 80), k), lerp(-PW / 2 - 3, 0, k));
+      F.hands[rIdx(F)] = last ? cpt(Xm, lerp(UPIN(c) + 60, Math.min(L - 16, XB.contact + HOLD - 46), k), lerp(-PW / 2 - 3, 0, k)) : [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)];
+      F.hands[lIdx(F)] = cpt(Xm, lerp(UPIN(c), Math.min(L - 16, XB.contact + HOLD), k), lerp(-PW / 2 - 3, 0, k));
       F.hand = F.f > 0 ? ['fist', 'fist'] : ['fist', 'flat'];
       const saw = last ? null : { grip: F.hands[rIdx(F)], ang: lerp(CUT_ANG, hangAng(1), k) };
       return { F, X: Xm, c, saw };
@@ -382,12 +383,12 @@ function poseMe(t) {
     F.ang += .16 * Math.sin(Math.PI * clamp((tp - 12) / .5)) * (tp < 12.5 ? -1 : 0); F.eye = tp < 13.2 ? 'shock' : 'calm';
     const [G2, X] = carried(F, angFor(left), left, false); return { F: G2, X }; }
   const XLay = { x: E - REST - L * (1 - left), y: FY + 34, a: 0, u0: L * (1 - left), lie: true };
-  const LAY = { ...standSpec(E - 52, FY, SME, 1), hip: [E - 60, FY - 140 * SME], ang: .7, feet: [[E - 98, FY], [E - 30, FY]], tilt: .25 };
+  const LAY = { ...standSpec(E - 52, FY, SME, 1), hip: [E - 66, FY - 92 * SME], ang: 1.2, feet: [[E - 104, FY], [E - 30, FY]], tilt: -.5 };
   LAY.hands = [cpt(XLay, L * (1 - left) + 70), cpt(XLay, L * (1 - left) + 26)]; LAY.hand = ['flat', 'flat'];   // pressing the foot end down on the lip
   const REACH = { ...LAY, hip: [E - 66, FY - 160 * SME], ang: .46, hands: [[E - 36, FY - 64], [E + 70, FY - 20]], hand: ['fist', 'open'], eye: 'shock', tilt: .45 };
   if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = carried(ST, angFor(left), left, false), k = eio((tp - 18.4) / .4);
       const e = eio((t - 18.4) / .4), Xm = mixX(STc[1], XLay, e), F = mixSpec(STc[0], LAY, k), u0 = L * (1 - left);
-      F.hands = [cpt(Xm, lerp(STc[1].contact + 26, u0 + 70, e)), cpt(Xm, lerp(STc[1].contact + 80, u0 + 26, e))];
+      F.hands = [cpt(Xm, lerp(Math.min(L - 16, STc[1].contact + HOLD), u0 + 70, e)), cpt(Xm, lerp(Math.min(L - 16, STc[1].contact + HOLD - 46), u0 + 26, e))];
       F.hand = k > .5 ? ['flat', 'flat'] : ['fist', 'fist']; return { F, X: Xm, lay: true }; }
     return { F: LAY, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }
@@ -417,7 +418,7 @@ function pilState(i, t) {
   if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   if (t < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
-  const LAY = { ...standSpec(E - 46, BY, SPI, 1), hip: [E - 52, BY - 150 * SPI], ang: .6, feet: [[E - 88, BY], [E - 22, BY]], tilt: .2, col: C.pil };
+  const LAY = { ...standSpec(E - 46, BY, SPI, 1), hip: [E - 58, BY - 96 * SPI], ang: 1.1, feet: [[E - 96, BY], [E - 22, BY]], tilt: -.45, col: C.pil };
   LAY.hands = [cpt(XB, 70), cpt(XB, 26)];
   if (t < T) { const [F0, X0] = carry(T - .35, E - 46), k = eio((tp - T + .35) / .35), e = eio((t - T + .35) / .35), Xm = mixX(X0, XB, e), F = { ...mixSpec(F0, LAY, k), col: C.pil };
     F.hands = [cpt(Xm, lerp(X0.contact + 26, 70, e)), cpt(Xm, lerp(X0.contact + 80, 26, e))]; return { F, X: Xm }; }
