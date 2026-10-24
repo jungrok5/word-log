@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>왜 나만 · 07 리소 라인</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 07 — risograph comic line. Two-ink print look: a flat, mottled teal-blue field with heavy print grain; a thick, slightly
+   wobbly black line that BOILS (redrawn with fresh jitter on twos, 12 fps); cream shapes printed a hair out of register
+   with the line; dot-screen tone for shading (trousers, the bundle's belly, cast shadows); the one extra ink is yellow —
+   small sparkles with an airbrushed glow, and the star that rises ahead. Comic grammar: a little inset panel (a close-up of
+   the face), squiggle motion lines, effort/impact marks. The figure poses on twos too; nothing moves on ones. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng, noise } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const C = { field: '#7fb0bc', panel: '#9cc5cf', cream: '#f1ebdc', cream2: '#e9e1cd', ink: '#1d2123', yel: '#f1c75e', yelL: '#f7da86' };
+const t12 = t => Math.floor(t * 12 + 1e-6) / 12;
+const G = 1515, FS = 1.36;                       // ground line (feet)
+let K = 0;                            // boil frame index (changes 12×/s)
+
+// ---------------- hand line ----------------
+let LWK = 1;                          // line-width factor (the figure is drawn scaled up)
+function wob(p, amp = 1.8, k = K) {   // per-boil-frame jitter (smooth in space) + a fixed hand tremor
+  const x = p[0], y = p[1], f = .022;
+  return [x + (noise(x * f + k * 7.31, y * f + .37) - .5) * 2 * amp + (noise(x * .07 + 40, y * .07) - .5) * 1.6,
+          y + (noise(x * f + 11.3, y * f + k * 5.17) - .5) * 2 * amp + (noise(x * .07, y * .07 + 90) - .5) * 1.6];
+}
+function chaikin(pts, closed, it = 2) {
+  for (let r = 0; r < it; r++) { const o = [], n = pts.length, m = closed ? n : n - 1; if (!closed) o.push(pts[0]);
+    for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); }
+    if (!closed) o.push(pts[n - 1]); pts = o; }
+  return pts;
+}
+function resample(pts, closed, step = 13) {
+  const o = [], n = pts.length, m = closed ? n : n - 1;
+  for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n], d = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(d / step));
+    for (let j = 0; j < k; j++) o.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); }
+  if (!closed) o.push(pts[n - 1]); return o;
+}
+function pathOf(pts, closed = true, smooth = true) {
+  const p = new Path2D(), n = pts.length;
+  if (!smooth || n < 3) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n; i++) p.lineTo(pts[i][0], pts[i][1]); if (closed) p.closePath(); return p; }
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  if (closed) { const s = mid(pts[n - 1], pts[0]); p.moveTo(s[0], s[1]);
+    for (let i = 0; i < n; i++) { const m = mid(pts[i], pts[(i + 1) % n]); p.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } p.closePath(); }
+  else { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n - 1; i++) { const m = mid(pts[i], pts[i + 1]); p.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } p.lineTo(pts[n - 1][0], pts[n - 1][1]); }
+  return p;
+}
+// an inked shape: fill printed slightly off-register, optional dot tone, then the boiling black line
+function ink(ctx, pts, o = {}) {
+  const closed = o.closed !== false, sm = o.smooth !== false && !o.raw && pts.length > 2;
+  const base = o.raw ? pts : resample(sm ? chaikin(pts, closed, 3) : pts, closed, o.step || 11);
+  const P = base.map(p => wob(p, o.amp ?? 1.8)), path = pathOf(P, closed, sm);
+  if (o.fill || o.tone) { ctx.save(); ctx.translate(o.mx ?? 2.5, o.my ?? 1.6);
+    if (o.fill) { ctx.fillStyle = o.fill; ctx.fill(path); }
+    if (o.tone) { ctx.fillStyle = o.tone; ctx.fill(path); }
+    ctx.restore(); }
+  if (o.lw !== 0) { const lw = (o.lw || 6) * LWK; ctx.strokeStyle = o.col || C.ink; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.lineWidth = lw * .86; ctx.stroke(path);
+    if (lw > 3.5) { ctx.lineWidth = lw * .72; ctx.stroke(pathOf(base.map(p => wob(p, (o.amp ?? 1.8) * .8, K + 50.5)), closed, sm)); } }   // ink spread: width varies along the line
+  return path;
+}
+const ell = (cx, cy, rx, ry, n = 22, rot = 0) => { const o = []; for (let i = 0; i < n; i++) { const a = i / n * TAU, x = Math.cos(a) * rx, y = Math.sin(a) * ry;
+  o.push([cx + x * Math.cos(rot) - y * Math.sin(rot), cy + x * Math.sin(rot) + y * Math.cos(rot)]); } return o; };
+const rot2 = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
+// a tube along a polyline (sleeve, trouser leg): left side down, right side up
+function tube(line, wd) {
+  const L = [], R = [];
+  for (let i = 0; i < line.length; i++) { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1]; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    L.push([line[i][0] - dy * wd[i], line[i][1] + dx * wd[i]]); R.push([line[i][0] + dy * wd[i], line[i][1] - dx * wd[i]]); }
+  return L.concat(R.reverse());
+}
+function star5(cx, cy, r, ri, a0 = -Math.PI / 2) { const o = []; for (let i = 0; i < 10; i++) { const a = a0 + i * Math.PI / 5, rr = i % 2 ? ri : r; o.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); } return o; }
+function spark4(cx, cy, r) { const o = []; for (let i = 0; i < 8; i++) { const a = -Math.PI / 2 + i * Math.PI / 4, rr = i % 2 ? r * .22 : r * (i % 4 === 0 ? 1 : .78); o.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); } return o; }
+
+// ---------------- prebuilt print ----------------
+let BG, GRAIN, TONE, TONE_D, GLOW;
+function init() {
+  // paper / ink field: flat blue with riso density mottling
+  BG = Pilot.canvas(W, H); const b = BG.getContext('2d');
+  b.fillStyle = C.field; b.fillRect(0, 0, W, H);
+  const mw = 90, mh = 160, m = Pilot.canvas(mw, mh), mx = m.getContext('2d'), md = mx.createImageData(mw, mh);
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) { const v = Pilot.fbm(x * .09 + 3, y * .09 + 7, 4), i = (y * mw + x) * 4;
+    const k = (v - .5) * 2; md.data[i] = md.data[i + 1] = md.data[i + 2] = k > 0 ? 255 : 20; md.data[i + 3] = Math.abs(k) * 34; }
+  mx.putImageData(md, 0, 0); b.imageSmoothingEnabled = true; b.drawImage(m, 0, 0, W, H);
+  // grain: clumpy (half-res, upscaled) + fine, light and dark specks, over everything
+  GRAIN = Pilot.canvas(W, H); const g = GRAIN.getContext('2d'), gd = g.createImageData(W, H), r = rng(77);
+  const hw = W >> 1, hh = H >> 1, hr = new Float32Array(hw * hh); for (let i = 0; i < hr.length; i++) hr[i] = r();
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4, v = .6 * hr[(y >> 1) * hw + (x >> 1)] + .4 * r() - .5;
+    if (v > 0) { gd.data[i] = 255; gd.data[i + 1] = 252; gd.data[i + 2] = 240; gd.data[i + 3] = Math.min(255, v * v * 4 * 120); }
+    else { gd.data[i] = 18; gd.data[i + 1] = 36; gd.data[i + 2] = 44; gd.data[i + 3] = Math.min(255, v * v * 4 * 130); } }
+  g.putImageData(gd, 0, 0);
+  // dot screen (staggered), slightly irregular dots
+  const mk = (cell, rad, a) => { const c = Pilot.canvas(cell * 2, cell * 2), x = c.getContext('2d'), rr = rng(5); x.fillStyle = `rgba(29,33,35,${a})`;
+    for (const [px, py] of [[cell / 2, cell / 2], [cell * 1.5, cell * 1.5], [cell * 1.5, cell / 2], [cell / 2, cell * 1.5]].slice(0, 4)) {
+      x.beginPath(); x.ellipse(px, py, rad * (.85 + rr() * .3), rad * (.85 + rr() * .3), 0, 0, TAU); x.fill(); }
+    return c; };
+  TONE = mk(11, 2.1, .9); TONE_D = mk(9, 2.4, .95);
+  GLOW = Pilot.canvas(256, 256); const gl = GLOW.getContext('2d'), gr = gl.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0, 'rgba(247,214,120,.95)'); gr.addColorStop(.35, 'rgba(244,206,108,.45)'); gr.addColorStop(.7, 'rgba(240,200,100,.12)'); gr.addColorStop(1, 'rgba(240,200,100,0)');
+  gl.fillStyle = gr; gl.fillRect(0, 0, 256, 256);
+}
+let TS = 1;
+const tone = (ctx, c, ox, oy) => { const p = ctx.createPattern(c, 'repeat'); p.setTransform(new DOMMatrix().translate(Math.round(ox), Math.round(oy)).scale(TS)); return p; };
+const glow = (ctx, x, y, r, a) => { if (a <= 0) return; ctx.save(); ctx.globalAlpha = a; ctx.drawImage(GLOW, x - r, y - r, r * 2, r * 2); ctx.restore(); };
+
+// ---------------- the figure (poses on twos) ----------------
+const D = 100, CYC = 1.5, STANCE = .62, LEG1 = 86, LEG2 = 84;
+const X0 = 362;
+function pose(t) {
+  const u = clamp(t / B.stop), dist = D * CYC * (1.5 * u - .5 * u * u * u), ph = dist / D;
+  const sag = ss(B.stop, B.stop + .35, t) * (1 - ss(B.drop + .15, B.drop + .7, t));
+  const look = ss(B.look, B.look + .45, t), relief = ss(B.drop + .1, B.drop + .75, t);
+  const walking = t < B.stop;
+  const bob = walking ? 7 * (.5 + .5 * Math.cos(ph * 2 * TAU)) : 0;
+  const breath = Math.sin((t - B.drop) * 2.6) * ss(B.drop + .6, B.drop + 1.2, t);
+  const hip = [X0 + dist, G - 158 + bob + sag * 9 - relief * 6 - breath * 1.5];
+  const lean = lerp(.42 + (walking ? .03 * Math.cos(ph * 2 * TAU) : 0) + sag * .1 - look * .08, .07, eo(relief)) - breath * .015;
+  const head = lerp(lerp(.42 + sag * .18, -.32, eio(look)), -.12, relief);   // head pitch relative to the torso (+ = down)
+  return { ph, hip, lean, head, sag, look, relief, walking, breath };
+}
+function legFoot(ph, off, walking, hipX) {
+  let p = ((ph + off) % 1 + 1) % 1, rel, lift = 0, toe = 0; const L = D * STANCE;
+  if (p < STANCE) rel = L / 2 - p / STANCE * L;
+  else { const q = (p - STANCE) / (1 - STANCE); rel = -L / 2 + L * ss(0, 1, q); lift = Math.sin(Math.PI * q) * 20; toe = Math.sin(Math.PI * q) * .25; }
+  return { x: hipX + rel + 8, y: G - lift, toe };
+}
+function ik(h, f, l1, l2) {
+  const dx = f[0] - h[0], dy = f[1] - h[1], d = Math.min(Math.hypot(dx, dy), l1 + l2 - .5), a = Math.atan2(dy, dx);
+  const al = Math.acos(clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1));
+  return [h[0] + Math.cos(a - al) * l1, h[1] + Math.sin(a - al) * l1];
+}
+function drawLeg(ctx, hp, foot, toneP, far) {
+  const ank = [foot.x, foot.y - 16], kn = ik(hp, ank, LEG1, LEG2);
+  // baggy trouser: hip → knee → ankle
+  const mid1 = [(hp[0] + kn[0]) / 2, (hp[1] + kn[1]) / 2], mid2 = [(kn[0] + ank[0]) / 2, (kn[1] + ank[1]) / 2];
+  ink(ctx, tube([[hp[0], hp[1] - 18], mid1, kn, mid2, ank], [44, 47, 42, 38, 33]), { fill: far ? C.cream2 : C.cream, tone: toneP });
+  // sock + shoe
+  const a = -foot.toe;
+  const sh = [[-26, -6], [-20, -20], [6, -22], [20, -16], [34, -10], [40, 0], [30, 7], [-22, 7]].map(p => { const q = rot2(p, a); return [foot.x + q[0] + 6, foot.y - 5 + q[1]]; });
+  ink(ctx, [[ank[0] - 16, ank[1] - 6], [ank[0] + 14, ank[1] - 6], [ank[0] + 13, ank[1] + 8], [ank[0] - 15, ank[1] + 8]], { fill: C.cream, lw: 5, step: 9 });
+  ink(ctx, sh, { fill: C.ink, lw: 6, step: 9 });
+  ctx.strokeStyle = C.cream; ctx.lineWidth = 3; const s1 = wob([foot.x - 12, foot.y + 1]), s2 = wob([foot.x + 26, foot.y + 1]);
+  ctx.beginPath(); ctx.moveTo(s1[0], s1[1]); ctx.lineTo(s2[0], s2[1]); ctx.stroke();
+}
+// sack (bundle), local coords centred, y down
+const SACK = [[-62, -84], [-92, -48], [-108, 4], [-104, 56], [-82, 96], [-40, 116], [10, 120], [58, 110], [92, 82], [106, 34], [100, -22], [78, -66], [40, -92], [0, -98]];
+function drawSack(ctx, c, ang, sx, sy, loose, tp) {
+  const T = p => { const q = rot2([p[0] * sx, p[1] * sy], ang); return [c[0] + q[0], c[1] + q[1]]; };
+  const pts = SACK.map(T);
+  const path = ink(ctx, pts, { fill: C.cream, lw: 0 });
+  // dot-tone belly (lower-left half), clipped to the sack
+  ctx.save(); ctx.translate(2.5, 1.6); ctx.clip(path);
+  ink(ctx, [[-130, 10], [-40, 40], [40, 70], [130, 60], [130, 160], [-130, 160]].map(T), { tone: tone(ctx, TONE, c[0], c[1]), lw: 0, mx: 0, my: 0 });
+  ctx.restore();
+  ink(ctx, pts, { lw: 6.5 });
+  // knot + cloth ears
+  ink(ctx, [[-30, -88], [-58, -132], [-20, -118], [0, -100], [20, -122], [56, -136], [32, -88], [0, -96]].map(T), { fill: C.cream, lw: 6 });
+  ink(ctx, ell(0, -96, 20, 13).map(T), { fill: C.cream, lw: 6 });
+  // rope wraps + a couple of fold lines
+  ink(ctx, [[-104, -6], [-50, 10], [10, 14], [70, 4], [104, 0]].map(T), { closed: false, lw: 6 });
+  ink(ctx, [[-102, 8], [-50, 24], [10, 28], [70, 18], [104, 14]].map(T), { closed: false, lw: 5 });
+  ink(ctx, [[-40, -70], [-56, -30]].map(T), { closed: false, lw: 4.5 });
+  ink(ctx, [[48, 60], [66, 84]].map(T), { closed: false, lw: 4.5 });
+  if (loose) {   // straps hanging loose from the bundle
+    ink(ctx, [[84, -50], [118, -10], [126, 40], [112, 80]].map(T), { closed: false, lw: 15 }); ink(ctx, [[84, -50], [118, -10], [126, 40], [112, 80]].map(T), { closed: false, lw: 6, col: C.cream });
+  }
+}
+function drawFigure(ctx, tp) {
+  const p = pose(tp), a = p.lean, up = [Math.sin(a), -Math.cos(a)], fw = [Math.cos(a), Math.sin(a)];
+  const TF = (u, v) => [p.hip[0] + u * fw[0] + v * up[0], p.hip[1] + u * fw[1] + v * up[1]];
+  const toneP = tone(ctx, TONE, p.hip[0], p.hip[1]), toneF = tone(ctx, TONE_D, p.hip[0], p.hip[1]);
+  // cast shadow in dot tone
+  ctx.save(); ctx.globalAlpha = .55; ink(ctx, ell(p.hip[0] + 6, G + 8, 120, 15), { tone: toneF, lw: 0 }); ctx.restore();
+  // bundle: on the back until the drop, then it slips and lands behind
+  const sAt = TF(-112, 132), drop = (tp - B.drop) / .26;
+  let sc = sAt, sang = a * .85, ssx = 1, ssy = 1, loose = false;
+  if (tp >= B.drop) {
+    const p0 = pose(B.drop), a0 = p0.lean, c0 = [p0.hip[0] - 112 * Math.cos(a0) + 132 * Math.sin(a0), p0.hip[1] - 112 * Math.sin(a0) - 132 * Math.cos(a0)];
+    const c1 = [p0.hip[0] - 205, G - 118], s = clamp(drop);
+    sc = [lerp(c0[0], c1[0], s), c0[1] + (c1[1] - c0[1]) * s * s]; sang = lerp(a0 * .85, -.1, s); loose = true;
+    const k = tp - (B.drop + .26);
+    if (k >= 0) { const sq = Math.exp(-k * 9) * Math.cos(k * 26); ssy = 1 - .16 * sq; ssx = 1 + .12 * sq; sc = [sc[0], G - 118 * ssy]; }
+  }
+  if (tp >= B.drop) ink(ctx, ell(sc[0], G + 6, 112 * ssx, 13), { tone: toneF, lw: 0 });
+  drawSack(ctx, sc, sang, ssx, ssy, loose, tp);
+  // legs (far first)
+  const fF = legFoot(p.ph, .5, p.walking, p.hip[0]), fN = legFoot(p.ph, 0, p.walking, p.hip[0]);
+  drawLeg(ctx, [p.hip[0] - 10, p.hip[1]], { ...fF, x: fF.x - 10 }, toneF, true);
+  // sweater
+  const sw = [[-48, -12], [-57, 36], [-56, 92], [-42, 128], [-14, 144], [20, 142], [44, 124], [56, 92], [62, 50], [64, 12], [52, -14], [0, -20]].map(q => TF(q[0], q[1]));
+  drawLeg(ctx, [p.hip[0] + 6, p.hip[1]], fN, toneP, false);
+  ink(ctx, sw, { fill: C.cream });
+  ink(ctx, [TF(-30, 30), TF(-8, 22)], { closed: false, lw: 4.5 });   // a fold
+  // head (pitched), neck under it
+  const ha = a * .5 + p.head, hu = [Math.sin(ha), -Math.cos(ha)], hf = [Math.cos(ha), Math.sin(ha)];
+  const nk = TF(14, 136), hc = [nk[0] + hu[0] * 62 + hf[0] * 8, nk[1] + hu[1] * 62 + hf[1] * 8], HS = 1.18;
+  const HF = (u, v) => [hc[0] + HS * (u * hf[0] + v * hu[0]), hc[1] + HS * (u * hf[1] + v * hu[1])];
+  // strap over the near shoulder (only while carried)
+  if (!loose) { const st = [TF(-64, 124), TF(-30, 150), TF(8, 150), TF(30, 128), TF(36, 96), TF(34, 70)];
+    ink(ctx, st, { closed: false, lw: 17, smooth: true }); ink(ctx, st, { closed: false, lw: 7, col: C.cream, smooth: true }); }
+  // face
+  const face = [[-52, -20], [-56, 16], [-44, 46], [-14, 58], [24, 54], [46, 36], [56, 10], [64, 2], [58, -10], [52, -26], [34, -46], [0, -52], [-34, -44]].map(q => HF(q[0], q[1]));
+  ink(ctx, [TF(2, 128), TF(24, 128), TF(26, 150), TF(2, 152)], { fill: C.cream, lw: 5 });   // neck
+  ink(ctx, face, { fill: C.cream });
+  // beanie: dome + toned brim + pompom
+  beanie(ctx, HF, toneF, 1);
+  // eye (tired arc while trudging, round dot once it looks up), ear, mouth
+  const e = HF(32, -10);
+  if (p.look < .5) { ink(ctx, [HF(22, -8), HF(32, -14), HF(42, -10)], { closed: false, lw: 4.5 }); }
+  else { ctx.fillStyle = C.ink; ctx.beginPath(); ctx.ellipse(e[0], e[1], 6.5, 7.5, 0, 0, TAU); ctx.fill(); ctx.fillStyle = C.yelL; ctx.beginPath(); ctx.arc(e[0] + 2, e[1] - 3, 2.2, 0, TAU); ctx.fill(); }
+  ink(ctx, [HF(-30, -2), HF(-40, -12), HF(-34, -28), HF(-24, -22)], { closed: false, lw: 4.5 });
+  const mo = p.relief > .3 ? [HF(38, -34), HF(46, -38), HF(52, -32)] : [HF(38, -36), HF(50, -34)];
+  ink(ctx, mo, { closed: false, lw: 4 });
+  // near arm, hand on the strap (or hanging after the drop)
+  // near arm + mitten as ONE shape, close to the body: gripping the strap, then hanging loose after the drop
+  const sh = TF(-4, 116), el = loose ? lerp2(TF(-8, 56), TF(-2, 40), p.relief) : TF(-12, 60), hand = loose ? lerp2(TF(30, 74), TF(14, -6), p.relief) : TF(30, 78);
+  const dir = [hand[0] - el[0], hand[1] - el[1]], dl = Math.hypot(dir[0], dir[1]) || 1, tip = [hand[0] + dir[0] / dl * 14, hand[1] + dir[1] / dl * 14];
+  ink(ctx, tube([sh, el, [lerp(el[0], hand[0], .6), lerp(el[1], hand[1], .6)], hand, tip], [26, 22, 19, 19, 12]), { fill: C.cream });
+  if (!loose) ink(ctx, [lerp2(hand, el, .12), lerp2(hand, tip, .4)], { closed: false, lw: 4 });   // fingers over the strap
+  return p;
+}
+function beanie(ctx, HF, toneP, lw) {   // knit hat: dome, dot-toned fold, pompom, rib lines
+  ink(ctx, [[-58, 18], [-54, 52], [-32, 80], [2, 90], [34, 80], [52, 56], [58, 30]].map(q => HF(q[0], q[1])), { fill: C.cream, lw: 6 * lw });
+  ink(ctx, [[-61, 6], [-59, 28], [61, 38], [61, 16]].map(q => HF(q[0], q[1])), { fill: C.cream, tone: toneP, lw: 6 * lw, smooth: false, step: 10 });
+  ink(ctx, ell(0, 0, 15, 14).map(q => HF(q[0] - 6, q[1] + 102)), { fill: C.cream, lw: 5.5 * lw });
+  ink(ctx, [HF(-14, 76), HF(-8, 50)], { closed: false, lw: 4 * lw }); ink(ctx, [HF(18, 80), HF(16, 54)], { closed: false, lw: 4 * lw });
+}
+const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+
+// ---------------- comic marks ----------------
+function squiggle(ctx, x0, y0, len, amp, ph, lw = 4.5) {   // a "~~~~" line ending in a tiny circle
+  const pts = []; for (let i = 0; i <= 14; i++) { const u = i / 14; pts.push([x0 + u * len, y0 + Math.sin(u * 3.2 * TAU + ph) * amp * (.5 + .5 * u)]); }
+  ink(ctx, pts, { closed: false, lw, step: 8 });
+  ctx.lineWidth = 3.5; ctx.strokeStyle = C.ink; const c = wob([x0 + len + 14, y0]); ctx.beginPath(); ctx.arc(c[0], c[1], 4.5, 0, TAU); ctx.stroke();
+}
+function sparkle(ctx, x, y, r, a, glowA = .7) {
+  if (a <= .01) return; glow(ctx, x, y, r * 2.6, a * glowA);
+  ctx.save(); ctx.globalAlpha = a; ink(ctx, spark4(x, y, r), { fill: C.yel, lw: 3.2, smooth: false, raw: true, amp: .8, mx: 1.5, my: 1 }); ctx.restore();
+}
+const SPARKS = [[160, 1060, 26, .0], [930, 1220, 22, .35], [720, 1600, 18, .7], [120, 1380, 16, .2]];   // scattered, from frame 0
+const NEAR = [[680, 620, 20, .1], [985, 700, 24, .5], [1010, 1000, 16, .8], [770, 560, 14, .3], [600, 790, 15, .6]];
+
+// ---------------- scene ----------------
+function cloud(ctx, x, y, s, seed) {   // flat cream cloud, ragged print edge, no line
+  const r = rng(seed), pts = []; const n = 30;
+  for (let i = 0; i < n; i++) { const a = i / n * TAU, rx = 210 * s, ry = 52 * s; const k = 1 + .18 * Math.sin(a * 3 + seed) + .1 * Math.sin(a * 7 + seed * 2);
+    pts.push([x + Math.cos(a) * rx * k * (1 + .2 * (r() - .5)), y + Math.sin(a) * ry * k * (Math.sin(a) > 0 ? .6 : 1.15)]); }
+  ink(ctx, pts, { fill: C.cream, lw: 0, mx: 0, my: 0, amp: 1.2 });
+}
+function panel(ctx, tp, look) {   // inset: the face in close-up
+  const x0 = 86, y0 = 548, w = 450, h = 262;
+  const rect = [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]];
+  const path = pathOf(resample(rect, true, 16).map(p => wob(p, 1.6)), true, false);
+  ctx.save(); ctx.fillStyle = C.panel; ctx.fill(path); ctx.clip(path);
+  // light from the right once it looks up
+  glow(ctx, x0 + w + 20, y0 + 60, 260, ss(B.look, B.look + .4, tp) * .9);
+  const lk = eio(ss(B.look, B.look + .45, tp)), rel = ss(B.drop + .1, B.drop + .7, tp);
+  const ang = lerp(.5, -.22, lk) + rel * .08, hc = [x0 + 250 + lk * 10, y0 + 146 - lk * 14];
+  const hu = [Math.sin(ang), -Math.cos(ang)], hf = [Math.cos(ang), Math.sin(ang)], HF = (u, v) => [hc[0] + 1.6 * (u * hf[0] + v * hu[0]), hc[1] + 1.6 * (u * hf[1] + v * hu[1])];
+  // shoulder + sweater + strap (strap gone after the drop)
+  ink(ctx, [[x0 + 40, y0 + h + 30], [x0 + 66, y0 + 236], [x0 + 150, y0 + 206], [x0 + 260, y0 + 204], [x0 + 336, y0 + 230], [x0 + 360, y0 + h + 30]], { fill: C.cream, lw: 7 });
+  if (tp < B.drop + .1) { const st = [[x0 + 120, y0 + h + 20], [x0 + 136, y0 + 214], [x0 + 104, y0 + 170]]; ink(ctx, st, { closed: false, lw: 26 }); ink(ctx, st, { closed: false, lw: 12, col: C.cream }); }
+  // bundle edge behind, toned
+  if (tp < B.drop + .1) ink(ctx, [[x0 - 20, y0 + 20], [x0 + 64, y0 + 40], [x0 + 104, y0 + 130], [x0 + 96, y0 + 250], [x0 - 20, y0 + 270]], { fill: C.cream, tone: tone(ctx, TONE, x0, y0), lw: 7 });
+  const face = [[-52, -20], [-56, 16], [-44, 46], [-14, 58], [24, 54], [46, 36], [56, 10], [64, 2], [58, -10], [52, -26], [34, -46], [0, -52], [-34, -44]].map(q => HF(q[0], q[1]));
+  ink(ctx, face, { fill: C.cream, lw: 7 });
+  beanie(ctx, HF, tone(ctx, TONE_D, x0, y0), 1.15);
+  // yellow light on the face side (overprint)
+  if (lk > 0) { ctx.save(); ctx.globalAlpha = .2 * lk; ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = C.yel; ctx.fill(pathOf(face)); ctx.restore(); }
+  ink(ctx, [HF(-30, -2), HF(-40, -12), HF(-34, -28), HF(-24, -22)], { closed: false, lw: 6 });
+  if (lk < .5) { ink(ctx, [HF(20, -6), HF(31, -14), HF(42, -9)], { closed: false, lw: 6 });
+    // sweat drop + gloom lines
+    const sd = HF(-30, 64); ink(ctx, [[sd[0] - 30, sd[1] - 6], [sd[0] - 22, sd[1] - 26], [sd[0] - 14, sd[1] - 6], [sd[0] - 22, sd[1] + 2]], { fill: C.cream, lw: 4.5, step: 6 });
+    for (let i = 0; i < 3; i++) { const q = HF(-10 + i * 22, 98); ink(ctx, [[q[0], q[1] - 4], [q[0] + 2, q[1] + 22]], { closed: false, lw: 4.5 }); } }
+  else { const e = HF(32, -9); ctx.fillStyle = C.ink; ctx.beginPath(); ctx.ellipse(e[0], e[1], 12, 14, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = C.yelL; ctx.beginPath(); ctx.arc(e[0] + 4, e[1] - 5, 4.2, 0, TAU); ctx.fill();
+    // surprise ticks
+    const tk = ss(B.look + .15, B.look + .3, tp) * (1 - ss(B.drop - .3, B.drop, tp));
+    if (tk > 0) for (let i = 0; i < 3; i++) { const an = -1.1 + i * .45, c = HF(70, 40); ctx.save(); ctx.globalAlpha = tk;
+      ink(ctx, [[c[0] + Math.cos(an) * 26, c[1] + Math.sin(an) * 26], [c[0] + Math.cos(an) * 58, c[1] + Math.sin(an) * 58]], { closed: false, lw: 5 }); ctx.restore(); } }
+  const mo = rel > .3 ? [HF(38, -34), HF(46, -39), HF(53, -32)] : lk > .5 ? ell(...HF(44, -34), 5, 6) : [HF(38, -36), HF(50, -34)];
+  ink(ctx, mo, { closed: lk > .5 && rel <= .3, lw: 5 });
+  // sparkle in the panel
+  const sp = ss(B.look + .1, B.look + .35, tp); if (sp > 0) { const tw = .75 + .25 * Math.sin(tp * 9); sparkle(ctx, x0 + w - 48, y0 + 64, 24 * sp * tw, 1); sparkle(ctx, x0 + w - 40, y0 + 168, 13 * sp, 1); }
+  ctx.restore();
+  ctx.lineWidth = 6; ctx.strokeStyle = C.ink; ctx.lineJoin = 'round'; ctx.stroke(path);
+}
+
+function draw(ctx, t) {
+  const tp = t12(t); K = Math.round(tp * 12);
+  ctx.drawImage(BG, 0, 0);
+  // clouds drift a little
+  const dr = tp * 4;
+  cloud(ctx, 860 + dr, 210, 1.05, 3); cloud(ctx, 980 + dr * .6, 330, .38, 9); cloud(ctx, 150 - dr * .5, 1700, .95, 5); cloud(ctx, 420 - dr * .5, 1790, .3, 11);
+  // the star ahead: hidden, pops up on twos at "look", then breathes
+  const sA = ss(B.look - .05, B.look + .1, tp), pop = tp < B.look ? 0 : (() => { const k = (tp - B.look) / .32; return k >= 1 ? 1 : 1 + Math.sin(k * Math.PI) * .28 - (1 - k) * (1 - k) * .9; })();
+  const sx = 870, sy = 770;
+  if (pop > 0) {
+    const br = 1 + .05 * Math.sin((tp - B.look) * 4.4);
+    glow(ctx, sx, sy, 330 * br, .85 * sA); glow(ctx, sx, sy, 170, .9 * sA);
+    ctx.save(); ctx.translate(sx, sy); ctx.rotate(-.14 + .04 * Math.sin(tp * 3)); ctx.scale(pop, pop);
+    ink(ctx, star5(0, 0, 96, 50), { fill: C.yel, lw: 6.5, smooth: false, step: 12 });
+    // rounded print highlight
+    ink(ctx, [[-30, -18], [-12, -34]], { closed: false, lw: 0 });
+    ctx.restore();
+    // squiggle trails toward it + twinkles
+    const q = ss(B.look + .2, B.look + .5, tp);
+    ctx.save(); ctx.globalAlpha = q; squiggle(ctx, 610, 700, 110, 9, K * .7); squiggle(ctx, 900, 1010, 80, 8, K * .7 + 2); ctx.restore();
+    NEAR.forEach(([x, y, r, o], i) => { const ap = ss(B.look + .1 + i * .07, B.look + .25 + i * .07, tp), tw = .55 + .45 * Math.abs(Math.sin(tp * 3.1 + o * 6));
+      sparkle(ctx, x, y, r * tw * ap, ap); });
+  }
+  SPARKS.forEach(([x, y, r, o]) => { const tw = .45 + .55 * Math.abs(Math.sin(tp * 2.4 + o * 7)); sparkle(ctx, x, y, r * tw, 1, .55); });
+  // ground hints
+  ink(ctx, [[200, G + 6], [270, G + 4]], { closed: false, lw: 5 }); ink(ctx, [[700, G + 5], [800, G + 7]], { closed: false, lw: 5 }); ink(ctx, [[835, G + 6], [860, G + 6]], { closed: false, lw: 5 });
+  ctx.save(); ctx.translate(540, G); ctx.scale(FS, FS); ctx.translate(-540, -G); LWK = 1 / FS * 1.08; TS = 1 / FS;
+  const p = drawFigure(ctx, tp);
+  // effort marks while trudging: heel puffs and "///"
+  if (p.walking) {
+    for (const off of [0, .5]) { const ph = ((p.ph + off) % 1 + 1) % 1; if (ph < .18) { const fx = p.hip[0] + D * STANCE / 2 + 8 - ph / STANCE * D * STANCE, k = ph / .18;
+      ink(ctx, ell(fx - 44 - k * 20, G - 8 - k * 8, 10 + k * 6, 7 + k * 4), { fill: C.cream, lw: 4, step: 8, amp: 1.2 });
+      ink(ctx, ell(fx + 50 + k * 18, G - 6 - k * 6, 7 + k * 4, 5 + k * 3), { fill: C.cream, lw: 4, step: 8, amp: 1.2 }); } }
+    ctx.save(); ctx.globalAlpha = 1; squiggle(ctx, p.hip[0] - 300, p.hip[1] - 210, 70, 7, K * .9, 4); squiggle(ctx, p.hip[0] - 320, p.hip[1] - 120, 50, 6, K * .9 + 1, 4); ctx.restore();
+  }
+  // sweat drops beside the head while sagging
+  const sw = ss(B.stop, B.stop + .2, tp) * (1 - ss(B.look, B.look + .2, tp));
+  if (sw > 0) { const hx = p.hip[0] + 150, hy = p.hip[1] - 250; ctx.save(); ctx.globalAlpha = sw;
+    for (const [dx, dy, s] of [[0, 0, 1], [30, 30, .7]]) ink(ctx, [[hx + dx, hy + dy - 22 * s], [hx + dx + 9 * s, hy + dy], [hx + dx, hy + dy + 8 * s], [hx + dx - 9 * s, hy + dy]], { fill: C.cream, lw: 4, step: 6 });
+    ctx.restore(); }
+  // impact marks + little stars when the bundle lands
+  const land = B.drop + .26, im = tp >= land ? 1 - ss(land + .35, land + .7, tp) : 0;
+  if (im > 0) { const cx = pose(B.drop).hip[0] - 205, k = ss(land, land + .2, tp);
+    ctx.save(); ctx.globalAlpha = im;
+    for (const [an, r0] of [[-2.6, 130], [-2.2, 120], [-.95, 125], [-.55, 132], [-3.0, 135]]) ink(ctx, [[cx + Math.cos(an) * (r0 + k * 20), G - 40 + Math.sin(an) * (r0 * .5 + k * 10)], [cx + Math.cos(an) * (r0 + 40 + k * 30), G - 40 + Math.sin(an) * (r0 * .5 + 20 + k * 14)]], { closed: false, lw: 5 });
+    ink(ctx, ell(cx - 130 - k * 30, G - 14, 16 + k * 8, 11 + k * 5), { fill: C.cream, lw: 4.5, step: 8 }); ink(ctx, ell(cx + 128 + k * 30, G - 12, 14 + k * 8, 10 + k * 5), { fill: C.cream, lw: 4.5, step: 8 });
+    ctx.restore();
+    for (const [dx, dy, r, d] of [[-60, -190, 18, 0], [40, -210, 14, .08], [110, -160, 12, .14]]) { const a = ss(land + d, land + d + .1, tp) * (1 - ss(B.hold[1] - .6, B.hold[1] - .1, tp)); sparkle(ctx, cx + dx, G + dy - k * 20, r, a); }
+  }
+  // relief breath puff after the drop
+  const bp = ss(B.drop + .5, B.drop + .7, tp) * (1 - ss(B.drop + 1.1, B.drop + 1.4, tp));
+  if (bp > 0) { const px = p.hip[0] + 140, py = p.hip[1] - 222, k = ss(B.drop + .5, B.drop + 1.3, tp);
+    ctx.save(); ctx.globalAlpha = bp; ink(ctx, ell(px + k * 40, py + 6 - k * 6, 26 + k * 12, 14 + k * 5), { fill: C.cream, lw: 4.5, step: 9 }); ink(ctx, ell(px + 70 + k * 60, py - 2 - k * 10, 10, 7), { fill: C.cream, lw: 4, step: 6 }); ctx.restore(); }
+  ctx.restore(); LWK = 1; TS = 1;
+  panel(ctx, tp, p.look);
+  // caption: black ink, handwritten
+  Story.captions(ctx, t, S.lines, { font: "'Gaegu',cursive", weight: 700, size: 70, y: 405, color: C.ink, shadow: 'rgba(0,0,0,0)', shadowBlur: 0 });
+  // print grain over everything (static, like paper)
+  ctx.drawImage(GRAIN, 0, 0);
+}
+
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 70px 'Gaegu'"], init, draw });
+</script>
+<script>window.POSTER_T = 4.2;</script>
+    <style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+    border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+    #pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+    border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}#pv-play[hidden]{display:none}</style>
+    <button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+    <script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+    if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+    </body>
+</html>
