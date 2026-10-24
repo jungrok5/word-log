@@ -376,12 +376,17 @@ function mixSpec(A, Bs, k) {
 const TOPX = 250;
 function carryCross(F, left, a0) {
   const T = HD.pt(birdM(F), ...CONTACT), a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
-  const contact = L - Math.min(TOPX, left * L - 44);
+  const contact = left < .55 ? L - 40 : L - Math.min(TOPX, left * L - 44);   // the last, short cross rides lower: crossbar behind the back, not by the eyes
   return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false, gf: 34, gn: 92 };
 }
 function gripCarry(F, X, held) { F.hands = [cpt(X, farU(X)), held ? null : cpt(X, nearU(X))]; F.hand = ['grip', 'grip']; return F; }
 const mixX = (A, Bx, k, sw = .62) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > sw ? Bx.lie : A.lie };   // sw: when it changes from behind the body to in front
 const farU = X => X.contact - X.gf, nearU = X => Math.max(X.u0 + 12, X.contact - X.gn);   // where the free hands grip a carried cross
+function attach(F, X, k, u, v = 0) {   // keep wingtip k on the beam at (u, v): if that point is out of reach, the beam comes to the wingtip
+  const Rt = HD.pt(birdM(F), ...WROOT[k]), T = cpt(X, u, v), dx = T[0] - Rt[0], dy = T[1] - Rt[1], d = Math.hypot(dx, dy), Rr = 74 * F.s * 1.12;
+  if (d <= Rr) { F.hands[k] = T; return X; }
+  const nT = [Rt[0] + dx / d * Rr, Rt[1] + dy / d * Rr]; F.hands[k] = nT; return { ...X, x: X.x + nT[0] - T[0], y: X.y + nT[1] - T[1] };
+}
 function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
 const hangAng = f => f > 0 ? .42 : Math.PI - .42;
 const hangGrip = (F, sw = 0) => { const R = HD.pt(birdM(F), ...WROOT[1]); return [R[0] + F.f * (34 + sw) * F.s / 1.6, R[1] + 40 * F.s / 1.6]; };
@@ -418,16 +423,18 @@ function poseMe(t) {
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       const PIN = c.u1 + PINU;
       if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k), X = mixX(XA, XL, eio(clamp(k * 1.5)), .7);   // the beam gets down quickly (no long diagonal 'X' frames)
-        F.hands[0] = cpt(X, lerp(farU(XA), PIN, k), -PW / 2 * k);   // the free hand stays on the beam all the way down
+        const XX = attach(F, X, 0, lerp(farU(XA), PIN, k), -PW / 2 * k);   // the far wingtip, drawn in front, stays on the beam all the way down
+        F.farFront = true; F.strap = 0;
         F.hands[1] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)]; F.hand = ['grip', 'grip'];
-        return { F: me(F), X, c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
+        return { F: me(F), X: XX, c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t); return { F: me(sawSpec(c, t)), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), k2 = eio((tp - c.drop) / ((c.up1 - c.drop) * .55)), F = mixSpec(SP, WB, k), X = mixX(XL, XB, eio(clamp(k * 1.6)), .3);   // ...and up onto the shoulder before the saw hand moves
-      F.hands[0] = cpt(X, lerp(PIN, farU(XB), k), -PW / 2 * (1 - k));   // ...and lifts it back onto the shoulder
-      const rT = last ? cpt(X, nearU(XB)) : WB.hands[1], kk = last ? k : eio(clamp((k - .5) / .5));   // the saw hand stays low at the cut while the beam lifts away, then comes up
+      const XX = attach(F, X, 0, lerp(PIN, farU(XB), k), -PW / 2 * (1 - k));   // ...and lifts it back onto the back
+      F.farFront = k < .85; F.strap = k > .85 ? 1 : 0;
+      const rT = last ? cpt(XX, nearU(XB)) : WB.hands[1], kk = last ? k : k2;   // the saw hand stays low at the cut while the beam lifts away, then comes up
       F.hands[1] = [lerp(cg[0], rT[0], kk), lerp(cg[1], rT[1], kk)]; F.hand = ['grip', 'grip'];
       const saw = last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), k2) };
-      return { F: me(F), X, c, saw };
+      return { F: me(F), X: XX, c, saw };
     }
   }
   if (t < 12) { const [F, a] = walk(tp); const [G2, X] = carried(F, a, left, sawHeld); return { F: me(G2), X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }

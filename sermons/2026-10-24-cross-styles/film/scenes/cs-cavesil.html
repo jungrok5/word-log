@@ -299,10 +299,10 @@ const HOLD = 110;   // how far up the beam (past the shoulder) my front hand gri
 const UPIN = c => c.cutX + 44 * SME - c.baseX;   // where my pinning hand presses the lying cross (along the post)
 
 // how I carry my cross: the shorter it gets, the flatter it rides on my shoulder (a short cross tilted 45° would read as an X)
-function holdFront(F, lf) {   // my short cross held upright in front of me: foot by the knees, top below the chin, both hands on the upright
-  const u0 = L * (1 - lf), fx = F.hip[0] + F.f * 46 * F.s, foot = F.gy - 66 * F.s;
-  const X = { x: fx, y: foot + u0, a: -Math.PI / 2, u0, lie: false, contact: u0 + 196 - HOLD };
-  F.hands = [cpt(X, u0 + 196), cpt(X, u0 + 150)]; F.hand = ['fist', 'fist']; return [F, X];
+function holdFront(F, lf) {   // my short cross held flat in both hands at the waist (no tilt through 45°, nothing at the face)
+  const u0 = L * (1 - lf), cx = F.hip[0] + F.f * 40 * F.s, y = F.hip[1] + 6 * F.s, a = F.f > 0 ? 0 : Math.PI;
+  const X = { x: cx - Math.cos(a) * (u0 + L) / 2, y, a, u0, lie: true, contact: u0 + 150 - HOLD };
+  F.hands = [cpt(X, u0 + 150), cpt(X, u0 + 96)]; F.hand = ['fist', 'fist']; return [F, X];
 }
 const angFor = lf => lerp(-.16, -.42, clamp((lf - .48) / .52));
 function poseMe(t) {

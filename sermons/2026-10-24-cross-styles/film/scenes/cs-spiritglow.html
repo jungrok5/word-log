@@ -250,8 +250,9 @@ function poseMe(t) {
   LAY.hands = [cpt(XLay, L * (1 - left) + 70, -PW / 2 - 4), cpt(XLay, L * (1 - left) + 26, -PW / 2 - 4)]; LAY.hand = ['flat', 'flat'];
   const REACH = { ...LAY, hip: [E - 66, FY - 160 * SME], ang: .46, hands: [null, [E + 70, FY - 20]], hand: ['fist', 'open'], tilt: .45 };
   if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = [ST, upright(ST, left)], k = eio((tp - 18.4) / .4);
-      const F = mixSpec(STc[0], LAY, k), Xm = { ...mixX(STc[1], XLay, k), lie: k > .85 }, uC = uprightHands(left), uL = [L * (1 - left) + 70, L * (1 - left) + 26];
-      F.hands = [0, 1].map(i => cpt(Xm, lerp(uC[i], uL[i], k), lerp(0, -PW / 2 - 4, k))); F.hand = k > .7 ? ['flat', 'flat'] : ['fist', 'fist']; return { F, X: Xm, lay: k > .85 }; }
+      const F = mixSpec(STc[0], LAY, k), kt = eio((tp - 18.6) / .22), u0 = L * (1 - left), f0 = cpt(STc[1], u0), f1 = cpt(XLay, u0), an = lerp(-Math.PI / 2, 0, kt), fp = [lerp(f0[0], f1[0], kt), lerp(f0[1], f1[1], kt)];
+      const Xm = { ...XLay, x: fp[0] - Math.cos(an) * u0, y: fp[1] - Math.sin(an) * u0, a: an, lie: kt > .5 }, uC = uprightHands(left), uL = [L * (1 - left) + 70, L * (1 - left) + 26];
+      F.hands = [0, 1].map(i => cpt(Xm, lerp(uC[i], uL[i], kt), lerp(0, -PW / 2 - 4, kt))); F.hand = kt > .7 ? ['flat', 'flat'] : ['fist', 'fist']; return { F, X: Xm, lay: kt > .5 }; }
     return { F: LAY, X: XLay, lay: true }; }
   const HALF = { ...LAY, hip: [E - 80, FY - 118], ang: .8, feet: [[E - 140, FY], [E - 36, FY]], hands: [null, [E + 40, FY + 4]], hand: ['fist', 'open'], tilt: .4 };
   if (t < B.back) { const F = tp < 19.52 ? mixSpec(LAY, HALF, eio((tp - B.tip) / .22)) : mixSpec(HALF, REACH, eio((tp - 19.52) / .25)); F.hand = REACH.hand; return { F, X: null }; }
