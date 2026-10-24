@@ -410,15 +410,15 @@ function poseMe(t) {
     return { F: carry(F, u0, false) };
   }
   // lay mine: sit up at the lip and push it out across the gap with both forepaws on its cut end
-  const XLay = lying(E - REST - u0, LIEY, u0, L, 0), SX = E - REST + 140;
-  const LAY = sitSpec(SX, FY, 1, [xpt(XLay, u0 + 30), xpt(XLay, u0 + 80)], { head: .3, sit: .45 });
+  const XLay = lying(E - 70 - u0, LIEY, u0, L, 0);
+  const LAY = standSpec(EX, FY, 1, { head: .42, sag: 12 }); LAY.legs = legsOf(LAY); LAY.legs[0] = xpt(XLay, u0 + 14, -2);
   if (t < B.tip) {
     if (t < 18.8) { const ST = carry(standSpec(EX, FY, 1, { sag: 6 }), u0, false), k = eio((tp - 18.4) / .4), F = mixSpec({ ...ST, back: null }, LAY, k), Xm = mixX(backCross(ST, u0), XLay, k);
-      F.legs[0] = xpt(Xm, lerp(CBX - 40, u0 + 30, k)); F.legs[1] = xpt(Xm, lerp(CBX - 80, u0 + 80, k)); if (k < .2) { const lw = legsOf(ST); F.legs[0] = lerp2(lw[0], F.legs[0], k / .2); F.legs[1] = lerp2(lw[1], F.legs[1], k / .2); }
+      const lw = legsOf(ST); F.legs[0] = k < .45 ? lw[0] : lerp2(lw[0], xpt(Xm, u0 + 14, -2), Math.min(1, (k - .45) / .3));
       F.mid = () => drawCross(INKG, Xm, true); return { F }; }
     return { F: { ...LAY, face: t > 19.0 ? 'strain' : 'calm', sweat: t > 19.05 }, X: XLay };
   }
-  const REACH = sitSpec(SX, FY, 1, [[E + 30, FY - 130], [E - 4, FY - 100]], { head: .1, rot: .05, sit: .6 }); REACH.face = 'shock'; REACH.sweat = true;
+  const REACH = { ...standSpec(EX, FY, 1, { head: .55, sag: 16, rot: .05 }), face: 'shock', sweat: true }; REACH.legs = legsOf(REACH); REACH.legs[0] = [E - 8, FY - 6];   // a forepaw at the very lip, head down over it
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.face = tp > 20.5 ? 'down' : 'shock'; F.sweat = tp < 20.4;
     if (tp > 20.4) { const k2 = eio((tp - 20.4) / .45), DN = standSpec(EX + 40, FY, 1, { head: .45, sag: 8 }); return { F: { ...mixSpec(REACH, DN, k2), face: 'down' } }; }
     return { F }; }
@@ -429,7 +429,7 @@ function poseMe(t) {
 }
 function fallX(t) {
   if (t < B.tip) return null;
-  const u0 = L * (1 - S.left[3]), pv = [E, LIEY], X0 = lying(E - REST - u0, LIEY, u0, L, 0);
+  const u0 = L * (1 - S.left[3]), pv = [E, LIEY], X0 = lying(E - 70 - u0, LIEY, u0, L, 0);
   if (t < B.fall) return { X: rotAbout(X0, pv, .5 * Math.pow((t - B.tip) / (B.fall - B.tip), 2)), s: 1, al: 1 };
   const u = t - B.fall, X1 = rotAbout(X0, pv, .5), cu = (u0 + L) / 2, c0 = xpt(X1, cu);
   const cx = c0[0] + 60 * u, cy = c0[1] + 260 * u + 1300 * u * u, a = X1.a + 2.4 * u + 1.2 * u * u, s = 1 / (1 + 2.2 * u);
@@ -442,17 +442,17 @@ function pilX(j, t) {
   const P = PIL[j], T = B.bridges[j], x46 = P.x0 + 36 * 4.6, xb = x46 + 15 * (11.4 - 4.6);
   if (t <= 4.6) return P.x0 + 36 * t;
   if (t <= 11.4) return x46 + 15 * (t - 4.6);
-  const k = clamp((t - 11.4) / (T - .3 - 11.4)); return lerp(xb, E - 175, k * k * (1.6 - .6 * k));
+  const k = clamp((t - 11.4) / (T - .45 - 11.4)); return lerp(xb, E - 175, k * k * (1.6 - .6 * k));
 }
 function pilState(j, t) {
   const tp = t12(t), P = PIL[j], T = B.bridges[j], yb = BY + 4, EX = E - 175;
   const tag = F => { F.grey = true; F.id = j; return F; };
   const carry = (x, o = {}) => { const F = tag(walkSpec(x, BY, 1, P.ph + x / 110, { stride: 20, sag: 12, head: .26, ...o })); F.back = { u0: 0 }; return F; };
-  if (t < T - .3) { const x = pilX(j, tp); return { F: carry(x, tp > 11.4 ? { stride: 30, head: .12, sag: 8 } : { sweat: Math.floor(tp * 3 + j) % 2 === 0 }) }; }
-  const XB = lying(E - REST, yb, 0, L, 0), SX = E - REST + 140;
-  const LAY = tag(sitSpec(SX, BY, 1, [xpt(XB, 30), xpt(XB, 80)], { head: .3, sit: .45 }));
-  if (t < T) { const F0 = carry(EX), k = eio((tp - T + .3) / .3), F = tag(mixSpec({ ...F0, back: null }, LAY, k)), Xm = mixX(backCross(F0, 0), XB, k);
-    F.legs[0] = xpt(Xm, lerp(CBX - 40, 30, k)); F.legs[1] = xpt(Xm, lerp(CBX - 80, 80, k)); if (k < .2) { const lw = legsOf(F0); F.legs[0] = lerp2(lw[0], F.legs[0], k / .2); F.legs[1] = lerp2(lw[1], F.legs[1], k / .2); }
+  if (t < T - .45) { const x = pilX(j, tp); return { F: carry(x, tp > 11.4 ? { stride: 30, head: .12, sag: 8 } : { sweat: Math.floor(tp * 3 + j) % 2 === 0 }) }; }
+  const XB = lying(E - REST, yb, 0, L, 0);
+  const LAY = tag(standSpec(EX, BY, 1, { head: .42, sag: 12 })); LAY.legs = legsOf(LAY); LAY.legs[0] = xpt(XB, 10, -2);
+  if (t < T) { const F0 = carry(EX), k = eio((tp - T + .45) / .45), F = tag(mixSpec({ ...F0, back: null }, LAY, k)), Xm = mixX(backCross(F0, 0), XB, k), lw = legsOf(F0);
+    F.legs[0] = k < .45 ? lw[0] : lerp2(lw[0], xpt(Xm, 10, -2), Math.min(1, (k - .45) / .3));   // the cross slides forward off the back; the forepaw pushes its foot end out
     F.mid = () => drawCross(INKG, Xm, false); return { F }; }
   const xs0 = EX + 40, xs1 = E + GAP + 230, top = yb - PWL / 2 - 4;
   if (t < T + .5) { const k0 = eio(clamp((tp - T) / .12)), x = lerp(xs0, xs1, eio(clamp((tp - T - .05) / .45))), on = x - 180 < E + GAP && x + 160 > E;
@@ -463,12 +463,12 @@ function pilState(j, t) {
   if (t < T + .75) { const k = eio(clamp((tp - T - .55) / .2)), [F, X] = PULLS(k), k0 = eio(clamp((tp - T - .5) / .1));
     return { F: k0 < 1 ? tag(mixSpec(tag(standSpec(xs1, BY, 1)), F, k0)) : F, bridge: X }; }
   const [Fp, Xp] = PULLS(1), xg = Fp.x + 60;
-  if (t < T + 1.0) { const k = eio((tp - T - .75) / .25), Fc = carry(xg), F = tag(mixSpec(Fp, { ...Fc, back: null }, k)), Xm = mixX(Xp, backCross(Fc, 0), k);
+  if (t < T + 1.1) { const k = eio((tp - T - .75) / .35), Fc = carry(xg), F = tag(mixSpec(Fp, { ...Fc, back: null }, k)), Xm = mixX(Xp, backCross(Fc, 0), k);
     const cp = xpt(Xm, lerp(L - 10, CBX - 40, k)); if (F.f < 0) F.legs[0] = cp; else F.legs[1] = cp;
     if (k > .75) { const lw = legsOf(Fc); F.legs = F.legs.map((p, i) => lerp2(p, lw[i], (k - .75) / .25)); }
     F.mid = () => drawCross(INKG, Xm, false); return { F }; }
-  const x = lerp(xg, GX, clamp((tp - T - 1.0) / .45)), F = carry(x, { stride: 26, head: .05 });
-  F.alpha = 1 - ss(T + 1.3, T + 1.6, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 120;
+  const x = lerp(xg, GX, clamp((tp - T - 1.1) / .4)), F = carry(x, { stride: 26, head: .05 });
+  F.alpha = 1 - ss(T + 1.4, T + 1.6, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 120;
   return { F };
 }
 
@@ -533,7 +533,7 @@ function drawDoor(g, t, fillPass) {
 // the dashed outline of my whole cross over the gap; its missing span (three piece-lengths) lights slot by slot
 function outline(g, t, al, full) {
   const X = lying(E - REST, LIEY, 0, L, 0), sh = L * S.left[3];
-  const sp = cam((full ? crossLocal(0, L, 1) : [[sh, -PWL / 2], [L, -PWL / 2], [L, PWL / 2], [sh, PWL / 2]]).map(([u, v]) => xpt(X, u, v)));
+  const sp = full ? cam(crossLocal(0, L, 1).map(([u, v]) => xpt(X, u, v))) : cam([[E - 70 + sh, LIEY - PWL / 2], [E + GAP + REST, LIEY - PWL / 2], [E + GAP + REST, LIEY + PWL / 2], [E - 70 + sh, LIEY + PWL / 2]]);
   g.save(); g.globalAlpha = al;
   if (full) for (let k = 0; k < 3; k++) { const on = ss(SLOTS[k], SLOTS[k] + .25, t); if (on <= 0) continue;
     const u0 = L * (1 - S.left[k]), u1 = L * (1 - S.left[k + 1]), q = cam([[u0 + 3, -PWL / 2 - 2], [u1 - 3, -PWL / 2 - 2], [u1 - 3, PWL / 2 + 2], [u0 + 3, PWL / 2 + 2]].map(([u, v]) => xpt(X, u, v)));
@@ -573,13 +573,14 @@ function world(g, t, cm) {
   }
   if (M.lie) { drawCross(g, M.lie, true, { seed: 520 }); }
   if (M.X) drawCross(g, M.X, true, { seed: 540 });
+  const FXb = fallX(t); if (FXb && t < B.fall) drawCross(g, FXb.X, true, { seed: 580 });
   drawBear(g, M.F);
   if (M.lie && M.kerf && M.c) { const st = sawState(M.c, t), n = [-Math.sin(st.X.a), Math.cos(st.X.a)], K0 = st.X.cut, k0 = cam([[K0[0] - n[0] * PW / 2, K0[1] - n[1] * PW / 2]])[0], k1 = cam([[K0[0] + n[0] * (-PW / 2 + M.kerf * PW), K0[1] + n[1] * (-PW / 2 + M.kerf * PW)]])[0];
     mk(g, [k0, k1], 530, { w: 5, blob: 0, mn: 1 }); }
   if (M.c && t >= M.c.drop && t < M.c.drop + .3) { const p = PIECES[M.c.k], c = cam([[p.x - (p.u0 + p.u1) / 2, LIEY]])[0];   // the clunk as it lands
     for (const [ax, ay, bx, by] of [[-30, -16, -64, -40], [-34, 10, -76, 12], [30, -16, 64, -40], [34, 10, 76, 12]]) mk(g, [[c[0] + ax * ZK, c[1] + ay * ZK], [c[0] + bx * ZK, c[1] + by * ZK]], 560 + ax + ay, { w: 5, blob: 0, mn: .4 }); }
   const FX = fallX(t);
-  if (FX && FX.al > 0) { g.save(); if (t >= B.fall) { const a = cam([[E + 6, 0]])[0][0], b = cam([[E + GAP - 6, 0]])[0][0]; g.beginPath(); g.rect(a, -100, b - a, 4000); g.clip(); }
+  if (FX && FX.al > 0 && t >= B.fall) { g.save(); if (t >= B.fall) { const a = cam([[E + 6, 0]])[0][0], b = cam([[E + GAP - 6, 0]])[0][0]; g.beginPath(); g.rect(a, -100, b - a, 4000); g.clip(); }
     g.globalAlpha = FX.al; const sv = CAM; if (FX.s < 1) CAM = HD.mul(CAM, HD.mul(HD.mat(FX.c[0], FX.c[1], 0, FX.s), HD.mat(-FX.c[0], -FX.c[1])));
     drawCross(g, FX.X, true, { seed: 580 }); CAM = sv; g.restore(); }
   if (t >= B.fall - .02 && t < B.fall + .55) { const u = t - B.fall, c = cam([[E + 60, LIEY]])[0], k = 1 - ss(.25, .55, u);
