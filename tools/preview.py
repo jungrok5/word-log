@@ -50,6 +50,9 @@ if not a.index_only:
     for f in os.listdir(sc):
         if f.endswith('.js'):
             shutil.copy(os.path.join(sc, f), out)
+    for dname in ('art', 'img', 'assets', 'fonts'):   # images/fonts the scenes load (key art) — without them a page stays black
+        if os.path.isdir(os.path.join(sc, dname)):
+            shutil.copytree(os.path.join(sc, dname), os.path.join(out, dname))
 
     # Preview harness: open on a poster frame (not the black first frame) and start from 0 on the first play.
     lib = open(os.path.join(sc, 'lib.js'), encoding='utf-8').read()
@@ -74,7 +77,7 @@ if not a.index_only:
     if a.mute: audio = None
     if audio and not os.path.exists(os.path.join(film, audio)):
         print('(no soundtrack yet — preview without sound)'); audio = None
-    if audio:
+    if audio and any(not s.get('audio') for s in cfg['scenes']):
         subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(film, audio), '-c:a', 'aac', '-b:a', '128k',
                         os.path.join(out, 'soundtrack.m4a')], check=True)
 
@@ -88,7 +91,12 @@ if not a.index_only:
                 cn = f[len(pre):-4]; cuts.append(cn)
                 subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(sc, f), '-c:a', 'aac', '-b:a', '128k',
                                 os.path.join(out, f'{s["id"]}-{cn}.m4a')], check=True)
-        if audio:   # the harness plays cfg.audio in sync with the picture (a cut plays its own cut soundtrack)
+        own = None if a.mute else s.get('audio')   # a scene with its own soundtrack (film.json scenes[].audio — e.g. one per style)
+        if own and os.path.exists(os.path.join(film, own)):
+            subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', os.path.join(film, own), '-c:a', 'aac', '-b:a', '128k',
+                            os.path.join(out, s['id'] + '.m4a')], check=True)
+            page = page.replace('Pilot.run({', f"Pilot.run({{ audio: '{s['id']}.m4a',", 1)
+        elif audio:   # the harness plays cfg.audio in sync with the picture (a cut plays its own cut soundtrack)
             page = page.replace('Pilot.run({', f"Pilot.run({{ audio: (Pilot.cut ? '{s['id']}-' + Pilot.cut + '.m4a' : 'soundtrack.m4a'),", 1)
         pt = s.get('poster', cfg.get('poster', 9.5))
         page = page.replace('</body>', OVERLAY % pt + '</body>', 1)

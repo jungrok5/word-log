@@ -41,15 +41,18 @@ for name, S in d['scripts'].items():
         L = sum(b - a for a, b in segs); say(10 <= L <= 20 if cn == 'short' else True, f'cut "{cn}": {L:.1f} s')
 
 if FR:
-    au = cfg.get('audio'); silent = set()
-    if au and os.path.exists(os.path.join(film, au)):
-        import numpy as np
-        w = wave.open(os.path.join(film, au)); x = np.frombuffer(w.readframes(w.getnframes()), '<i2').reshape(-1, w.getnchannels()) / 32768
-        sr = w.getframerate()
-        for i in range(0, len(x), sr // 4):
-            if 20 * np.log10(np.sqrt((x[i:i + sr // 4] ** 2).mean()) + 1e-9) < -50: silent.add(round(i / sr * 4) / 4)
-    else: print('   (no soundtrack yet — dead-air check uses picture only)')
+    def quiet(au):   # quarter-seconds below −50 dBFS in a soundtrack
+        silent = set()
+        if au and os.path.exists(os.path.join(film, au)):
+            import numpy as np
+            w = wave.open(os.path.join(film, au)); x = np.frombuffer(w.readframes(w.getnframes()), '<i2').reshape(-1, w.getnchannels()) / 32768
+            sr = w.getframerate()
+            for i in range(0, len(x), sr // 4):
+                if 20 * np.log10(np.sqrt((x[i:i + sr // 4] ** 2).mean()) + 1e-9) < -50: silent.add(round(i / sr * 4) / 4)
+        else: print('   (no soundtrack yet — dead-air check uses picture only)')
+        return silent
     for sc in cfg['scenes']:
+        silent = quiet(sc.get('audio') or cfg.get('audio'))   # a scene may have its own soundtrack (film.json scenes[].audio)
         r = json.loads(subprocess.run(['node', os.path.join(here, 'scan-frames.mjs'), os.path.join(film, 'scenes', sc['id'] + '.html'), '4'],
                                       capture_output=True, text=True, check=True).stdout)
         lum = r['samples']; print(f"— frames {sc['id']}")

@@ -46,8 +46,10 @@ for ln in S.get('lines', []):
     L.append(f"- {ln[0]:.1f}–{ln[1]:.1f}s: “{ln[2].replace(chr(10), ' / ')}”" + (f'  ({ln[3]})' if len(ln) > 3 and ln[3] else ''))
 ec = S.get('endCard') or {}
 L += [f"- {S['beat'].get('end', D - 4):.1f}s–끝: 엔딩 카드 — {' / '.join(x.replace(chr(10), ' ') for x in [ec.get('kicker'), ec.get('title'), ec.get('passage'), ec.get('by')] if x)}", '', '## 소리']
-snd = os.path.join(film, 'scenes', 'soundtrack.sound.json')
-if os.path.exists(snd) and os.path.exists(os.path.join(film, cfg.get('audio', 'scenes/soundtrack.wav'))):
+scn = next((s for s in cfg['scenes'] if s['id'] == sid), {})
+au = scn.get('audio') or cfg.get('audio', 'scenes/soundtrack.wav')   # a scene may have its own soundtrack (+ its .sound.json)
+snd = os.path.join(film, au[:-4] + '.sound.json') if scn.get('audio') else os.path.join(film, 'scenes', 'soundtrack.sound.json')
+if os.path.exists(snd) and os.path.exists(os.path.join(film, au)):
     sp = json.load(open(snd, encoding='utf-8'))
     for c in sorted(sp.get('music', []) + sp.get('sfx', []), key=lambda c: c['at']):
         if c.get('prompt'): L.append(f"- {c['at']:.1f}s~ ({c.get('len', 0):.1f}s): {c['prompt']}")
