@@ -475,9 +475,9 @@ function pilState(i, t) {
   if (tp < T) { const [F0, X0] = carry(T - .55, E - 46), k = clamp((tp - T + .55) / .55);
     const XH = { x: E - 46 - 150, y: BY - 96, a: -.03, u0: 0, lie: true }, HOLD = { ...standSpec(E - 50, BY, SPI, 1, .16), tilt: .2 };
     const hold = X => [cpt(X, 118, -PW / 2 - 3), cpt(X, 176, -PW / 2 - 3)];
-    if (k < .5) { const q = eio(k / .5), X = mixX(X0, XH, q), F = mixSpec(F0, HOLD, q); F.hands = q < .3 ? [lerp2(F0.hands[0], hold(X)[0], q / .3), lerp2(F0.hands[1], hold(X)[1], q / .3)] : hold(X); F.hand = ['grip', 'grip'];
+    if (k < .5) { const q = eio(k / .5), X = mixX(X0, XH, q), F = mixSpec(F0, HOLD, q); F.hands = q < .3 ? [lerp2(F0.hands[0], hold(X)[0], q / .3), lerp2(F0.hands[1], hold(X)[1], q / .3)] : hold(X); F.hand = ['grip', 'grip']; F.farOver = q > .25;
       return { F, X: q > .25 ? { ...X, lie: true } : X }; }
-    const q = eio((k - .5) / .5), X = mixX(XH, XB, q), F = mixSpec(HOLD, LAY, q); F.hands = q < .7 ? hold(X) : LAY.hands; F.hand = q < .7 ? ['grip', 'grip'] : ['flat', 'flat']; return { F, X }; }
+    const q = eio((k - .5) / .5), X = mixX(XH, XB, q), F = mixSpec(HOLD, LAY, q); F.hands = q < .7 ? hold(X) : LAY.hands; F.hand = q < .7 ? ['grip', 'grip'] : ['flat', 'flat']; F.farOver = true; return { F, X }; }
   const xs0 = E - 20, xs1 = E + G + 70;
   if (tp < T + .3) { const F = mixSpec(LAY, standSpec(xs0, yb - PW / 2, SPI, 1, .1), eio((tp - T) / .25)); return { F, B: XB }; }
   if (tp < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 4 ? yb - PW / 2 : BY, ph = P.ph + x / (160 * SPI);

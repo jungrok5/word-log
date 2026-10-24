@@ -208,7 +208,7 @@ function drawHam(ctx, F, mid, front) {
   const foot = ([u, up], near) => { const p = new Path2D(); p.ellipse(u + (near ? 14 : -10), -up - 5, 12, 7, 0, 0, TAU); ctx.fillStyle = near ? P.pink : shade(P.pink, .92); ctx.fill(p);
     ctx.strokeStyle = shade(P.nose, .85); ctx.lineWidth = 1.1; ctx.globalAlpha = al * .55; ctx.stroke(p); ctx.globalAlpha = al; };
   foot(feet[0], false);
-  if (F.farBehind) { const rr = farReach(); limb(rr, false); pawD(rr, false); }
+  const rB = F.farBehind ? farReach() : null; if (rB) limb(rB, false);   // the far arm behind the body; its paw comes after the beam
   // body: rough contour cached per pal (no boiling), breathing scales it about the centre
   const raw = FX.body; const body = smooth(raw.map(([u, v]) => Bp(u, -58 + (v + 58) * br)));
   ctx.fillStyle = P.ham; ctx.fill(body);
@@ -262,7 +262,7 @@ function drawHam(ctx, F, mid, front) {
   if (F.nearLow) limb(rN, true);
   // the cross / saw (world coordinates) between the body and the paws
   if (mid) { ctx.save(); ctx.setTransform(m0); mid(); ctx.restore(); }
-  if (rF) { limb(rF, false); pawD(rF, false); }
+  if (rF) { limb(rF, false); pawD(rF, false); } if (rB) pawD(rB, false);
   if (front && front.between) { ctx.save(); ctx.setTransform(m0); front.between(); ctx.restore(); }
   if (!F.nearLow) limb(rN, true); pawD(rN, true);
   foot(feet[1], true);
@@ -404,7 +404,7 @@ function sawState(c, t) {
 }
 function sawSpec(c, t) {
   const st = sawState(c, t);
-  return { x: c.mx, gy: FY, k: KM, f: -1, lean: .46, crouch: .9, bob: 0, sq: 1, head: -.25, eye: 'strain', feet: [[-22, 0], [18, 0]], paws: [[c.cutX + 40, c.y - PW / 2 + 1], st.grip], pal: PAL.me, farBehind: true, tag: 'saw' };
+  return { x: c.mx, gy: FY, k: KM, f: -1, lean: .46, crouch: .9, bob: 0, sq: 1, head: -.25, eye: 'strain', feet: [[-22, 0], [18, 0]], paws: [[c.cutX + 92, c.y - PW / 2 + 1], st.grip], pal: PAL.me, farBehind: true, tag: 'saw' };
 }
 const hangSaw = (F, sw = 0) => ({ grip: worldPt(F, ...SAW_PAW), ang: Math.PI / 2 - F.f * (.42 + sw) });
 
