@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>잘라 낸 건 다리였다 · 10 파스텔 색연필 그림책</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&family=Noto+Sans+KR:wght@400;500&display=swap">
 </head>
 <body>
 <script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
@@ -26,7 +26,7 @@ const C = {
   cone: '#86bd78', coneL: '#5f9862', round: '#99cc84', roundD: '#86bb74', roundL: '#6aa064', trunk: '#b48a72', trunkL: '#87604f',
   path: '#f5efc4', pathL: '#d5c993', wall: '#fbf5e6', wallL: '#c4ad98', roof: '#f3b6c0', roofD: '#e9a1ae', roofL: '#c08593',
   win: '#e8e2c4', warm: '#ffd77a', door: '#d9b494', doorL: '#a98466',
-  earth: '#e6c9ab', earth2: '#d9b597', earthL: '#ad8a70', haze: '#d4cde6', deep: '#b3add6', deep2: '#9c95c6', water: '#a9dcd8', waterL: '#7fb3ad',
+  earth: '#e6c9ab', earth2: '#d9b597', earthL: '#ad8a70', haze: '#d4cde6', deep: '#b3add6', deep2: '#9c95c6', abyss: '#4a4276', water: '#a9dcd8', waterL: '#7fb3ad',
   flowerW: '#fffdf4', flowerY: '#f8de7c', flowerP: '#f6c0c8', ink: '#8a6450', inkD: '#5a4034', blush: '#f4b3a8', sweat: '#cfeaf6', sweatL: '#8dbfd6',
   saw: '#dde3e8', sawL: '#8b96a2', handle: '#d79a68', handleL: '#93603f',
 };
@@ -284,6 +284,7 @@ function crossSprite(pal, lying, seed) {
   const hb = lying ? CBHL : CBH, w = (L + 2 * CPAD) * KX, h = (2 * hb + 2 * CPAD) * KX, c = Pilot.canvas(w, h), g = c.getContext('2d');
   g.setTransform(KX, 0, 0, KX, CPAD * KX, (hb + CPAD) * KX);
   const p = smooth(rough(crossPts(hb), 1.3, seed, 7)), r = rng(seed);
+  if (lying) { g.save(); g.translate(0, 9); fillPencil(g, p, pal.g, { pat: PAT.grainS, grain: .4 }); pencil(g, p, pal.l, 2.4); g.restore(); }   // the plank's front face below its top
   fillPencil(g, p, pal.f, { pat: PAT.grainS, grain: .55 });
   g.save(); g.clip(p);
   // shading: light along the top edges, darker along the bottom edges
@@ -396,35 +397,35 @@ function buildSheets() {
     for (const [x, dir] of [[E, -1], [E + G, 1]]) for (const yy of [RT + 4, PB - 2]) for (let k = 0; k < 4; k++) { const gx = x + dir * (3 + k * 8), gy = yy + k * 2;
       g.strokeStyle = C.meadL; g.lineWidth = 2.4; g.lineCap = 'round'; g.beginPath(); g.moveTo(gx, gy); g.quadraticCurveTo(gx - dir * 8, gy + 8, gx - dir * 5, gy + 18); g.stroke(); }
   });
-  // inside the ravine (behind the road sheet): earth walls going down into a lilac haze, a thin stream far below
+  // inside the ravine (behind the road sheet): earth walls falling away into a deep violet dark — no bottom in sight
   TX.ravine = sheet(E - 280, RIDGE - 40, E + G + 280, 2800, g => {
     g.clip(TX.trench); { const cp = new Path2D(); cp.moveTo(E - 300, 2900); for (let x = E - 300; x <= E + G + 300; x += 20) cp.lineTo(x, crestY(x) + 2); cp.lineTo(E + G + 300, 2900); cp.closePath(); g.clip(cp); }
-    const gr = g.createLinearGradient(0, RIDGE, 0, 2700); gr.addColorStop(0, C.haze); gr.addColorStop(.5, C.deep); gr.addColorStop(1, C.deep2);
-    g.fillStyle = gr; g.fillRect(E - 280, RIDGE - 40, G + 560, 2840 - RIDGE);
-    const ww = y => y < RT ? lerp(120, 26, clamp((RT - y) / (RT - RIDGE))) : 120 + (y - RT) * .07;
+    // the depth: dark at the middle of the cut, a little lighter toward the walls; the far end fades into haze
+    g.fillStyle = C.abyss; g.fillRect(E - 280, RIDGE - 40, G + 560, 2840 - RIDGE);
+    g.save(); g.globalAlpha = .5; g.fillStyle = PAT.grain; g.fillRect(E - 280, RIDGE - 40, G + 560, 2840 - RIDGE); g.restore();
+    const ww = y => y < RT ? lerp(150, 30, clamp((RT - y) / (RT - RIDGE))) : 150 + (y - RT) * .09;
     const ys = []; for (let y = RIDGE - 40; y <= 2800; y += 20) ys.push(y);
-    // the stream down the middle of the floor (narrow, seen from above)
-    const sl = ys.map(y => { const [a, b] = trench(y), c = (a + b) / 2 + Math.sin(y * .006) * (b - a) * .08, w = (b - a) * .05; return [c - w, y]; });
-    const sr = ys.map(y => { const [a, b] = trench(y), c = (a + b) / 2 + Math.sin(y * .006) * (b - a) * .08, w = (b - a) * .05; return [c + w, y]; });
-    g.save(); g.globalAlpha = .55; shape(g, [...sl, ...sr.slice().reverse()], C.water, C.waterL, { seed: 88, amp: 3, step: 16, grain: .35 }); g.restore();
-    g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 2.4; g.lineCap = 'round';
-    for (let y = RT + 80; y < 2700; y += 110) { const [a, b] = trench(y), c = (a + b) / 2 + Math.sin(y * .006) * (b - a) * .08, w = (b - a) * .03; g.beginPath(); g.moveTo(c - w, y); g.quadraticCurveTo(c, y - 4, c + w, y); g.stroke(); }
-    // the two walls: the left one in light, the right one in shade
     for (const side of [0, 1]) {
       const dir = side ? -1 : 1, outer = ys.map(y => [trench(y)[side] - dir * 30, y]), inner = ys.map(y => [trench(y)[side] + dir * ww(y), y]);
       const p = shape(g, [...outer, ...inner.slice().reverse()], side ? C.earth2 : C.earth, null, { seed: 84 + side, amp: 4, step: 14, grain: .5 });
       g.save(); g.clip(p);
-      const r = rng(85 + side); g.strokeStyle = C.earthL; g.lineWidth = 1.8; g.globalAlpha = .5; g.lineCap = 'round';
-      for (let y = RIDGE + 10; y < 2780; y += 26 + r() * 30) { const x0 = trench(y)[side], w = ww(y); g.beginPath(); g.moveTo(x0 + dir * w * (.15 + r() * .2), y); g.lineTo(x0 + dir * w * (.6 + r() * .35), y + 4 + r() * 6); g.stroke(); }
-      if (side) { g.globalAlpha = .28; g.fillStyle = '#8c80b8'; g.fill(p); }
+      const r = rng(85 + side); g.strokeStyle = C.earthL; g.lineWidth = 1.8; g.globalAlpha = .5; g.lineCap = 'round';   // ledges and roots
+      for (let y = RIDGE + 10; y < 2780; y += 26 + r() * 30) { const x0 = trench(y)[side], w = ww(y); g.beginPath(); g.moveTo(x0 + dir * w * (.08 + r() * .15), y); g.lineTo(x0 + dir * w * (.4 + r() * .3), y + 4 + r() * 6); g.stroke(); }
+      // the wall darkens as it falls away from the lip (the face turns down into the dark)
+      g.globalAlpha = 1; for (let i = 0; i < ys.length - 1; i++) { const y = ys[i], xl = trench(y)[side], w = ww(y), hg = g.createLinearGradient(xl, 0, xl + dir * w, 0);
+        hg.addColorStop(0, 'rgba(60,46,90,0)'); hg.addColorStop(.35, 'rgba(70,56,104,.18)'); hg.addColorStop(1, 'rgba(48,38,80,.88)'); g.fillStyle = hg; g.fillRect(Math.min(xl, xl + dir * w) - 1, y, w + 2, 21); }
+      if (side) { g.globalAlpha = .25; g.fillStyle = '#5d5090'; g.fill(p); }
       g.restore();
-      // the inner edge fades into the haze (no hard line)
-      for (let i = 0; i < ys.length - 1; i++) { const y = ys[i], x = trench(y)[side] + dir * ww(y), hg = g.createLinearGradient(x - dir * 26, 0, x + dir * 10, 0);
-        hg.addColorStop(0, 'rgba(201,194,226,0)'); hg.addColorStop(1, 'rgba(201,194,226,.85)'); g.fillStyle = hg; g.fillRect(Math.min(x - dir * 26, x + dir * 10), y, 36, 21); }
     }
-    // haze over the depths, thicker toward the far end
-    const hz = g.createLinearGradient(0, RIDGE, 0, RT + 200); hz.addColorStop(0, 'rgba(226,220,242,.7)'); hz.addColorStop(1, 'rgba(226,220,242,0)');
-    g.fillStyle = hz; g.fillRect(E - 280, RIDGE - 40, G + 560, RT + 240 - RIDGE);
+    // the dark core down the middle, and soft wisps of mist hanging in the depth (fixed, picture-book)
+    for (let i = 0; i < ys.length - 1; i++) { const y = ys[i], [a, b] = trench(y), m = (a + b) / 2, hw = (b - a) / 2, cg = g.createLinearGradient(a, 0, b, 0);
+      cg.addColorStop(0, 'rgba(36,30,64,0)'); cg.addColorStop(.5, 'rgba(36,30,64,.55)'); cg.addColorStop(1, 'rgba(36,30,64,0)'); g.fillStyle = cg; g.fillRect(m - hw, y, 2 * hw, 21); }
+    const r = rng(89);
+    for (let y = RT + 60; y < 2700; y += 150 + r() * 120) { const [a, b] = trench(y), w = (b - a) * (.35 + r() * .3), cx = lerp(a + w / 2, b - w / 2, r());
+      g.save(); g.globalAlpha = .22 + r() * .12; blobs(g, [[cx - w * .3, y, w * .16], [cx, y - 8, w * .2], [cx + w * .3, y, w * .15]], '#d9d2ee', null, { seed: y, sq: .45, grain: .2 }); g.restore(); }
+    // haze at the far end (the ravine goes on into the distance)
+    const hz = g.createLinearGradient(0, RIDGE, 0, RT + 220); hz.addColorStop(0, 'rgba(214,206,236,.95)'); hz.addColorStop(.6, 'rgba(206,198,232,.45)'); hz.addColorStop(1, 'rgba(206,198,232,0)');
+    g.fillStyle = hz; g.fillRect(E - 280, RIDGE - 40, G + 560, RT + 200 - RIDGE);
   });
   // the cottage on the far side: cream walls, pink roof, an open arched door (cut out — the light is drawn behind it)
   GX = E + G + 330; DOOR.top = BY - 250;
@@ -472,7 +473,7 @@ const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); 
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
 const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
-const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];   // each piece's flight into the gap (within beat.fill)
+const SLOTS = [22.9, 23.6, 24.3];   // the outline's missing span lights slot by slot (one piece's length each)
 const FLECKS = [], STEPS = [];
 let SAWLIE = null;   // where I leave the saw after the last cut
 const CUTD = 135;    // how far behind me (crouched, facing back) the cut is
@@ -491,12 +492,8 @@ function buildTimeline() {
   const r = rng(200);   // crumbs off the lip as my cross goes over
   for (let n = 0; n < 16; n++) FLECKS.push({ t0: B.fall + r() * .1, x: E + 2 + r() * 30, y: FY + 30, vx: (r() - .2) * 240, vy: -(50 + r() * 200), land: 2600, r0: r() * TAU, vr: (r() - .5) * 20, sz: 4 + r() * 5, col: n % 3 ? C.earth : XME.h, line: n % 3 ? C.earthL : XME.g });
 }
-function pieceAt(c, t) {   // a cut piece lying where it fell (shifted a little as it came off), or flying into the gap at the end
-  const sh = 18 * eo((t - c.drop) / .25), y0 = c.y, cu = (c.u0 + c.u1) / 2;
-  let cx = c.baseX + cu - sh, cy = y0, a = -.05 * eo((t - c.drop) / .25);
-  const [f0, f1] = FILL[c.k];
-  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34;
-    cx = lerp(cx, tx, e); cy = lerp(cy, ty, e) - (c.k ? 190 : 280) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .55 * (1 - u); }
+function pieceAt(c, t) {   // a cut piece lying where it fell (shifted a little as it came off) — it never moves again
+  const sh = 18 * eo((t - c.drop) / .25), cu = (c.u0 + c.u1) / 2, a = -.05 * eo((t - c.drop) / .25), cx = c.baseX + cu - sh, cy = c.y;
   return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a };
 }
 
@@ -576,7 +573,7 @@ function poseMe(t) {
   const sawHeld = t < CUTS[2].drop;
   // carried: the far paw holds the post ahead of my face; the near paw carries the saw — or, once the saw is gone, the post too
   const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, a0); gripCarry(F, X);
-    if (held) { F.hands[0] = cpt(X, Math.min(L - 14, X.contact + 50)); F.hands[1] = hangGrip(F, F.ph != null ? 10 * Math.sin(TAU * F.ph) : 0); F.hand = ['fist', 'grip']; }
+    if (held) { F.hands[0] = hangGrip(F, F.ph != null ? 10 * Math.sin(TAU * F.ph) : 0); F.hand = ['grip', 'fist']; F.farFront = true; }   // far paw carries the saw in front, near paw holds the beam
     return [F, X]; };
   for (const c of CUTS) {
     if (t >= c.s && t < c.up1) {
@@ -584,20 +581,19 @@ function poseMe(t) {
       const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k);
-        F.hands[rIdx(F)] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)];
-        F.hands[lIdx(F)] = [lerp(WA.hands[0][0], SP.hands[1][0], k), lerp(WA.hands[0][1], SP.hands[1][1], k)];
-        F.hand = F.f > 0 ? ['fist', 'grip'] : ['grip', 'flat']; F.farFront = F.f < 0;
-        return { F, X: mixX(XA, XL, k), c, saw: { grip: F.hands[rIdx(F)], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
+        F.hands[0] = [lerp(WA.hands[0][0], cg[0], k), lerp(WA.hands[0][1], cg[1], k)];
+        F.hands[1] = [lerp(WA.hands[1][0], SP.hands[1][0], k), lerp(WA.hands[1][1], SP.hands[1][1], k)];
+        F.hand = ['grip', k > .5 ? 'flat' : 'fist']; F.farFront = true;
+        return { F, X: mixX(XA, XL, k), c, saw: { grip: F.hands[0], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t), F = sawSpec(c, t); F.eye = c.k ? 'calm' : 'strain'; return { F, X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k);
-      const rT = WB.hands[1], lT = WB.hands[0];
-      F.hands[rIdx(F)] = [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)]; F.hands[lIdx(F)] = [lerp(SP.hands[1][0], lT[0], k), lerp(SP.hands[1][1], lT[1], k)];
-      F.hand = F.f > 0 ? ['fist', last ? 'fist' : 'grip'] : ['grip', 'flat']; F.farFront = F.f < 0; F.eye = 'calm';
-      const saw = last ? null : { grip: F.hands[rIdx(F)], ang: lerp(CUT_ANG, hangAng(1), k) };
+      F.hands[0] = [lerp(cg[0], WB.hands[0][0], k), lerp(cg[1], WB.hands[0][1], k)]; F.hands[1] = [lerp(SP.hands[1][0], WB.hands[1][0], k), lerp(SP.hands[1][1], WB.hands[1][1], k)];
+      F.hand = [last && k > .5 ? 'fist' : 'grip', k > .5 ? 'fist' : 'flat']; F.farFront = !(last && k > .5); F.eye = 'calm';
+      const saw = last ? null : { grip: F.hands[0], ang: lerp(CUT_ANG, hangAng(1), k) };
       return { F, X: mixX(XL, XB, k), c, saw };
     }
   }
-  if (t < 12) { const [F, a] = walk(tp); const [G2, X] = carried(F, a, left, sawHeld); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
+  if (t < 12) { const [F, a] = walk(tp); const [G2, X] = carried(F, a, left, sawHeld); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[0], ang: hangAng(1) } : null }; }
   // at the edge: a startled stop, step back for the others, come forward again
   if (t < 18.4) { const [F0] = walk(12, E - 52), k = eio((tp - 12) / .3);
     const bx = -150 * eio((tp - 12.9) / .7) + 150 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
@@ -615,8 +611,8 @@ function poseMe(t) {
     const F = { ...LAY, eye: tp > 18.95 ? 'down' : 'calm' }; return { F, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; F.eye = tp > 20.6 ? 'down' : 'shock'; F.sweat = tp > 20.6 ? 0 : 1; return { F, X: null }; }
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: -.05, eye: 'calm' }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .3, eye: 'down' };
-  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
-  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+  if (t < 22.45) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .35)), X: null };
+  return { F: mixSpec(BACK, FWD, eio((tp - 22.45) / .35)), X: null };
 }
 // my cross once my paws slip: it tips over the lip, then falls into the ravine
 function fallX(t) {
@@ -674,8 +670,8 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 200, y: 1130, z: 1.12 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 170, y: 1240, z: 1.45 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 170, y: 1110, z: 1.1 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 360, y: 1150, z: 1.42 }, eio((t - B.back) / .55));    // looking back down the road: the pieces lie there, glowing
-  if (t >= 22.75) c = mixCam(c, { x: E + 230, y: 1150, z: 1.3 }, eio((t - 22.75) / 1.1));   // follow them to the gap
+  if (t >= B.back) c = mixCam(c, { x: E - 590, y: 1150, z: 1.3 }, eio((t - B.back) / .8));      // travel back along the road: the pieces lie there, glowing
+  if (t >= 22.15) c = mixCam(c, { x: E + 210, y: 1120, z: 1.02 }, eio((t - 22.15) / .75));    // back to the gap: me at the lip, the outline over the open gap
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
@@ -691,14 +687,28 @@ function drawFlecks(ctx, t) {   // sawdust curls / crumbs: little pencil-outline
     ctx.fillStyle = q.col; ctx.strokeStyle = q.line; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(0, 0, q.sz, q.sz * .6, 0, 0, TAU); ctx.fill(); ctx.stroke(); ctx.restore();
   }
 }
-function guide(ctx, t, k, al) {   // the dashed pencil outline: my whole cross across the ravine
-  const ol = smooth(rough(crossPts(CBHL).map(([a, b]) => [E - REST + a, FY + 34 + b]), 1, 9, 9)), x1 = E - REST - 4 + (L + 8) * k;
+const OUTLINE = () => TX.outline || (TX.outline = smooth(rough(crossPts(CBHL).map(([a, b]) => [E - REST + a, FY + 34 + b]), 1, 9, 9)));
+function guide(ctx, t, k, al) {   // the dashed pencil outline of my whole cross across the ravine (revealed left to right)
+  const ol = OUTLINE(), x1 = E - REST - 4 + (L + 8) * k;
   ctx.save(); ctx.globalAlpha = al; ctx.beginPath(); ctx.rect(E - REST - 10, FY - 200, x1 - (E - REST - 10), 400); ctx.clip();
-  ctx.fillStyle = 'rgba(248,207,130,.28)'; ctx.fill(ol);
-  const glow = ss(24.15, 24.45, t) * (1 - .5 * ss(24.7, 25.5, t));
+  ctx.fillStyle = 'rgba(248,207,130,.22)'; ctx.fill(ol);
   ctx.setLineDash([14, 10]); ctx.lineDashOffset = -t * 16; ctx.lineCap = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = XME.l; ctx.stroke(ol); ctx.setLineDash([]);
-  if (glow > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = 14; ctx.strokeStyle = `rgba(255,214,140,${.3 * glow})`; ctx.stroke(ol); }
   ctx.restore();
+}
+function slots(ctx, t) {   // the ending: a ghostly dashed outline of my whole cross over the open gap; its missing span lights slot by slot
+  const ol = OUTLINE(), al = ss(22.3, 22.8, t), x0 = E - REST + L * S.left[3];
+  ctx.save(); ctx.globalAlpha = al; ctx.fillStyle = 'rgba(248,226,190,.16)'; ctx.fill(ol);
+  ctx.setLineDash([12, 11]); ctx.lineDashOffset = -t * 10; ctx.lineCap = 'round'; ctx.lineWidth = 3.6; ctx.strokeStyle = 'rgba(148,88,42,.75)'; ctx.stroke(ol); ctx.setLineDash([]); ctx.restore();
+  let xa = x0;
+  [2, 1, 0].forEach((k, i) => { const c = CUTS[k], w = c.u1 - c.u0, xb = xa + w, on = eo((t - SLOTS[i]) / .35); if (on > 0) {
+      ctx.save(); ctx.beginPath(); ctx.rect(xa, FY - 120, w, 260); ctx.clip();
+      ctx.globalAlpha = on * .85; ctx.fillStyle = XME.h; ctx.fill(ol);
+      ctx.globalCompositeOperation = 'screen'; const g = ctx.createRadialGradient((xa + xb) / 2, FY + 34, 6, (xa + xb) / 2, FY + 34, 120);
+      g.addColorStop(0, `rgba(255,222,150,${.6 * on * (1 - .5 * ss(SLOTS[i] + .4, SLOTS[i] + 1.2, t))})`); g.addColorStop(1, 'rgba(255,214,140,0)'); ctx.fillStyle = g; ctx.fillRect(xa - 10, FY - 120, w + 20, 260);
+      ctx.restore();
+      ctx.save(); ctx.globalAlpha = on; ctx.strokeStyle = XME.l; ctx.lineWidth = 2.6; ctx.lineCap = 'round';   // the slot's end mark
+      ctx.beginPath(); ctx.moveTo(xb, FY + 34 - PW / 2 - 6); ctx.lineTo(xb, FY + 34 + PW / 2 + 6); ctx.stroke(); ctx.restore(); }
+    xa = xb; });
 }
 function sparkles(ctx, x, y, r0, k, t, n = 6, seed = 0) {   // picture-book "glow" ticks
   if (k <= 0) return; ctx.save(); ctx.strokeStyle = `rgba(232,166,70,${k})`; ctx.lineWidth = 3; ctx.lineCap = 'round';
@@ -736,18 +746,18 @@ function world(ctx, t) {
   });
   // the guide shows the missing span while my short cross hangs off the lip, and again when the pieces come back
   if (t >= 18.75 && t < 19.75) guide(ctx, t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
-  if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1);
+  if (t >= 22.3) slots(ctx, t);
   // the saw I left on the road after the last cut
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip;
     drawSaw(ctx, [lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
   // the pieces I cut, lying where they fell (front lane); they glow once I look back, and fly into the gap one by one
-  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t) * (1 - ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t));
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .25 + (2 - c.k) * .2, B.back + .75 + (2 - c.k) * .2, t);
     const cu = (c.u0 + c.u1) / 2, cx = p.x + Math.cos(p.a) * cu, cy = p.y + Math.sin(p.a) * cu;
-    if (hl > 0) { const R = 150, g2 = ctx.createRadialGradient(cx, cy, 10, cx, cy, R), pulse = .8 + .2 * Math.sin((t - B.back) * 5 + c.k);
-      g2.addColorStop(0, `rgba(255,222,140,${.6 * hl * pulse})`); g2.addColorStop(1, 'rgba(255,214,140,0)'); ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = g2; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore(); }
-    drawCross(ctx, TX.gLie, c.u0, c.u1, p.x, p.y, p.a, 1, t < FILL[c.k][0] ? .9 : 0);
-    if (hl > 0) sparkles(ctx, cx, cy, 44 + (c.u1 - c.u0) * .25, hl, t, 5, c.k); }
+    if (hl > 0) { const R = 130, g2 = ctx.createRadialGradient(cx, cy, 8, cx, cy, R), pulse = .85 + .15 * Math.sin((t - B.back) * 3 + c.k);
+      g2.addColorStop(0, `rgba(255,222,150,${.55 * hl * pulse})`); g2.addColorStop(.5, `rgba(255,214,140,${.18 * hl * pulse})`); g2.addColorStop(1, 'rgba(255,214,140,0)');
+      ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = g2; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore(); }
+    drawCross(ctx, TX.gLie, c.u0, c.u1, p.x, p.y, p.a, 1, .9); }
   // me and my cross (and the saw in my paw)
   const M = poseMe(t), F = M.F; F.pal = ME;
   const myCross = X => { if (!X) return; drawCross(ctx, X.lie ? TX.gLie : TX.gUp, X.u0, L, X.x, X.y, X.a, 1, X.lie ? .9 : 0); };
@@ -787,11 +797,23 @@ function drawButterfly(ctx, t) {   // a butterfly drifting past me in the openin
 const HAND = "'Gamja Flower',sans-serif";
 function endPlate(ctx, t) {   // a cream page laid over the picture, framed with a wobbly pencil line and two little daisies
   const k = eo((t - (B.end - .15)) / .45); if (k <= 0) return;
-  ctx.save(); ctx.globalAlpha = k * .94; ctx.fillStyle = '#fbf6e8'; ctx.fillRect(0, 0, W, H);
+  ctx.save(); ctx.globalAlpha = k; ctx.fillStyle = '#f8f0dc'; ctx.fillRect(0, 0, W, H);
   ctx.globalAlpha = k * .5; ctx.fillStyle = PAT.grain; ctx.fillRect(0, 0, W, H);
   ctx.globalAlpha = k; pencil(ctx, TX.frame, C.ink, 3);
   flower(ctx, 150, 1352, 26, 1.3, C.flowerW, -.12); flower(ctx, 190, 1360, 18, 1, C.flowerP, .1); flower(ctx, 900, 1352, 22, 1.15, C.flowerP, .1);
   ctx.restore();
+}
+
+const PLATES = [];
+function capPlates(ctx, t) {   // a cream paper slip behind each caption (soft pencil edge), so the words stay clear over clouds and meadow
+  S.lines.forEach(([a, b, str, src], i) => {
+    const al = Pilot.win(t, a, b, .35, .45); if (al <= 0) return;
+    if (!PLATES[i]) { const ls = Pilot.tr(str).split('\n'), mc = Pilot.canvas(4, 4).getContext('2d'); mc.font = `400 74px ${HAND}`;
+      let w = Math.max(...ls.map(l => mc.measureText(l).width)); if (src) { mc.font = "400 28px 'Noto Sans KR'"; w = Math.max(w, mc.measureText(Pilot.tr(src)).width); }
+      w = Math.min(980, w + 90); const top = 410 - 74 - 22, bot = 410 + (ls.length - 1) * 74 * 1.55 + 34 + (src ? 76 : 0);
+      PLATES[i] = smooth(rough([[540 - w / 2, top], [540 + w / 2, top], [540 + w / 2, bot], [540 - w / 2, bot]], 6, 30 + i, 26)); }
+    ctx.save(); ctx.globalAlpha = al * .8; ctx.fillStyle = '#fffaf0'; ctx.fill(PLATES[i]); ctx.globalAlpha = al * .35; pencil(ctx, PLATES[i], C.ink, 2.4); ctx.restore();
+  });
 }
 
 // ---------------- frame ----------------
@@ -806,8 +828,8 @@ function draw(ctx, t) {
   ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .55;
   PAT.paper.setTransform(new DOMMatrix([cm.z, 0, 0, cm.z, 540 - cm.x * cm.z + cm.sx, 960 - cm.y * cm.z + cm.sy])); ctx.fillStyle = PAT.paper; ctx.fillRect(0, 0, W, H); ctx.restore();
   endPlate(ctx, t);
-  if (t < B.end) Story.captions(ctx, t, S.lines, { font: HAND, weight: 400, size: 74, color: C.ink, srcColor: '#7a5a48', y: 410, shadow: 'rgba(255,255,250,.95)', shadowBlur: 16 });
-  Story.endCard(ctx, t, S.endCard, B.end, { font: HAND, srcFont: HAND, color: '#6e4e3c', srcColor: '#7a5a48', y: 860, titleShadow: 'rgba(255,255,250,.9)' });
+  if (t < B.end) { capPlates(ctx, t); Story.captions(ctx, t, S.lines, { font: HAND, weight: 400, size: 74, color: '#4e3324', srcColor: '#5a3c2c', y: 410, shadow: 'rgba(255,252,240,1)', shadowBlur: 14 }); }
+  Story.endCard(ctx, t, S.endCard, B.end, { font: HAND, srcFont: "'Noto Sans KR',sans-serif", color: '#4a3022', srcColor: '#5a3c2c', y: 860, titleShadow: 'rgba(255,252,240,.95)' });
 }
 
 const FX = {};
@@ -826,7 +848,7 @@ async function init() {
   TX.gUp = crossSprite(XME, false, 3); TX.gLie = crossSprite(XME, true, 4);
   TX.xUp = crossSprite(XPIL, false, 5); TX.xLie = crossSprite(XPIL, true, 6);
 }
-Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 74px 'Gamja Flower'"], init, draw });
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 74px 'Gamja Flower'", "500 34px 'Noto Sans KR'", "400 28px 'Noto Sans KR'"], init, draw });
 </script>
 </body>
 </html>

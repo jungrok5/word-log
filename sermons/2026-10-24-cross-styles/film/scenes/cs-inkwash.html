@@ -137,6 +137,7 @@ const L = 520, PW = 34, CBX = L - 130, CBW = 32, CBH = 118, CBHL = 50;
 const FY = 1300, BY = 1252, RT = 1212, RN = 1440;              // my lane, the others' lane, road far edge, road near edge
 const REST = 26, G = L - 2 * REST;
 const t12 = HD.t12, frac = x => x - Math.floor(x);
+const CYB = 1080, CYE = 1090;   // v2 camera heights for the look back and the last hold
 const ROWY = [RT, 1236, 1264, 1298, 1340, 1388, RN], SW = 104, OB = .5;   // road slabs: rows (foreshortened), slab width, oblique joints
 
 // ---------------- crosses: sprites (3 boiled drawings), drawn with a paper patch then multiplied ----------------
@@ -282,7 +283,9 @@ const tab = (T, t) => { const i = clamp(t / DT, 0, NTL - 2), i0 = Math.floor(i);
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
 const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
-const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];
+const FILL = [[99, 100], [99, 100], [99, 100]];   // v2: the pieces never move (they stay where they fell)
+const SLOTS = [22.9, 23.6, 24.3];                  // v2: the outline's missing span lights slot by slot (one piece's length each)
+const pieceX = c => c.baseX + (c.u0 + c.u1) / 2 - 18;
 const FLECKS = [], SPAT = [];
 let E = 1600, GX = 0, GAY = 0, SAWLIE = null;
 function buildTimeline() {
@@ -415,8 +418,8 @@ function poseMe(t) {
     return { F: LAY, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: .05, eye: 'calm' }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .38, eye: 'down' };
-  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
-  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+  if (t < 22.25) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };   // v2: I stay at the lip — look back, then down at the gap
+  return { F: mixSpec(BACK, FWD, eio((tp - 22.25) / .3)), X: null };
 }
 function fallX(t) {
   if (t < B.tip) return null;
@@ -473,8 +476,9 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 190, y: 1090, z: .98 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 160, y: 1200, z: 1.34 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1060, z: 1.0 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 330, y: 1100, z: 1.12 }, eio((t - B.back) / .55));
-  if (t >= 22.75) c = mixCam(c, { x: E + 170, y: 1060, z: .9 }, eio((t - 22.75) / 1.1));
+  if (t >= B.back) { const zb = .95, px = (pieceX(CUTS[1]) + pieceX(CUTS[2])) / 2, xb = Math.max(px, E - 52 - 330 / zb);   // one move back down the road (me still in frame, right)
+    c = mixCam(c, { x: xb, y: CYB, z: zb }, eio((t - 21.3) / .7)); }
+  if (t >= 22.15) c = mixCam(c, { x: E + 150, y: CYE, z: .86 }, eio((t - 22.15) / .65));   // …and back: me at the lip, the gap, the outline
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
@@ -665,15 +669,24 @@ function guide(ctx, t, k, al, glow = 0) {   // the construction outline of my wh
   ctx.strokeStyle = 'rgba(214,104,44,.95)'; ctx.lineWidth = 3; ctx.stroke(pth); ctx.setLineDash([]);
   ctx.restore();
 }
+function outlineSlots(ctx, t) {   // v2: the dashed outline of my whole cross over the open gap; its missing span lights one piece-length at a time
+  const al = ss(22.15, 22.6, t); if (al <= 0) return;
+  guide(ctx, t, 1, al);
+  const ol = HD.pathOf(HD.boil(HD.poly(crossOutline(CBHL, E - REST, FY + 34), true, 6), 77, BF, .8, 30));
+  let x = E - REST + S.left[3] * L;
+  CUTS.forEach((c, j) => { const len = c.u1 - c.u0, x0 = x; x += len; const k = ss(SLOTS[j], SLOTS[j] + .3, t); if (k <= 0) return;
+    const fl = 1 - ss(SLOTS[j] + .05, SLOTS[j] + .6, t);   // a small brightening as it lands (the knock)
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, FY - 200, len, 400); ctx.clip(); ctx.globalAlpha = k;
+    ctx.fillStyle = `rgba(246,${200 + 30 * fl},${130 + 60 * fl},.62)`; ctx.fill(ol);
+    ctx.setLineDash([16, 10]); ctx.lineDashOffset = -t * 16; ctx.strokeStyle = 'rgba(226,132,58,1)'; ctx.lineWidth = 5; ctx.stroke(ol); ctx.setLineDash([]);
+    ctx.restore();
+    ink(ctx, HD.seg([x, FY + 34 - PW / 2 - 6], [x, FY + 34 + PW / 2 + 6], 3), 960 + j, BF, { w: 3, ts: 3, te: 3, wob: .4, boil: .5, col: `rgba(30,24,20,${k})` }); });
+}
 function glowAt(ctx, t, cx, cy, hl, seed) {   // a glowing piece: a warm halo washed around it, pencil rays flicking out (boiled)
   if (hl <= 0) return; const R = 150, pulse = .85 + .15 * Math.sin((t - B.back) * 5 + seed);
   ctx.save(); ctx.globalCompositeOperation = 'multiply'; const g = ctx.createRadialGradient(cx, cy, 10, cx, cy, R);
   g.addColorStop(0, `rgba(240,172,84,${.55 * hl * pulse})`); g.addColorStop(.6, `rgba(244,190,110,${.25 * hl * pulse})`); g.addColorStop(1, 'rgba(250,220,170,0)');
   ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore();
-  ctx.save(); ctx.globalAlpha = hl;
-  for (let i = 0; i < 9; i++) { const a = -Math.PI * (.08 + .84 * i / 8) + (HD.hash(i, seed) - .5) * .2, r0 = 62 + 10 * HD.hash(i, seed + 1), r1 = r0 + 26 + 18 * HD.hash(i, seed + 2) * pulse;
-    HD.ink(ctx, HD.boil(HD.seg([cx + Math.cos(a) * r0, cy + Math.sin(a) * r0 * .7], [cx + Math.cos(a) * r1, cy + Math.sin(a) * r1 * .7], 4), seed * 10 + i, BF, 1.2, 20), { w: 3.4, ts: 4, te: 8, mn: .3, col: PAT.orange }); }
-  ctx.restore();
 }
 function world(ctx, t) {
   drawGateLight(ctx, t);
@@ -685,18 +698,15 @@ function world(ctx, t) {
   });
   // the missing span while my short cross hangs off the lip, and again when the pieces come back
   if (t >= 18.5 && t < 19.75) guide(ctx, t, eio((t - 18.5) / .55), 1 - ss(19.4, 19.75, t));
-  if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1, ss(24.15, 24.45, t) * (1 - .5 * ss(24.7, 25.5, t)));
+  outlineSlots(ctx, t);
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip;
     drawSaw(ctx, [lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
-  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), cu = (c.u0 + c.u1) / 2, hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t) * (1 - ss(FILL[c.k][1] + .1, FILL[c.k][1] + .6, t));
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), cu = (c.u0 + c.u1) / 2, hl = ss(21.35 + (2 - c.k) * .18, 21.75 + (2 - c.k) * .18, t);
     glowAt(ctx, t, p.x + Math.cos(p.a) * cu, p.y + Math.sin(p.a) * cu, hl, 11 + c.k * 5);
     if (t < FILL[c.k][0]) { ctx.save(); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = .45; ctx.drawImage(TX.shadow, p.x + c.u0 - 10, p.y + 8, c.u1 - c.u0 + 20, 22); ctx.restore(); }
     drawCross(ctx, TX.gLie, c.u0, c.u1, p.x, p.y, p.a); }
   // the finished bridge: a warm wash blooms across it
-  if (t >= 24.1) { const k = eo((t - 24.1) / .9), cx = E + G / 2, cy = FY + 34, R = 120 + 380 * k;
-    ctx.save(); ctx.globalCompositeOperation = 'multiply'; const g = ctx.createRadialGradient(cx, cy, 20, cx, cy, R); g.addColorStop(0, `rgba(244,184,100,${.4 * (1 - .4 * k)})`); g.addColorStop(1, 'rgba(250,220,170,0)');
-    ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore(); }
   const M = poseMe(t), F = M.F; F.me = true;
   const myCross = X => { if (X) drawCross(ctx, X.lie ? TX.gLie : TX.gUp, X.u0, L, X.x, X.y, X.a); };
   drawFig(ctx, F, () => {
@@ -711,6 +721,7 @@ function world(ctx, t) {
 
 // ---------------- words ----------------
 const FONT = "'Gowun Batang',serif";
+
 function captionLift(ctx, t) {   // a lifted patch of paper behind the words (a wet tissue taking the wash back off)
   ctx.save(); ctx.font = `700 54px ${FONT}`;
   for (const [a, b, s, src] of S.lines) { const al = Pilot.win(t, a, b, .35, .45); if (al <= 0) continue;

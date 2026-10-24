@@ -197,7 +197,7 @@ function drawFig(ctx, F, mid, back) {
     if (!T) T = [S0[0] - f * 8 * s, S0[1] + 140 * s];
     const [el, hd] = ik(S0, T, 78 * s, 74 * s, elbowPick);
     poly(ctx, capsule(S0, el, 21 * s, 16 * s), c); poly(ctx, capsule(el, hd, 16 * s, 12 * s), c);
-    if (F.edge && c === col) { ctx.strokeStyle = F.edge; ctx.lineWidth = 1.8; for (const q of [capsule(S0, el, 21 * s, 16 * s), capsule(el, hd, 16 * s, 12 * s)]) { ctx.beginPath(); ctx.moveTo(...q[0]); for (const v of q) ctx.lineTo(...v); ctx.closePath(); ctx.stroke(); } }
+    if (F.edge && c !== far) { ctx.strokeStyle = F.edge; ctx.lineWidth = 1.8; for (const q of [capsule(S0, el, 21 * s, 16 * s), capsule(el, hd, 16 * s, 12 * s)]) { ctx.beginPath(); ctx.moveTo(...q[0]); for (const v of q) ctx.lineTo(...v); ctx.closePath(); ctx.stroke(); } }
     const an = Math.atan2(hd[1] - el[1], hd[0] - el[0]);
     let pts;
     if (type === 'flat') pts = [[-4, -7], [10, -8], [24, -5], [28, 0], [22, 4], [-2, 6], [-8, 2]].map(([u, v]) => [hd[0] + f * u * s, hd[1] + v * s - 4 * s]);
@@ -229,7 +229,7 @@ function drawFig(ctx, F, mid, back) {
   poly(ctx, [[-30, -40], [-36, -20], [-37, 0], [-33, 18], [-23, 31], [-8, 38], [8, 38], [20, 32], [28, 21], [31, 10], [36, 3], [38, -3], [33, -7], [31, -12], [28, -19], [20, -26], [8, -31], [2, -42], [-16, -47]].map(([a, b]) => Q(a, b)), col);
   if (mid) mid();
   if (F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist');
-  arm(sh, F.hands[1], col, F.hand?.[1] || 'fist');
+  arm(sh, F.hands[1], F.armCol || col, F.hand?.[1] || 'fist');
 }
 
 // ---------------- the crosses ----------------
@@ -275,7 +275,8 @@ const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); 
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
 const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
-const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];
+const SLOTS = [22.9, 23.6, 24.3];   // the outline's missing span lights slot by slot (one piece's length each)
+let PX = 0;   // where the camera looks back to: between pieces 2 and 3
 const FLECKS = [];
 let SAWLIE = null, E = 1600, GX = 0, GAY = 0, ROADX0 = -1500, ROADX1 = 0;
 function buildTimeline() {
@@ -288,14 +289,11 @@ function buildTimeline() {
     for (let n = 0; n < 18; n++) FLECKS.push({ t0: n < 12 ? lerp(c.saw0, c.drop, n / 12) : c.drop + r() * .05, x: c.cutX + (r() - .5) * 8, y: c.y - PW / 2,
       vx: (r() - .5) * (n < 12 ? 180 : 320), vy: -(80 + r() * (n < 12 ? 160 : 260)), land: FY + 18 + r() * 44, r0: r() * TAU, vr: (r() - .5) * 20, sz: 3 + r() * 4, col: C.goldL });
   });
+  PX = (CUTS[1].baseX + (CUTS[1].u0 + CUTS[1].u1) / 2 + CUTS[2].baseX + (CUTS[2].u0 + CUTS[2].u1) / 2) / 2 - 18;
   const c3 = CUTS[2]; SAWLIE = { grip: [c3.cutX + 150, FY + 52], ang: Math.PI + .05 };
 }
-function pieceAt(c, t) {
-  const sh = 18 * eo((t - c.drop) / .25), y0 = c.y, cu = (c.u0 + c.u1) / 2;
-  let cx = c.baseX + cu - sh, cy = y0, a = -.05 * eo((t - c.drop) / .25);
-  const [f0, f1] = FILL[c.k];
-  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34;
-    cx = lerp(cx, tx, e); cy = lerp(cy, ty, e) - (c.k ? 190 : 280) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .55 * (1 - u); }
+function pieceAt(c, t) {   // a cut piece lying where it fell (shifted a little as it came off) — it never moves again
+  const sh = 18 * eo((t - c.drop) / .25), cu = (c.u0 + c.u1) / 2, cx = c.baseX + cu - sh, cy = c.y, a = -.05 * eo((t - c.drop) / .25);
   return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, cx, cy };
 }
 
@@ -350,7 +348,7 @@ function sawSpec(c, t) {
   return { s, f, gy: FY, hip: [mx, FY - 84 * s], ang: f * 1.1, feet: [[mx + 74 * s, FY], [mx - 60 * s, FY]], hands: [st.grip, [c.cutX + 44 * s, c.y - PW / 2 - 3]],
     hand: ['fist', 'flat'], tilt: .32, sway: 0, farFront: true };
 }
-const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (16 + sw) * F.s, sh[1] + 128 * F.s]; };
+const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (44 + sw) * F.s, sh[1] + 118 * F.s]; };   // the saw hand hangs a little forward, the arm in front of the body
 const rIdx = F => F.f > 0 ? 1 : 0, lIdx = F => F.f > 0 ? 0 : 1;
 
 function poseMe(t) {
@@ -400,8 +398,8 @@ function poseMe(t) {
     return { F: LAY, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; return { F, X: null }; }
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: .05 }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .38 };
-  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
-  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+  if (t < 22.55) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .35)), X: null };
+  return { F: mixSpec(BACK, FWD, eio((tp - 22.55) / .35)), X: null };
 }
 function fallX(t) {
   if (t < B.tip) return null;
@@ -457,8 +455,8 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 190, y: 1090, z: .98 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 160, y: 1200, z: 1.34 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1080, z: 1.0 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 330, y: 1100, z: 1.05 }, eio((t - B.back) / .55));
-  if (t >= 22.75) c = mixCam(c, { x: E + 170, y: 1120, z: 1.0 }, eio((t - 22.75) / 1.1));
+  if (t >= B.back) c = mixCam(c, { x: PX, y: 1110, z: 1.12 }, eio((t - B.back - .05) / 1.0));       // travel back along the road: the pieces glow where they lie
+  if (t >= 22.2) c = mixCam(c, { x: E + 150, y: 1110, z: 1.06 }, eio((t - 22.2) / .65));               // and back to the gap, me at the lip, the outline over it
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
@@ -499,10 +497,9 @@ function buildPlanes() {
   // 1 — far trees, nearly fog
   plane(.12, .45, C.p1, .04, [[300, 1150, .6]], (g, x0, x1, y0, y1) => { const r = rng(11);
     forest(g, r, x0, x1, y0, 1150, 210, { w: 30, n: 5, from: 14, len: 200, depth: 2 }); ridge(g, x0, x1, x => 1150 + Math.sin(x / 170) * 10, C.p1, y1); });
-  // 2 — the giant stag in the fog, between far trees
+  // 2 — far trees
   plane(.25, .5, C.p2, .05, [[500, 1170, .5]], (g, x0, x1, y0, y1) => { const r = rng(12);
-    stag(g, r, 420, 1150, 1.25);
-    forest(g, r, x0, x1, y0, 1160, 380, { w: 40, n: 7, from: 12, len: 230, moss: .25, mossLen: 50, skip: x => Math.abs(x - 400) < 320 });
+    forest(g, r, x0, x1, y0, 1160, 380, { w: 40, n: 7, from: 12, len: 230, moss: .25, mossLen: 50 });
     ridge(g, x0, x1, x => 1160 + Math.sin(x / 210) * 12, C.p2, y1); });
   // 3 — the far ridge: grass, brambles
   plane(.42, .55, C.p3, .06, [[800, 1190, .36]], (g, x0, x1, y0, y1) => { const r = rng(13), RG = x => 1180 + Math.sin(x / 210) * 14 + Math.sin(x / 77) * 4;
@@ -637,7 +634,7 @@ function drawAction(a, t, M, pils) {
   // the pieces I cut, lying where they fell (they fly into the gap at the end)
   for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t); drawCross(a, 'mine', c.u0, c.u1, p.x, p.y, p.a, true); }
   // me, my cross, the saw
-  const F = M.F; F.col = C.me; F.edge = 'rgba(120,170,170,.38)';
+  const F = M.F; F.col = C.me; F.armCol = '#1c3237'; F.edge = 'rgba(150,200,200,.5)';
   const myCross = X => { if (X) drawCross(a, 'mine', X.u0, L, X.x, X.y, X.a, X.lie); };
   drawFig(a, F, () => {
     if (M.X && M.X.lie) myCross(M.X);
@@ -660,6 +657,17 @@ function drawFlecks(ctx, t) {
 function crossOutline(x, y) {
   const hb = CBHL; return [[0, -PW / 2], [CBX - CBW / 2, -PW / 2], [CBX - CBW / 2, -hb], [CBX + CBW / 2, -hb], [CBX + CBW / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
     [CBX + CBW / 2, PW / 2], [CBX + CBW / 2, hb], [CBX - CBW / 2, hb], [CBX - CBW / 2, PW / 2], [0, PW / 2]].map(([a, b]) => [x + a, y + b]);
+}
+function slots(ctx, t, al) {   // the dashed outline of my whole cross over the open gap; its missing span lights slot by slot
+  const ol = crossOutline(E - REST, FY + 34), p = new Path2D(); p.moveTo(...ol[0]); for (const q of ol.slice(1)) p.lineTo(...q); p.closePath();
+  ctx.save(); ctx.globalAlpha = al; ctx.setLineDash([16, 10]); ctx.lineDashOffset = -t * 14; ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(255,230,185,.85)'; ctx.stroke(p); ctx.setLineDash([]); ctx.restore();
+  CUTS.forEach((c, k) => { const T = SLOTS[k], lit = ss(T - .05, T + .2, t); if (lit <= 0) return; const x0 = E - REST + c.u0, x1 = E - REST + c.u1, kick = 1 - ss(T + .05, T + .7, t);
+    ctx.save(); ctx.beginPath(); ctx.rect(x0 + 1.5, FY - 100, x1 - x0 - 3, 300); ctx.clip();
+    ctx.globalAlpha = al * lit; ctx.fillStyle = `rgba(255,206,130,${.5 + .35 * kick})`; ctx.fill(p);
+    ctx.setLineDash([16, 10]); ctx.lineDashOffset = -t * 14; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,236,190,.95)'; ctx.stroke(p); ctx.setLineDash([]);
+    ctx.globalCompositeOperation = 'lighter'; const cx = (x0 + x1) / 2, R = 120 + 60 * kick, g = ctx.createRadialGradient(cx, FY + 34, 4, cx, FY + 34, R);
+    g.addColorStop(0, `rgba(255,200,120,${.22 + .4 * kick})`); g.addColorStop(1, 'rgba(255,180,100,0)'); ctx.fillStyle = g; ctx.fillRect(cx - R, FY + 34 - R, 2 * R, 2 * R);
+    ctx.restore(); });
 }
 function guide(ctx, t, k, al) {   // a dashed outline of my whole cross across the ravine
   const ol = crossOutline(E - REST, FY + 34), x1 = E - REST - 4 + (L + 8) * k, p = new Path2D(); p.moveTo(...ol[0]); for (const q of ol.slice(1)) p.lineTo(...q); p.closePath();
@@ -713,7 +721,7 @@ function draw(ctx, t) {
     drawEdges(ctx);
     drawGate(ctx, t);
     if (t >= 18.75 && t < 19.75) guide(ctx, t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
-    if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1);
+    if (t >= 22.4) slots(ctx, t, ss(22.4, 22.85, t));
   });
   bank(ctx, cm, 1, TX.fogA, 1150, 150, 26, t, .3);
   // the action layer, with its rim of fog light (and warm light from the arch once it is in view)
@@ -729,10 +737,9 @@ function draw(ctx, t) {
   layer(ctx, cm, 1, () => {
     if (M.X) { const cc = cpt(M.X, (M.X.u0 + L) / 2); glowAt(ctx, cc[0], cc[1], 190, .18); }
     if (FX && !FX.clip) { const cc = cpt(FX, (FX.u0 + L) / 2); glowAt(ctx, cc[0], cc[1], 190, .18); }
-    for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t) * (1 - ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t));
+    for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t);
       glowAt(ctx, p.cx, p.cy, 170, (.08 + .55 * hl) * (.85 + .15 * Math.sin((t - B.back) * 5 + c.k))); }
     drawFlecks(ctx, t);
-    if (t >= 24.1) glowAt(ctx, E - REST + L * .26, FY + 34, 320, .3 * ss(24.1, 24.5, t) * (1 - .5 * ss(24.6, 25.6, t)));
   });
   // foreground: low fog over the path, the dark bank, the framing trunks and moss
   bank(ctx, cm, 1.15, TX.fogA, 1290, 200, 34, t, .26);

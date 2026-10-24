@@ -24,7 +24,7 @@ const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
 const W = 1080, H = 1920, TAU = Math.PI * 2;
 const C = {
   top: '#03090c', trunk: '#040d10', ink: '#e4fbf5', fogD: '#2a7a72',
-  me: '#cdfaef', pil: '#8fd9c9', gold: '#ffbe62', goldL: '#fff1cc', goldD: '#d9782a',
+  me: '#24404a', pil: '#1a2f36', skin: '#e3b48e', skinP: '#c79a7a', legs: '#142329', gold: '#ffbe62', goldL: '#fff1cc', goldD: '#d9782a',
   steel: '#5f8f8b', handle: '#120b07', wood: '#0d2526', woodL: 'rgba(150,250,228,.8)',
 };
 const hx = Pilot.hex, mixHex = (a, b, k) => Pilot.rgb(Pilot.mix(hx(a), hx(b), k));
@@ -55,21 +55,22 @@ function capsule(a, b, wa, wb, n = 7) {
 }
 function poly(ctx, pts, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fill(); }
 function drawFig(ctx, F, mid, back) {
-  const s = F.s, f = F.f, col = F.col, far = mixHex(col, C.fogD, .38), { P } = frame(F);
+  const s = F.s, f = F.f, col = F.col, far = mixHex(col, '#000000', .35), skin = F.skin || C.skin, skinF = mixHex(skin, '#000000', .3), { P } = frame(F);
   const sh = P(4, 136), shF = P(-3, 134);
   const elbowPick = (a, b) => (a[1] - f * a[0] * .35) > (b[1] - f * b[0] * .35) ? a : b, kneePick = (a, b) => f * a[0] > f * b[0] ? a : b;
-  const arm = (S0, T, c, type) => {
+  const arm = (S0, T, c, type, hc) => {
     if (!T) T = [S0[0] - f * 8 * s, S0[1] + 140 * s];
     const [el, hd] = ik(S0, T, 78 * s, 74 * s, elbowPick);
     poly(ctx, capsule(S0, el, 21 * s, 16 * s), c); poly(ctx, capsule(el, hd, 16 * s, 12 * s), c);
-    if (F.edge && c === col) { ctx.strokeStyle = F.edge; ctx.lineWidth = 1.8; for (const q of [capsule(S0, el, 21 * s, 16 * s), capsule(el, hd, 16 * s, 12 * s)]) { ctx.beginPath(); ctx.moveTo(...q[0]); for (const v of q) ctx.lineTo(...v); ctx.closePath(); ctx.stroke(); } }
+    if (F.edge && c !== far) { ctx.strokeStyle = F.edge; ctx.lineWidth = 1.8; for (const q of [capsule(S0, el, 21 * s, 16 * s), capsule(el, hd, 16 * s, 12 * s)]) { ctx.beginPath(); ctx.moveTo(...q[0]); for (const v of q) ctx.lineTo(...v); ctx.closePath(); ctx.stroke(); } }
     const an = Math.atan2(hd[1] - el[1], hd[0] - el[0]);
     let pts;
     if (type === 'flat') pts = [[-4, -7], [10, -8], [24, -5], [28, 0], [22, 4], [-2, 6], [-8, 2]].map(([u, v]) => [hd[0] + f * u * s, hd[1] + v * s - 4 * s]);
     else if (type === 'open') pts = [[-6, -8], [16, -9], [26, -4], [18, -2], [27, 2], [16, 5], [-2, 9], [-8, 2]].map(([u, v]) => [hd[0] + (Math.cos(an) * u - Math.sin(an) * v) * s, hd[1] + (Math.sin(an) * u + Math.cos(an) * v) * s]);
     else { pts = []; for (let i = 0; i < 12; i++) { const q = i / 12 * TAU; pts.push([hd[0] + Math.cos(q) * 13 * s, hd[1] + Math.sin(q) * 11.5 * s]); }
       pts.splice(8, 0, [hd[0] + Math.cos(an - 1.9) * 16 * s, hd[1] + Math.sin(an - 1.9) * 16 * s]); }   // a thumb over the grip
-    poly(ctx, pts, c);
+    poly(ctx, capsule(el, [lerp(el[0], hd[0], .82), lerp(el[1], hd[1], .82)], 17 * s, 14 * s), c);   // the sleeve
+    poly(ctx, pts, hc);
   };
   const leg = (T, c) => {
     const hp = P(-2, -2), ank = [T[0], T[1] - 9 * s];
@@ -79,8 +80,8 @@ function drawFig(ctx, F, mid, back) {
     poly(ctx, [[-11, -14], [8, -13], [30, -6], [36, 1], [-12, 1]].map(([u, v]) => { const cu = Math.cos(toe), su = Math.sin(toe); return [an[0] + f * (u * cu - v * su) * s, an[1] + 9 * s + (u * su + v * cu) * s]; }), c);
   };
   if (back) back();
-  if (!F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist');
-  leg(F.feet[0], far); leg(F.feet[1], col);
+  if (!F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist', skinF);
+  leg(F.feet[0], far); leg(F.feet[1], F.legCol || col);
   // the cloak: hangs from the hip to the knee, a ragged hem that sways
   const hemD = Math.max(40 * s, F.gy - F.hip[1] - 70 * s), sw = (F.sway || 0) * s;
   const skx = (a, b) => [F.hip[0] + f * a * s + sw * b / hemD, F.hip[1] + b];
@@ -91,10 +92,16 @@ function drawFig(ctx, F, mid, back) {
   // head: a soft round hood (no point), the face in profile just inside its rim
   const tilt = F.ang + (F.tilt || 0), hu = [Math.sin(tilt), -Math.cos(tilt)], hf = [f * Math.cos(tilt), f * Math.sin(tilt)], N = P(6, 146);
   const Hc = [N[0] + hu[0] * 30 * s + hf[0] * 4 * s, N[1] + hu[1] * 30 * s + hf[1] * 4 * s], Q = (a, b) => [Hc[0] + (hf[0] * a + hu[0] * b) * s, Hc[1] + (hf[1] * a + hu[1] * b) * s];
-  poly(ctx, [[-30, -40], [-36, -20], [-37, 0], [-33, 18], [-23, 31], [-8, 38], [8, 38], [20, 32], [28, 21], [31, 10], [36, 3], [38, -3], [33, -7], [31, -12], [28, -19], [20, -26], [8, -31], [2, -42], [-16, -47]].map(([a, b]) => Q(a, b)), col);
+  // the hood, a little fuller than the head, with the face in profile inside its opening
+  poly(ctx, [[-32, -42], [-39, -20], [-40, 2], [-35, 22], [-24, 36], [-8, 44], [10, 44], [24, 36], [32, 22], [34, 10], [30, -14], [24, -26], [10, -34], [2, -44], [-16, -50]].map(([a, b]) => Q(a, b)), col);
+  poly(ctx, [[10, 26], [21, 23], [28, 15], [31, 8], [36, 2], [38, -3], [33, -7], [31, -12], [28, -19], [20, -25], [11, -27], [6, -12], [5, 10]].map(([a, b]) => Q(a, b)), skin);
+  ctx.strokeStyle = col; ctx.lineWidth = 7 * s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(...Q(9, 30)); ctx.quadraticCurveTo(...Q(1, 2), ...Q(9, -30)); ctx.stroke();   // the hood's rim around the face
+  ctx.fillStyle = mixHex(skin, '#000000', .25); ctx.beginPath(); ctx.moveTo(...Q(12, 27)); ctx.lineTo(...Q(28, 22)); ctx.lineTo(...Q(31, 12)); ctx.lineTo(...Q(16, 18)); ctx.closePath(); ctx.fill();   // shade under the hood's brim
+  const E0 = Q(24, 8); ctx.fillStyle = '#1b1210'; ctx.beginPath(); ctx.ellipse(E0[0], E0[1], 2.6 * s, (F.blink ? .6 : 3) * s, tilt, 0, TAU); ctx.fill();   // the eye
+  ctx.strokeStyle = '#3a2418'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(...Q(19, 13)); ctx.lineTo(...Q(29, 12)); ctx.stroke();   // brow
   if (mid) mid();
-  if (F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist');
-  arm(sh, F.hands[1], col, F.hand?.[1] || 'fist');
+  if (F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist', skinF);
+  arm(sh, F.hands[1], col, F.hand?.[1] || 'fist', skin);
 }
 
 // ---------------- timeline: my path, the cuts (after cross-papercut) ----------------
@@ -118,7 +125,8 @@ const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); 
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
 const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
-const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];
+const SLOTS = [22.9, 23.6, 24.3];   // the outline's missing span lights slot by slot (one piece's length each)
+let PX = 0;   // where the camera looks back to: between pieces 2 and 3
 const FLECKS = [];
 let SAWLIE = null, E = 1600, GX = 0, GAY = 0, ROADX0 = -1500, ROADX1 = 0;
 function buildTimeline() {
@@ -131,14 +139,11 @@ function buildTimeline() {
     for (let n = 0; n < 18; n++) FLECKS.push({ t0: n < 12 ? lerp(c.saw0, c.drop, n / 12) : c.drop + r() * .05, x: c.cutX + (r() - .5) * 8, y: c.y - PW / 2,
       vx: (r() - .5) * (n < 12 ? 180 : 320), vy: -(80 + r() * (n < 12 ? 160 : 260)), land: FY + 18 + r() * 44, r0: r() * TAU, vr: (r() - .5) * 20, sz: 3 + r() * 4, col: C.goldL });
   });
+  PX = (CUTS[1].baseX + (CUTS[1].u0 + CUTS[1].u1) / 2 + CUTS[2].baseX + (CUTS[2].u0 + CUTS[2].u1) / 2) / 2 - 18;
   const c3 = CUTS[2]; SAWLIE = { grip: [c3.cutX + 150, FY + 52], ang: Math.PI + .05 };
 }
-function pieceAt(c, t) {
-  const sh = 18 * eo((t - c.drop) / .25), y0 = c.y, cu = (c.u0 + c.u1) / 2;
-  let cx = c.baseX + cu - sh, cy = y0, a = -.05 * eo((t - c.drop) / .25);
-  const [f0, f1] = FILL[c.k];
-  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34;
-    cx = lerp(cx, tx, e); cy = lerp(cy, ty, e) - (c.k ? 190 : 280) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .55 * (1 - u); }
+function pieceAt(c, t) {   // a cut piece lying where it fell (shifted a little as it came off) — it never moves again
+  const sh = 18 * eo((t - c.drop) / .25), cu = (c.u0 + c.u1) / 2, cx = c.baseX + cu - sh, cy = c.y, a = -.05 * eo((t - c.drop) / .25);
   return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, cx, cy };
 }
 
@@ -193,7 +198,7 @@ function sawSpec(c, t) {
   return { s, f, gy: FY, hip: [mx, FY - 84 * s], ang: f * 1.1, feet: [[mx + 74 * s, FY], [mx - 60 * s, FY]], hands: [st.grip, [c.cutX + 44 * s, c.y - PW / 2 - 3]],
     hand: ['fist', 'flat'], tilt: .32, sway: 0, farFront: true };
 }
-const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (16 + sw) * F.s, sh[1] + 128 * F.s]; };
+const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (44 + sw) * F.s, sh[1] + 118 * F.s]; };
 const rIdx = F => F.f > 0 ? 1 : 0, lIdx = F => F.f > 0 ? 0 : 1;
 
 function poseMe(t) {
@@ -243,8 +248,8 @@ function poseMe(t) {
     return { F: LAY, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; return { F, X: null }; }
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: .05 }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .38 };
-  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
-  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+  if (t < 22.55) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .35)), X: null };
+  return { F: mixSpec(BACK, FWD, eio((tp - 22.55) / .35)), X: null };
 }
 function fallX(t) {
   if (t < B.tip) return null;
@@ -300,8 +305,8 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 190, y: 1090, z: .98 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 160, y: 1200, z: 1.34 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1080, z: 1.0 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 330, y: 1100, z: 1.05 }, eio((t - B.back) / .55));
-  if (t >= 22.75) c = mixCam(c, { x: E + 170, y: 1120, z: 1.0 }, eio((t - 22.75) / 1.1));
+  if (t >= B.back) c = mixCam(c, { x: PX, y: 1110, z: 1.12 }, eio((t - B.back - .05) / 1.0));       // travel back along the road: the pieces glow where they lie
+  if (t >= 22.2) c = mixCam(c, { x: E + 150, y: 1110, z: 1.06 }, eio((t - 22.2) / .65));               // and back to the gap, me at the lip, the outline over it
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
@@ -408,8 +413,11 @@ function pool(g, r, cx, cy, rw, rh, figs, SP) {
     g.fillStyle = gr; g.save(); g.translate(sx, cy); g.scale(1, .45); g.translate(-sx, -cy); g.fillRect(sx - R, cy - R, 2 * R, 2 * R); g.restore(); }
   for (let k = 0; k < rw * 3; k++) { const x = cx + (r() - .5) * rw * 2, y = cy + (r() - .5) * rh * 2; g.fillStyle = r() < .5 ? 'rgba(4,40,40,.35)' : 'rgba(190,255,236,.18)'; g.fillRect(x, y, 1 + r() * 3, 1 + r() * 2); }
   g.restore();
-  for (const [fx, h, kind, face] of figs) { const x = cx + fx * rw; g.save(); g.shadowColor = 'rgba(150,255,230,.9)'; g.shadowBlur = h * .25; g.fillStyle = h > 60 ? '#d6fff4' : '#bff8ea';
-    g.fill(spiritPath(x, cy, h, kind, face)); g.fillStyle = 'rgba(230,255,250,.6)'; g.fillRect(x - h * .25, cy - 1, h * .5, 2); g.restore(); SP.push([x, cy, h]); }
+  for (const [fx, h] of figs) { const x = cx + fx * rw, R = h * .22; g.save(); g.shadowColor = 'rgba(150,255,230,.9)'; g.shadowBlur = R * 1.4;   // a glowing water-lily
+    g.fillStyle = 'rgba(40,110,96,.9)'; g.beginPath(); g.ellipse(x, cy + 1, R * 1.7, R * .35, 0, 0, TAU); g.fill();   // its pad
+    for (let i = 0; i < 7; i++) { const a = Math.PI + (i + .5) / 7 * Math.PI, px = x + Math.cos(a) * R * .55, py = cy - R * .2 + Math.sin(a) * R * .55;
+      g.fillStyle = i % 2 ? '#d8fff4' : '#b9f6e6'; g.beginPath(); g.ellipse(px, py, R * .22, R * .6, a + Math.PI / 2, 0, TAU); g.fill(); }
+    g.fillStyle = '#f2fffb'; g.beginPath(); g.ellipse(x, cy - R * .3, R * .3, R * .25, 0, 0, TAU); g.fill(); g.restore(); SP.push([x, cy, h * .45]); }
 }
 
 // ---------------- camera-sized painted planes ----------------
@@ -506,7 +514,13 @@ function drawGate(ctx, t) {
 function groundGlow(ctx, x, y, w, a, warm) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; sprite(ctx, warm ? TX.warm : TX.glow, x, y, w, w * .2, a); ctx.restore(); }
 
 // ---------------- the action layer: figures, crosses, saw, pieces — then a bloom of their light ----------------
-let ACT, BLOOM, BLOOM2, TMP, BAND = [0, H];
+let ACT, BLOOM, BLOOM2, TMP, RIM, BAND = [0, H];
+function rim(ctx, dx, dy, col, a) {   // the edge of the silhouette, lit
+  const r = RIM.getContext('2d'), [y0, y1] = BAND, h = y1 - y0; if (h <= 0 || a <= 0) return;
+  r.globalCompositeOperation = 'copy'; r.drawImage(ACT, 0, y0, W, h, 0, y0, W, h); r.globalCompositeOperation = 'destination-out'; r.drawImage(ACT, 0, y0, W, h, dx, y0 + dy, W, h);
+  r.globalCompositeOperation = 'source-in'; r.fillStyle = col; r.fillRect(0, y0, W, h); r.globalCompositeOperation = 'source-over';
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = a; ctx.drawImage(RIM, 0, y0, W, h, 0, y0, W, h); ctx.restore();
+}
 function withAlpha(ctx, a, fn) {
   if (a >= 1) return fn(ctx); if (a <= 0) return;
   const g = TMP.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H); g.setTransform(ctx.getTransform()); fn(g);
@@ -516,14 +530,14 @@ function drawAction(a, t, M, pils) {
   for (const P of pils) if (P.B) drawCross(a, 'other', 0, L, P.B.x, P.B.y, P.B.a, true);
   pils.slice().sort((p, q) => p.F.hip[0] - q.F.hip[0]).forEach(P => {
     const X = P.X, dc = g => X ? () => drawCross(g, 'other', X.u0, L, X.x, X.y, X.a, X.lie) : null;
-    P.F.edge = 'rgba(30,110,100,.6)';
+    P.F.edge = 'rgba(120,200,190,.35)'; P.F.skin = C.skinP; P.F.legCol = C.legs;
     withAlpha(a, P.F.alpha ?? 1, g => drawFig(g, P.F, X && X.lie ? dc(g) : null, X && !X.lie ? dc(g) : null));
   });
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip;
     drawSaw(a, [lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
   for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t); drawCross(a, 'mine', c.u0, c.u1, p.x, p.y, p.a, true); }
-  const F = M.F; F.col = C.me; F.edge = 'rgba(40,130,118,.6)';
+  const F = M.F; F.col = C.me; F.edge = 'rgba(150,230,215,.45)'; F.skin = C.skin; F.legCol = C.legs; F.blink = (t % 3.7) > 3.58;
   const myCross = X => { if (X) drawCross(a, 'mine', X.u0, L, X.x, X.y, X.a, X.lie); };
   drawFig(a, F, () => {
     if (M.X && M.X.lie) myCross(M.X);
@@ -546,6 +560,17 @@ function crossOutline(x, y) {
   const hb = CBHL; return [[0, -PW / 2], [CBX - CBW / 2, -PW / 2], [CBX - CBW / 2, -hb], [CBX + CBW / 2, -hb], [CBX + CBW / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
     [CBX + CBW / 2, PW / 2], [CBX + CBW / 2, hb], [CBX - CBW / 2, hb], [CBX - CBW / 2, PW / 2], [0, PW / 2]].map(([a, b]) => [x + a, y + b]);
 }
+function slots(ctx, t, al) {   // the dashed outline of my whole cross over the open gap; its missing span lights slot by slot
+  const ol = crossOutline(E - REST, FY + 34), p = new Path2D(); p.moveTo(...ol[0]); for (const q of ol.slice(1)) p.lineTo(...q); p.closePath();
+  ctx.save(); ctx.globalAlpha = al; ctx.setLineDash([16, 10]); ctx.lineDashOffset = -t * 14; ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(255,230,185,.85)'; ctx.stroke(p); ctx.setLineDash([]); ctx.restore();
+  CUTS.forEach((c, k) => { const T = SLOTS[k], lit = ss(T - .05, T + .2, t); if (lit <= 0) return; const x0 = E - REST + c.u0, x1 = E - REST + c.u1, kick = 1 - ss(T + .05, T + .7, t);
+    ctx.save(); ctx.beginPath(); ctx.rect(x0 + 1.5, FY - 100, x1 - x0 - 3, 300); ctx.clip();
+    ctx.globalAlpha = al * lit; ctx.fillStyle = `rgba(255,206,130,${.5 + .35 * kick})`; ctx.fill(p);
+    ctx.setLineDash([16, 10]); ctx.lineDashOffset = -t * 14; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,236,190,.95)'; ctx.stroke(p); ctx.setLineDash([]);
+    ctx.globalCompositeOperation = 'lighter'; const cx = (x0 + x1) / 2, R = 120 + 60 * kick, g = ctx.createRadialGradient(cx, FY + 34, 4, cx, FY + 34, R);
+    g.addColorStop(0, `rgba(255,200,120,${.22 + .4 * kick})`); g.addColorStop(1, 'rgba(255,180,100,0)'); ctx.fillStyle = g; ctx.fillRect(cx - R, FY + 34 - R, 2 * R, 2 * R);
+    ctx.restore(); });
+}
 function guide(ctx, t, k, al) {
   const ol = crossOutline(E - REST, FY + 34), x1 = E - REST - 4 + (L + 8) * k, p = pathOf(ol);
   ctx.save(); ctx.globalAlpha = al; ctx.beginPath(); ctx.rect(E - REST - 10, FY - 200, x1 - (E - REST - 10), 400); ctx.clip();
@@ -565,7 +590,8 @@ function draw(ctx, t) {
   putPlane(ctx, cm, PL[0]);
   // the far crowd: tiny figures, each flickering softly (the ones near the arch catch its warm light)
   layer(ctx, cm, .3, () => { for (const q of TINY) { const b = .55 + .45 * breathe(t, q.ph, q.p); ctx.globalAlpha = q.a * b; ctx.fillStyle = q.warm ? '#ffe2b0' : '#c8fff0';
-    ctx.beginPath(); ctx.roundRect(q.x - q.s * .26, q.y - q.s, q.s * .52, q.s, [q.s * .2, q.s * .2, 0, 0]); ctx.arc(q.x, q.y - q.s * 1.16, q.s * .18, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; });
+    const fx = q.x + Math.sin(t * .7 + q.ph) * 7, fy = q.y - q.s * 2 + Math.cos(t * .9 + q.ph * 1.3) * 5;   // fireflies drifting over the far pools
+    ctx.beginPath(); ctx.arc(fx, fy, q.s * .22, 0, TAU); ctx.fill(); ctx.globalAlpha *= .18; ctx.beginPath(); ctx.arc(fx, fy, q.s * .8, 0, TAU); ctx.fill(); } ctx.globalAlpha = 1; });
   for (const i of [1, 2]) { const P = PL[i]; putPlane(ctx, cm, P);
     layer(ctx, cm, P.p, () => { ctx.save(); ctx.globalCompositeOperation = 'lighter';   // their glows breathe
       for (const [x, y, h] of P.SP) { const R = h * 1.5 + 24; sprite(ctx, TX.glow, x, y - h * .5, R, R * .8, .14 + .1 * breathe(t, x * .01)); } ctx.restore(); }); }
@@ -584,13 +610,13 @@ function draw(ctx, t) {
     drawEdges(ctx);
     drawGate(ctx, t);
     // light on the rocks: under each figure, my cross, the pieces
-    for (const P of pils) groundGlow(ctx, P.F.hip[0], P.F.gy + 6, 200, .32 * (P.F.alpha ?? 1));
-    groundGlow(ctx, M.F.hip[0], FY + 8, 230, .4);
+    for (const P of pils) groundGlow(ctx, P.F.hip[0], P.F.gy + 6, 200, .22 * (P.F.alpha ?? 1));
+    groundGlow(ctx, M.F.hip[0], FY + 8, 230, .26);
     if (M.X) { const cc = cpt(M.X, (M.X.u0 + L) / 2); groundGlow(ctx, cc[0], FY + 20, 200, .3, true); }
-    for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t) * (1 - ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t));
+    for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t);
       groundGlow(ctx, p.cx, Math.max(p.cy, FY + 26) + 10, 150 + 120 * hl, .2 + .5 * hl, true); }
     if (t >= 18.75 && t < 19.75) guide(ctx, t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
-    if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1);
+    if (t >= 22.4) slots(ctx, t, ss(22.4, 22.85, t));
   });
   // the glowing figures, then their bloom
   BAND = [Math.max(0, Math.floor((FY - 760) * z1 + ey1)), Math.min(H, Math.ceil((FY + 220) * z1 + ey1))];
@@ -598,18 +624,19 @@ function draw(ctx, t) {
   a.lineCap = 'round'; a.lineJoin = 'round';
   drawAction(a, t, M, pils);
   const hb = BAND[1] - BAND[0];
-  ctx.drawImage(ACT, 0, BAND[0], W, hb, 0, BAND[0], W, hb);
-  if (hb > 0) { const b = BLOOM.getContext('2d'), b2 = BLOOM2.getContext('2d');
-    b.clearRect(0, 0, BLOOM.width, BLOOM.height); b.filter = 'blur(3px)'; b.drawImage(ACT, 0, 0, W, H, 0, 0, BLOOM.width, BLOOM.height); b.filter = 'none';
+  if (hb > 0) { const b = BLOOM.getContext('2d'), b2 = BLOOM2.getContext('2d');   // a cyan halo around every traveller (their silhouette, blurred)
+    b.globalCompositeOperation = 'source-over'; b.clearRect(0, 0, BLOOM.width, BLOOM.height); b.filter = 'blur(3px)'; b.drawImage(ACT, 0, 0, W, H, 0, 0, BLOOM.width, BLOOM.height); b.filter = 'none';
+    b.globalCompositeOperation = 'source-in'; b.fillStyle = 'rgb(110,235,210)'; b.fillRect(0, 0, BLOOM.width, BLOOM.height); b.globalCompositeOperation = 'source-over';
     b2.clearRect(0, 0, BLOOM2.width, BLOOM2.height); b2.filter = 'blur(4px)'; b2.drawImage(BLOOM, 0, 0, BLOOM2.width, BLOOM2.height); b2.filter = 'none';
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .5; ctx.drawImage(BLOOM, 0, 0, W, H); ctx.globalAlpha = .45; ctx.drawImage(BLOOM2, 0, 0, W, H); ctx.restore(); }
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .42; ctx.drawImage(BLOOM, 0, 0, W, H); ctx.globalAlpha = .38; ctx.drawImage(BLOOM2, 0, 0, W, H); ctx.restore(); }
+  ctx.drawImage(ACT, 0, BAND[0], W, hb, 0, BAND[0], W, hb);
+  rim(ctx, 2.6 * z1, 2.2 * z1, 'rgba(170,255,236,.95)', .9); rim(ctx, -2.2 * z1, -1.6 * z1, 'rgba(150,250,228,.9)', .6);
   layer(ctx, cm, 1, () => {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    if (M.X) { const cc = cpt(M.X, (M.X.u0 + L) / 2); sprite(ctx, TX.warm, cc[0], cc[1], 230, 230, .22); }
+    if (M.X) { const cc = cpt(M.X, (M.X.u0 + L) / 2); sprite(ctx, TX.warm, cc[0], cc[1], 260, 260, .3); }
     if (FX && !FX.clip) { const cc = cpt(FX, (FX.u0 + L) / 2); sprite(ctx, TX.warm, cc[0], cc[1], 230, 230, .25); }
-    for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t) * (1 - ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t));
+    for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t);
       sprite(ctx, TX.warm, p.cx, p.cy, 110 + 90 * hl, 110 + 90 * hl, (.12 + .5 * hl) * (.85 + .15 * Math.sin((t - B.back) * 5 + c.k))); }
-    if (t >= 24.1) sprite(ctx, TX.warm, E - REST + L * .26, FY + 34, 360, 200, .45 * ss(24.1, 24.5, t) * (1 - .5 * ss(24.6, 25.6, t)));
     ctx.restore();
     drawFlecks(ctx, t);
   });
@@ -648,7 +675,7 @@ async function init() {
   TX.plate = Pilot.canvas(W, H); { const g = TX.plate.getContext('2d'), lg = g.createLinearGradient(0, 0, 0, H);
     lg.addColorStop(0, '#020709'); lg.addColorStop(.45, '#08201f'); lg.addColorStop(1, '#020709'); g.fillStyle = lg; g.fillRect(0, 0, W, H);
     const rg = g.createRadialGradient(540, 900, 20, 540, 900, 700); rg.addColorStop(0, 'rgba(60,170,150,.22)'); rg.addColorStop(1, 'rgba(60,170,150,0)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); grainOn(TX.plate, .45); }
-  ACT = Pilot.canvas(W, H); TMP = Pilot.canvas(W, H); BLOOM = Pilot.canvas(W / 6, H / 6); BLOOM2 = Pilot.canvas(W / 18, H / 18);
+  ACT = Pilot.canvas(W, H); TMP = Pilot.canvas(W, H); RIM = Pilot.canvas(W, H); BLOOM = Pilot.canvas(W / 6, H / 6); BLOOM2 = Pilot.canvas(W / 18, H / 18);
   const r = rng(505), [tx0, tx1] = extents(.3);
   for (let x = tx0; x < tx1; x += 7 + r() * 16) { const d = r(), y = 960 + Math.pow(r(), .7) * 60 - Math.abs(r() - .5) * 40 * d;
     TINY.push({ x, y, s: 4 + d * 6, a: .35 + r() * .5, ph: r() * TAU, p: [2, 3, 6][r() * 3 | 0], warm: Math.abs(x - GX * .3) < 90 }); }

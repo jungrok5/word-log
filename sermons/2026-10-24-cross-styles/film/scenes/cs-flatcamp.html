@@ -143,10 +143,6 @@ function buildTimeline() {
 function pieceAt(c, t) {
   const sh = 18 * eo((t - c.drop) / .25), y0 = c.y, cu = (c.u0 + c.u1) / 2;
   let cx = c.baseX + cu - sh, cy = y0, a = -.05 * eo((t - c.drop) / .25);
-  const [f0, f1] = FILL[c.k];
-  if (t > B.back + .3 && t <= f0) cy -= 22 * ss(B.back + .3, B.back + .9 + c.k * .1, t) + 5 * Math.sin((t - B.back) * 4 + c.k);   // they lift a little, waiting
-  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34, cy0 = cy - 22;
-    cx = lerp(cx, tx, e); cy = lerp(cy0, ty, e) - (c.k ? 190 : 280) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .55 * (1 - u); }
   return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, cx, cy };
 }
 
@@ -206,8 +202,8 @@ function poseMe(t) {
   };
   const sawHeld = t < CUTS[2].drop;
   // at the edge I hold what is left of my cross upright beside me: it reaches only to my shoulder
-  const holdUp = (F, lf) => { const u0 = L * (1 - lf), X = { x: F.hip[0] + 64 * F.s, y: FY - 2 + u0, a: -Math.PI / 2, u0, lie: false };
-    F.hands = [hangHands(F)[0], cpt(X, u0 + 118)]; F.hand = ['fist', 'fist']; F.farOver = false; return [F, X]; };
+  const holdUp = (F, lf) => { const u0 = L * (1 - lf), X = { x: F.hip[0] + 96 * F.s, y: FY - 2 + u0, a: -Math.PI / 2, u0, lie: false, held: true };
+    F.hands = [hangHands(F)[0], cpt(X, CBX - 40, 4)]; F.hand = ['fist', 'fist']; F.farOver = false; return [F, X]; };
   const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, lf < 1 ? -.4 : a0); gripCarry(F, X);   // lighter: carried flatter (a tilted short cross must never read as an X)
     if (held) { F.hands[1] = hangGrip(F, F.ph != null ? 18 * Math.sin(TAU * F.ph) : 0); }
     return [F, X]; };
@@ -246,8 +242,8 @@ function poseMe(t) {
     return { F: LAY, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; F.eye = 'shock'; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: -.05, eye: 'calm' }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .3, eye: 'calm' };
-  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
-  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+  if (t < 22.45) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
+  return { F: mixSpec(BACK, FWD, eio((tp - 22.45) / .35)), X: null };
 }
 function fallX(t) {
   if (t < B.tip) return null;
@@ -403,6 +399,7 @@ function haze(c, t) {   // mist bars and the lab's ghosts, drifting in whole-pix
   const bw = c.canvas.width, q = step8(t), hx = Math.round((V.OX + 540 / V.K) * .55 - 540 / V.K);
   for (const m of HAZE) { const x = Math.round(((m.x + q * 3 - hx) % 400 + 400) % 400) - 60; if (x > bw) continue;
     c.globalAlpha = m.a; pxRR(c, x, Math.round(m.y - V.OY), m.w, 4, 2, '#5a72c8'); c.globalAlpha = 1; }
+  if (true) return;   // v2: no ghosts
   const gx = Math.round((V.OX + 540 / V.K) * .3 - 540 / V.K);
   for (const g of SPOOK) { const x = Math.round(((g.x + Math.sin(q * .55 + g.ph) * 6 + g.dir * q * 1.5 - gx) % 400 + 400) % 400) - 60, y = Math.round(g.y + Math.sin(q * 1.3 + g.ph * 2) * 4 - V.OY);
     if (x > bw || y < -20) continue; c.globalAlpha = g.big ? .26 : .2; c.drawImage(SPR.ghost[Math.floor(q * 4 + g.ph * 3) % 2], x, y); c.globalAlpha = 1; }
@@ -465,7 +462,7 @@ function world(c, P, pk, t, st) {
     if (M.X && M.X.lie) myCross(M.X);
     if (M.kerf) { const a = B2([M.c.cutX, M.c.y - PW / 2]); R(c, a[0], a[1], 1, Math.max(1, M.kerf.kp * PW * .92 / U), P.deep); }
     if (M.saw) sawPx(c, M.saw.grip, M.saw.ang, SAW[pk]);
-  }, null, M.X && !M.X.lie ? () => myCross(M.X) : null);
+  }, M.X && M.X.held ? () => myCross(M.X) : null, M.X && !M.X.lie && !M.X.held ? () => myCross(M.X) : null);
   const FXs = st.FXs; if (FXs && !FXs.clip) crossPx(c, WOOD, FXs.u0, L, FXs.x, FXs.y, FXs.a, true);
   // sawdust: orange chips on 12s
   const tq12 = step12(t);
@@ -484,6 +481,12 @@ function guidePx(c, t, k) {   // the dashed outline of my whole cross across the
     for (let j = 0; j < n; j++, s++) { const x = Math.round(lerp(a[0], b[0], j / n)), y = Math.round(lerp(a[1], b[1], j / n)); if (x > xmax) continue; if (((s + off) >> 1) % 2 === 0) c.fillRect(x, y, 1, 1); } }
 }
 
+function slotsPx(c, t) {
+  for (const p of CUTS) { if (t < SLOT[p.k]) continue; const fresh = t < SLOT[p.k] + .25;
+    const a = B2([E - REST + p.u0 + 4, FY + 34 - PW / 2 + 4]), b = B2([E - REST + p.u1 - 4, FY + 34 + PW / 2 - 4]);
+    for (let y = Math.round(a[1]); y < Math.round(b[1]); y++) for (let x = Math.round(a[0]); x < Math.round(b[0]); x++)
+      if (fresh || ((x + y) & 1) === 0) R(c, x, y, 1, 1, fresh ? '#fff0a0' : ((x + 2 * y) % 3 ? '#f8b830' : '#f08424')); }
+}
 // ---------------- the camera: shots ----------------
 function shotAt(t) {
   const c1 = CUTS[0], c2 = CUTS[1], c3 = CUTS[2], at = cc => (cc.mx + cc.cutX) / 2 - 10;
@@ -492,19 +495,22 @@ function shotAt(t) {
   if (t < 4.55) return { K: 10, x: at(c1), y: 1020 };                         // the first cut
   if (t < 8.95) return { K: 8, x: meX(t) + 60, y: 900 };                     // lighter: I run, the others fall behind
   if (t < 11.4) return { K: 10, x: lerp(at(c2), at(c3), eio((t - 10) / .45)), y: 1020 };   // twice more
-  if (t < 12.05) return { K: 8, x: Math.min(meX(t) + 60, E - 540 - 10), y: 900 };
-  if (t < 18.2) return { K: 6, x: E + 300, y: 915 };                          // the road ends; the others cross, one at a time
+  if (t < 11.8) return { K: 8, x: meX(t) + 20, y: 900 };                      // I run on to the edge (always in frame)
+  if (t < 18.2) return { K: 6, x: E + 250, y: 915 };                          // the road ends; the others cross, one at a time                          // the road ends; the others cross, one at a time
   if (t < B.fall) return { K: 9, x: E + 160, y: 1110 };                       // mine: short
   if (t < B.fall + .7) return { K: 11, x: E + 160, y: 1200, shake: 1 - ss(B.fall, B.fall + .55, t) };   // the hit
   if (t < B.back) return { K: 8, x: E + 150, y: 1060 };
-  return { K: 10, x: lerp(E - 360, E + 210, eio((t - 22.75) / 1.1)), y: 1010 };   // I look back; the pieces fly to the gap
+  // I stay at the lip and look back: the camera travels back along the road in one move (the pieces glow where they lie), and returns
+  const x = t < 21.55 ? E - 150 : t < 22.35 ? lerp(E - 150, E - 600, eio((t - 21.55) / .8)) : lerp(E - 600, E + 180, eio((t - 22.35) / .6));
+  return { K: 9, x, y: 1010 };   // I look back; the pieces fly to the gap
 }
+const SLOT = [22.9, 23.6, 24.3];   // the outline's missing span lights slot by slot (one piece's length each)
 function lightsAt(t) {   // in design units
   const q = step8(t), D = [];
   if (q >= B.gap) D.push({ x: GX - 40, y: BY - 150, r: 470 * backEase(clamp((q - B.gap - .1) / .5)) });
-  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, step12(t)), sw = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, q), land = ss(FILL[c.k][1], FILL[c.k][1] + .4, q);
-    const r = 150 * sw * (1 - .45 * land); if (r > 8) D.push({ x: p.cx, y: p.cy, r }); }
-  if (q >= 24.1) D.push({ x: E - REST + L / 2, y: FY + 20, r: 340 * backEase(clamp((q - 24.1) / .6)) });
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, step12(t)), sw = ss(B.back + .2 + (2 - c.k) * .2, B.back + .6 + (2 - c.k) * .2, q);
+    const r = 130 * sw * (q >= SLOT[c.k] && q < SLOT[c.k] + .25 ? 1.2 : 1); if (r > 8) D.push({ x: p.cx, y: p.cy, r }); }
+  for (const c of CUTS) if (q >= SLOT[c.k]) D.push({ x: E - REST + (c.u0 + c.u1) / 2, y: FY + 34, r: 100 * eo(clamp((q - SLOT[c.k]) / .25)) });
   return D;
 }
 
@@ -520,7 +526,6 @@ function framePlate() {
   for (const [bx_, by_, br] of blobs) pxCircle(x, bx_, by_, br, FRAME);
   pxLine(x, 10, 50, 33, 54, 4, FRAME); pxLine(x, 33, 54, 38, 64, 3, FRAME); pxCircle(x, 39, 66, 3, FRAME);
   pxLine(x, 170, 116, 155, 121, 4, FRAME); pxLine(x, 155, 121, 152, 113, 3, FRAME); pxLine(x, 155, 121, 158, 131, 2, FRAME);
-  pxRR(x, 158, 150, 14, 16, 5, FRAME); R(x, 159, 148, 2, 3, FRAME); R(x, 169, 148, 2, 3, FRAME);   // an owl in the frame
   R(x, 0, 290, LW, LH - 290, FRAME); R(x, 0, 290, LW, 1, FRAME2);
   return c;
 }
@@ -563,23 +568,22 @@ function draw(ctx, t) {
   if (t >= B.gap) { const g = GATE(); embers(bb.n, t, g.gx, g.ay - 14, 7, 40, 14); }
   for (const p of pieces) if (p.glow > .5) { const b = B2([p.cx, p.cy]); embers(bb.n, t, Math.round(b[0]), Math.round(b[1]) - 3, 4, 60 + p.c.k * 7, 8); }
   if (t >= 18.75 && t < 19.75) guidePx(bb.n, t, eio((t - 18.75) / .35));
-  if (t >= B.fill[0] - .2) guidePx(bb.n, t, eio((t - B.fill[0] + .2) / .45));
+  if (t >= 22.45) { guidePx(bb.n, t, eio((t - 22.45) / .4)); slotsPx(bb.n, t); }
   haze(bb.n, t);
   ctx.imageSmoothingEnabled = false; ctx.drawImage(bb.n.canvas, 0, 0, bb.n.canvas.width * K, bb.n.canvas.height * K);
   // the lab's frame on its own 6× grid; at the end it closes in, whole pixels at a time, to a plain plate for the card
-  FX.clearRect(0, 0, LW, LH); FX.drawImage(FR, 0, 0); frameEyes(FX, t);
+  FX.clearRect(0, 0, LW, LH); FX.drawImage(FR, 0, 0);
   const ke = ss(B.end - .25, B.end + .3, step8(t)); if (ke > 0) { const n = Math.round(ke * 92); R(FX, 0, 0, LW, n + 24, FRAME); R(FX, 0, LH - n - 30, LW, n + 30, FRAME); R(FX, 0, 0, Math.round(ke * 90) + 10, LH, FRAME); R(FX, LW - Math.round(ke * 90) - 10, 0, Math.round(ke * 90) + 10, LH, FRAME); }
   ctx.drawImage(FRC, 0, 0, W, H);
   // captions on a half-resolution grid (chunky, still readable), blown up 2× — as in the lab
-  if (t < B.end) { CX.setTransform(1, 0, 0, 1, 0, 0); CX.clearRect(0, 0, W / 2, H / 2); CX.setTransform(.5, 0, 0, .5, 0, 0);
-    CX.save(); CX.translate(6, 6); Story.captions(CX, t, S.lines, { font: FONT, weight: 400, size: 70, color: '#151a3c', srcColor: '#151a3c', y: 410, shadow: 'rgba(0,0,0,0)', shadowBlur: 1 }); CX.restore();
-    Story.captions(CX, t, S.lines, { font: FONT, weight: 400, size: 70, color: '#f4f0dc', srcColor: '#c8d0f0', y: 410, shadow: 'rgba(0,0,0,0)', shadowBlur: 1 });
-    ctx.drawImage(CAP, 0, 0, W, H); }
+  if (t < B.end) {   // v2: captions crisp at full resolution (Do Hyeon), with a hard offset shadow
+    ctx.save(); ctx.translate(5, 5); Story.captions(ctx, t, S.lines, { font: FONT, weight: 400, size: 66, color: '#121633', srcColor: '#121633', y: 410, shadow: 'rgba(0,0,0,0)', shadowBlur: 1 }); ctx.restore();
+    Story.captions(ctx, t, S.lines, { font: FONT, weight: 400, size: 66, color: '#f4f0dc', srcColor: '#d4daf4', y: 410, shadow: 'rgba(0,0,0,0)', shadowBlur: 1 }); }
   Story.endCard(ctx, t, S.endCard, B.end, { font: FONT, color: '#f4f0dc', srcColor: '#aab4e0', y: 860, titleShadow: 'rgba(0,0,0,0)' });
 }
 
 async function init() {
-  buildTimeline(); buildLayers();
+  buildTimeline(); GX = E + G + 240; buildLayers();
   SPR.ghost = GHOST.map(g => sprite(g, { g: '#c8d4ff', e: '#1a2050' }));
   FR = framePlate(); FRC = Pilot.canvas(LW, LH); FX = FRC.getContext('2d');
   CAP = Pilot.canvas(W / 2, H / 2); CX = CAP.getContext('2d'); CX.imageSmoothingEnabled = false;

@@ -32,11 +32,12 @@ const LT = { sky: '#2939ff', trunk: '#2632ee', trunk2: '#2530e4', hill: '#2a34ea
 const FG = { dark: '#130a53', dark2: '#0c0642', mark: '#1c1676', ground: '#18146b', ground2: '#120d58', plant: '#0e0848', plant2: '#0a053a' };
 const RED = '#ff2d5a', RED2 = '#c8164a', PINK = '#ec99d4', PINK2 = '#d27cbd', FLAME = '#ffe6f2', GLASS = '#ffd1e3';
 // figures: me (the lab's traveller) and the others (same kind, quieter: no pink, purple crosses)
-const ME = { l: { c: '#16136a', c2: '#1e2aa6', cd: '#0f0c4e', face: PINK, hand2: PINK2, fr: '#2939ff', leg: '#0b0940', leg2: '#0f0c4e', eye: '#3b1366' },
-             d: { c: '#0d0a44', c2: '#141a80', cd: '#09073a', face: '#6e4794', hand2: '#5c3a80', fr: '#1a2499', leg: '#07052c', leg2: '#0a0838', eye: '#1a0a3a' } };
-const PI = { l: { c: '#1b1990', c2: '#2733c6', cd: '#120f6a', face: '#b9a8e8', hand2: '#9d8bd2', fr: '#3d5cf0', leg: '#0e0b5a', leg2: '#120f6a', eye: '#2a1a66' },
-             d: { c: '#0e0b4c', c2: '#161872', cd: '#0a0840', face: '#4b3f9a', hand2: '#3f3484', fr: '#18208a', leg: '#09073a', leg2: '#0b0942', eye: '#120a3a' } };
-const MX = { a: RED, b: RED2, c: '#ffb3c8', glass: GLASS };                                   // my cross: a lantern
+// v2: figures are near-black ink against the blue (viewers: blue-on-blue figures were hard to read)
+const ME = { l: { c: '#0c0936', c2: '#25309e', cd: '#06041f', face: PINK, hand2: PINK2, fr: '#3a4cff', leg: '#04031a', leg2: '#080626', eye: '#3b1366' },
+             d: { c: '#08062a', c2: '#18207a', cd: '#040316', face: '#8a5aa8', hand2: '#744a90', fr: '#2433b0', leg: '#030212', leg2: '#05041c', eye: '#1a0a3a' } };
+const PI = { l: { c: '#0e0b40', c2: '#1d2690', cd: '#07052a', face: '#c4b4ee', hand2: '#a594d8', fr: '#3d5cf0', leg: '#05041c', leg2: '#08062a', eye: '#2a1a66' },
+             d: { c: '#07051f', c2: '#10145a', cd: '#040312', face: '#6556b4', hand2: '#544698', fr: '#1c26a0', leg: '#030210', leg2: '#05041a', eye: '#120a3a' } };
+const MX = { a: '#e0a052', b: '#a8642a', c: '#f8d394', grain: '#c07c3a' };                     // my cross: honey wood, warm as the lab's lantern (the one accent)
 const PX = { l: { a: '#5a24a8', b: '#3b137a', c: '#7a3ccc' }, d: { a: '#2f1272', b: '#220b58', c: '#3f1a8a' } };
 const SAW = { l: { bl: '#c9d0ff', bl2: '#97a3f5', h: '#3b137a', h2: '#1c0748' }, d: { bl: '#5560c0', bl2: '#3f49a6', h: '#22094f', h2: '#120430' } };
 
@@ -171,9 +172,10 @@ function drawCross(ctx, K, u0, u1, x, y, a, lying, alpha = 1) {
   ctx.beginPath(); ctx.rect(u0, -hb - 6, u1 - u0, 2 * hb + 12); ctx.clip();
   ctx.fillStyle = K.a; ctx.beginPath(); ctx.roundRect(0, -PW / 2, L, PW, 5); ctx.roundRect(CBX - CBW / 2, -hb, CBW, 2 * hb, 5); ctx.fill();
   ctx.fillStyle = K.b; ctx.beginPath(); ctx.rect(0, PW / 2 - 9, L, 9); ctx.rect(CBX + CBW / 2 - 9, -hb + 4, 9, 2 * hb - 8); ctx.fill();
-  if (K.glass) { ctx.fillStyle = K.glass; ctx.beginPath(); ctx.roundRect(12, -7, L - 24, 12, 6); ctx.roundRect(CBX - 6, -hb + 12, 12, 2 * hb - 24, 6); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(CBX, -1, 7, 7, 0, 0, TAU); ctx.fill(); }
-  else { ctx.fillStyle = K.c; ctx.beginPath(); ctx.rect(8, -PW / 2 + 5, L - 16, 4); ctx.fill(); }
+  ctx.fillStyle = K.c; ctx.beginPath(); ctx.rect(8, -PW / 2 + 5, L - 16, 4); ctx.fill();
+  if (K.grain) { ctx.strokeStyle = K.grain; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.beginPath();   // flat wood grain: two long strokes and a knot
+    ctx.moveTo(30, -2); ctx.lineTo(CBX - 40, -2); ctx.moveTo(60, 6); ctx.lineTo(CBX - 70, 6); ctx.moveTo(CBX + 30, 1); ctx.lineTo(L - 16, 1); ctx.stroke();
+    ctx.fillStyle = K.grain; for (const u of [150, 330]) { ctx.beginPath(); ctx.ellipse(u, 1, 7, 3.5, 0, 0, TAU); ctx.fill(); } }
   ctx.fillStyle = K.c;   // fresh cut faces
   if (u0 > .5) ctx.fillRect(u0, -PW / 2, 6, PW);
   if (u1 < L - .5) ctx.fillRect(u1 - 6, -PW / 2, 6, PW);
@@ -294,10 +296,6 @@ function buildTimeline() {
 function pieceAt(c, t) {
   const sh = 18 * eo((t - c.drop) / .25), y0 = c.y, cu = (c.u0 + c.u1) / 2;
   let cx = c.baseX + cu - sh, cy = y0, a = -.05 * eo((t - c.drop) / .25);
-  const [f0, f1] = FILL[c.k];
-  if (t > B.back + .3 && t <= f0) cy -= 22 * ss(B.back + .3, B.back + .9 + c.k * .1, t) + 5 * Math.sin((t - B.back) * 4 + c.k);   // they lift a little, waiting
-  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34, cy0 = cy - 22;
-    cx = lerp(cx, tx, e); cy = lerp(cy0, ty, e) - (c.k ? 190 : 280) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .55 * (1 - u); }
   return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, cx, cy };
 }
 
@@ -369,8 +367,8 @@ function poseMe(t) {
   };
   const sawHeld = t < CUTS[2].drop;
   // at the edge I hold what is left of my cross upright beside me: it reaches only to my shoulder
-  const holdUp = (F, lf) => { const u0 = L * (1 - lf), X = { x: F.hip[0] + 64 * F.s, y: FY - 2 + u0, a: -Math.PI / 2, u0, lie: false };
-    F.hands = [hangHands(F)[0], cpt(X, u0 + 118)]; F.hand = ['fist', 'fist']; F.farOver = false; return [F, X]; };
+  const holdUp = (F, lf) => { const u0 = L * (1 - lf), X = { x: F.hip[0] + 96 * F.s, y: FY - 2 + u0, a: -Math.PI / 2, u0, lie: false, held: true };
+    F.hands = [hangHands(F)[0], cpt(X, CBX - 40, 4)]; F.hand = ['fist', 'fist']; F.farOver = false; return [F, X]; };
   const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, lf < 1 ? -.4 : a0); gripCarry(F, X);   // lighter: carried flatter (a tilted short cross must never read as an X)
     if (held) { F.hands[1] = hangGrip(F, F.ph != null ? 18 * Math.sin(TAU * F.ph) : 0); }
     return [F, X]; };
@@ -409,8 +407,8 @@ function poseMe(t) {
     return { F: LAY, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; F.eye = 'shock'; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: -.05, eye: 'calm' }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .3, eye: 'calm' };
-  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
-  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+  if (t < 22.45) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
+  return { F: mixSpec(BACK, FWD, eio((tp - 22.45) / .35)), X: null };
 }
 function fallX(t) {
   if (t < B.tip) return null;
@@ -466,31 +464,30 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 160, y: 1110, z: 1.1 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 160, y: 1200, z: 1.34 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1060, z: 1.0 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 410, y: 1090, z: 1.2 }, eio((t - B.back) / .45));
-  if (t >= 22.75) c = mixCam(c, { x: E + 200, y: 1080, z: .98 }, eio((t - 22.75) / 1.1));
+  if (t >= B.back) c = mixCam(c, { x: E - 150, y: 1060, z: 1.05 }, eio((t - B.back) / .35));     // I turn at the lip
+  if (t >= 21.55) c = mixCam(c, { x: E - 590, y: 1080, z: 1.12 }, eio((t - 21.55) / .8));     // the camera travels back along the road: the pieces glow where they lie
+  if (t >= 22.35) c = mixCam(c, { x: E + 190, y: 1060, z: .9 }, eio((t - 22.35) / .6));       // and returns: the gap, me at the lip, the outline
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
 
 // ---------------- light discs (world coords) ----------------
-const discR = left => 110 + 220 * left;
-function lights(t, M, FXs, pils) {
+const discR = left => 90 + 170 * left;
+const SLOT = [22.9, 23.6, 24.3];   // the outline's missing span lights slot by slot (one piece's length each)
+function lights(t, M, FXs, pils) {   // soft light pools (world coords); v2: fewer, smaller, soft-edged
   const D = [], wob = Math.sin(t * TAU / 1.9) * 3;
-  // my cross is the lantern: its disc walks with it and shrinks with every cut
+  // the warmth around my cross walks with it, and gets smaller with every cut
   if (M.X) { const X = M.X, m = cpt(X, (X.u0 + L) / 2); let r = discR(leftAt(t));
     for (const c of CUTS) if (t >= c.drop && t < c.drop + .35) r = lerp(discR(S.left[c.k]), discR(S.left[c.k + 1]), eo((t - c.drop) / .35));
-    D.push({ x: m[0], y: m[1] + 20, r: r + wob }); }
-  if (FXs && (FXs.alpha ?? 1) > 0) { const m = cpt(FXs, (FXs.u0 + L) / 2), r = discR(S.left[3]) * (1 - ss(B.fall + .1, B.fall + .8, t)); if (r > 1) D.push({ x: m[0], y: m[1], r }); }
-  // the gate's light blooms when the road ends
-  if (t >= B.gap) D.push({ x: GX - 110, y: BY - 150, r: 520 * backEase(clamp((t - B.gap - .15) / .55)) + Math.sin(t * TAU / 2.3) * 4 });
-  // each piece I cut keeps a little light; it swells when I look back, and travels with the piece
-  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), k = ss(c.drop, c.drop + .3, t);
-    const sw = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t), land = ss(FILL[c.k][1], FILL[c.k][1] + .4, t);
-    const r = (60 * k + 85 * sw) * (1 - .5 * land) + 4 * Math.sin(t * 4 + c.k) * sw;
-    if (r > 1) D.push({ x: p.cx, y: p.cy, r }); }
-  // filled: the whole span lights up again, as big as my light once was
-  if (t >= 24.1) { const u = backEase(clamp((t - 24.1) / .6)); D.push({ x: E - REST + L / 2, y: FY + 30, r: discR(1) * u * 1.05 + wob }); }
-  // the hit: a hard flash ring is drawn separately; the frame goes dark
+    D.push({ x: m[0], y: m[1] + 20, r: r + wob, warm: 1 }); }
+  if (FXs && (FXs.alpha ?? 1) > 0) { const m = cpt(FXs, (FXs.u0 + L) / 2), r = discR(S.left[3]) * (1 - ss(B.fall + .1, B.fall + .8, t)); if (r > 1) D.push({ x: m[0], y: m[1], r, warm: 1 }); }
+  if (t >= B.gap) D.push({ x: GX - 60, y: BY - 160, r: 470 * eo(clamp((t - B.gap - .1) / .6)) });
+  // when I look back, each piece glows where it lies
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), sw = ss(B.back + .2 + (2 - c.k) * .2, B.back + .7 + (2 - c.k) * .2, t);
+    const pulse = 1 + .25 * Math.exp(-Math.max(0, t - SLOT[c.k]) * 5) * (t >= SLOT[c.k] ? 1 : 0);
+    if (sw > .01) D.push({ x: p.cx, y: p.cy, r: 130 * sw * pulse, warm: sw }); }
+  // the slots of the outline over the gap
+  for (const c of CUTS) { const k = ss(SLOT[c.k], SLOT[c.k] + .3, t); if (k > .01) D.push({ x: E - REST + (c.u0 + c.u1) / 2, y: FY + 34, r: 120 * k, warm: k }); }
   return D;
 }
 
@@ -554,7 +551,7 @@ function world(ctx, t, k, st) {   // k = 'd' | 'l'
     if (M.X && M.X.lie) myCross(M.X);
     if (M.kerf) { ctx.fillStyle = C.deep; ctx.fillRect(M.c.cutX - 2, M.c.y - PW / 2, 4, M.kerf.kp * PW * .92 + .5); }
     if (M.saw) drawSaw(ctx, M.saw.grip, M.saw.ang, SAW[k]);
-  }, null, M.X && !M.X.lie ? () => myCross(M.X) : null);
+  }, M.X && M.X.held ? () => myCross(M.X) : null, M.X && !M.X.lie && !M.X.held ? () => myCross(M.X) : null);   // held upright at my side: behind the arm that grips it
   // my cross over the edge: tips, falls (clipped to the chasm)
   const FXs = st.FXs;
   if (FXs && !FXs.clip) drawCross(ctx, MX, FXs.u0, L, FXs.x, FXs.y, FXs.a, true);
@@ -577,6 +574,15 @@ function guide(ctx, t, k, al) {   // the dashed outline of my whole cross across
   ctx.fillStyle = 'rgba(255,209,227,.16)'; ctx.fill(p);
   ctx.setLineDash([16, 10]); ctx.lineDashOffset = -t * 18; ctx.lineWidth = 5; ctx.strokeStyle = GLASS; ctx.stroke(p); ctx.setLineDash([]);
   ctx.restore();
+}
+function slots(ctx, t) {
+  for (const c of CUTS) { const k = ss(SLOT[c.k], SLOT[c.k] + .3, t); if (k <= 0) continue;
+    const x0 = E - REST + c.u0 + 3, x1 = E - REST + c.u1 - 3, y = FY + 34, fl = 1 + .5 * Math.exp(-Math.max(0, t - SLOT[c.k]) * 6);
+    ctx.save(); ctx.globalAlpha = k;
+    ctx.fillStyle = `rgba(255,200,124,${Math.min(.92, .62 * fl)})`; ctx.beginPath(); ctx.roundRect(x0, y - PW / 2 + 3, x1 - x0, PW - 6, 4); ctx.fill();
+    ctx.globalCompositeOperation = 'lighter'; const g = ctx.createRadialGradient((x0 + x1) / 2, y, 4, (x0 + x1) / 2, y, 80);
+    g.addColorStop(0, `rgba(255,170,80,${.42 * fl})`); g.addColorStop(1, 'rgba(255,170,80,0)'); ctx.fillStyle = g; ctx.fillRect(x0 - 80, y - 80, x1 - x0 + 160, 160);
+    ctx.restore(); }
 }
 function moon(ctx) {
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, 600); ctx.arc(318, 196, 34, 0, TAU); ctx.clip('evenodd');
@@ -609,18 +615,29 @@ function draw(ctx, t) {
   const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(p => p && p.F);
   const T1 = layerT(cm, 1), st = { M, FXs, pils, x0: (0 - T1.e) / T1.z, x1: (W - T1.e) / T1.z };
   const D = lights(t, M, FXs, pils).map(d => { const [x, y] = toScreen(cm, d.x, d.y); return { x, y, r: d.r * cm.z }; });
-  const pass = (k) => {
+  const pass = (g, k) => {
     const C = k === 'd' ? DK : LT;
-    ctx.fillStyle = C.sky; ctx.fillRect(0, 0, W, H);
-    for (const Ly of LAYERS) { layer(ctx, cm, Ly.p, (x0, x1) => drawLayer(ctx, Ly, C, x0, x1)); if (Ly.id === 'trunks') moon(ctx); }
-    if (k === 'd' && t < 11.8) eyes(ctx, t, cm);
-    layer(ctx, cm, 1, () => world(ctx, t, k, st));
+    g.fillStyle = C.sky; g.fillRect(0, 0, W, H);
+    for (const Ly of LAYERS) { layer(g, cm, Ly.p, (x0, x1) => drawLayer(g, Ly, C, x0, x1)); if (Ly.id === 'trunks') moon(g); }
+    if (k === 'd' && t < 11.8) eyes(g, t, cm);
+    layer(g, cm, 1, () => world(g, t, k, st));
   };
-  pass('d');
-  if (D.length) { ctx.save(); ctx.beginPath(); for (const d of D) if (d.r > 1) { ctx.moveTo(d.x + d.r, d.y); ctx.arc(d.x, d.y, d.r, 0, TAU); } ctx.clip('nonzero'); pass('l'); ctx.restore(); }
+  pass(ctx, 'd');
+  if (D.length) {   // the lit world shows through soft-edged pools (radial falloff), then a faint lantern warmth on top
+    const o = OFF.getContext('2d'); o.setTransform(1, 0, 0, 1, 0, 0); o.globalCompositeOperation = 'source-over'; o.globalAlpha = 1; pass(o, 'l');
+    const m = MSK.getContext('2d'); m.setTransform(1, 0, 0, 1, 0, 0); m.clearRect(0, 0, W, H); m.globalCompositeOperation = 'lighter';
+    for (const d of D) if (d.r > 2) { const g = m.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.45, 'rgba(255,255,255,.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      m.fillStyle = g; m.fillRect(d.x - d.r, d.y - d.r, 2 * d.r, 2 * d.r); }
+    o.globalCompositeOperation = 'destination-in'; o.drawImage(MSK, 0, 0); o.globalCompositeOperation = 'source-over';
+    ctx.drawImage(OFF, 0, 0);
+    ctx.save(); ctx.globalCompositeOperation = 'screen';
+    for (const d of D) if (d.warm && d.r > 2) { const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r * .8); g.addColorStop(0, `rgba(255,176,90,${.22 * d.warm})`); g.addColorStop(1, 'rgba(255,176,90,0)');
+      ctx.fillStyle = g; ctx.fillRect(d.x - d.r, d.y - d.r, 2 * d.r, 2 * d.r); }
+    ctx.restore();
+  }
   layer(ctx, cm, 1, () => {
     if (t >= 18.75 && t < 19.75) guide(ctx, t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
-    if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1);
+    if (t >= 22.45) { guide(ctx, t, eio((t - 22.45) / .4), .9); slots(ctx, t); }
     // the hit: a hard flash ring from the lip as my light goes over
     if (t >= B.fall && t < B.fall + .22) { const u = (t - B.fall) / .22; ctx.strokeStyle = FLAME; ctx.lineWidth = 10 * (1 - u) + 2; ctx.beginPath(); ctx.arc(E + 40, FY + 60, 60 + 520 * eo(u), 0, TAU); ctx.stroke(); }
   });
@@ -632,8 +649,9 @@ function draw(ctx, t) {
   Story.endCard(ctx, t, S.endCard, B.end, { font: FONT, color: '#eef0ff', srcColor: '#b9c1ff', y: 860, titleShadow: 'rgba(0,0,0,.35)' });
 }
 
+let OFF, MSK;
 async function init() {
-  buildTimeline(); buildLayers();
+  buildTimeline(); buildLayers(); OFF = Pilot.canvas(W, H); MSK = Pilot.canvas(W, H);
   for (const tt of [5.3, 6.6, 7.9]) FGT.push(camAt(tt).x * 1.45 + 140);   // foreground trees pass the centre on the run, never over a cut
 }
 Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 62px 'Noto Sans KR'", "500 34px 'Noto Sans KR'", "400 28px 'Noto Sans KR'"], init, draw });

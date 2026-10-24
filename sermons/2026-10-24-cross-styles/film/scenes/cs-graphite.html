@@ -78,6 +78,7 @@ const t12 = HD.t12, frac = x => x - Math.floor(x);
 const ROWY = [RT, 1236, 1264, 1298, 1340, 1388, RN], SW = 104, OB = .5;   // road slabs: rows (foreshortened), slab width, oblique joints
 
 const RA = 98, RO = 134;
+const CYB = 1080, CYE = 1080;   // v2 camera heights for the look back and the last hold
 function ik(a, t, l1, l2, pick) {
   let dx = t[0] - a[0], dy = t[1] - a[1], d = Math.hypot(dx, dy) || 1e-6; const dd = clamp(d, Math.abs(l1 - l2) + .5, l1 + l2 - .5);
   const tx = a[0] + dx / d * dd, ty = a[1] + dy / d * dd, an = Math.atan2(ty - a[1], tx - a[0]), b = Math.acos(clamp((l1 * l1 + dd * dd - l2 * l2) / (2 * l1 * dd), -1, 1));
@@ -108,7 +109,9 @@ const tab = (T, t) => { const i = clamp(t / DT, 0, NTL - 2), i0 = Math.floor(i);
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
 const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
-const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];
+const FILL = [[99, 100], [99, 100], [99, 100]];   // v2: the pieces never move (they stay where they fell)
+const SLOTS = [22.9, 23.6, 24.3];                  // v2: the outline's missing span lights slot by slot (one piece's length each)
+const pieceX = c => c.baseX + (c.u0 + c.u1) / 2 - 18;
 const FLECKS = [], SPAT = [];
 let E = 1600, GX = 0, GAY = 0, SAWLIE = null;
 function buildTimeline() {
@@ -228,8 +231,8 @@ function poseMe(t) {
     return { F: LAY, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: .05, eye: 'calm' }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .38, eye: 'down' };
-  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
-  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+  if (t < 22.25) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };   // v2: I stay at the lip — look back, then down at the gap
+  return { F: mixSpec(BACK, FWD, eio((tp - 22.25) / .3)), X: null };
 }
 function fallX(t) {
   if (t < B.tip) return null;
@@ -286,8 +289,9 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 190, y: 1090, z: .98 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 160, y: 1200, z: 1.34 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1060, z: 1.0 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) c = mixCam(c, { x: E - 330, y: 1100, z: 1.12 }, eio((t - B.back) / .55));
-  if (t >= 22.75) c = mixCam(c, { x: E + 170, y: 1060, z: .9 }, eio((t - 22.75) / 1.1));
+  if (t >= B.back) { const zb = .95, px = (pieceX(CUTS[1]) + pieceX(CUTS[2])) / 2, xb = Math.max(px, E - 52 - 330 / zb);   // one move back down the road (me still in frame, right)
+    c = mixCam(c, { x: xb, y: CYB, z: zb }, eio((t - 21.3) / .7)); }
+  if (t >= 22.15) c = mixCam(c, { x: E + 150, y: CYE, z: .86 }, eio((t - 22.15) / .65));   // …and back: me at the lip, the gap, the outline
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
@@ -562,14 +566,14 @@ function friendX() { return GX + 196; }
 function beamAim(t) {   // → { c: pool centre, rx, ry, on }
   const q = t12(t), on = q < 12.7 ? 0 : q < 12.8 ? .5 : 1;
   const P0 = [GX - 40, BY + 36], P1 = [E - 30, BY + 30], P2 = [E + 130, FY + 30];
-  const c2 = CUTS[1], c3 = CUTS[2], pc = [(pieceAt(c2, 21).x + pieceAt(c3, 21).x) / 2 + 90, FY + 30], P4 = [E + G * .5 - 40, FY + 34];
+  const pc = [(pieceX(CUTS[1]) + pieceX(CUTS[2])) / 2, FY + 30], P4 = [E - REST + (S.left[3] + 1) / 2 * L, FY + 34];
   let c = P0;
   c = mixP(c, P1, eio((q - 12.8) / .9));
   c = mixP(c, P2, eio((q - 18.2) / .45));
-  c = mixP(c, pc, eio((q - 21.25) / .75));
-  c = mixP(c, P4, eio((q - 22.5) / 1.1));
+  c = mixP(c, pc, eio((q - 21.3) / .7));
+  c = mixP(c, P4, eio((q - 22.15) / .65));
   const wav = q > 13.7 ? 6 * Math.sin(q * 1.9) + 3 * Math.sin(q * 4.7) : 0;
-  const rx = 150 + 40 * eio((q - 21.25) / .75) * (1 - eio((q - 22.5) / 1.1)) + 30 * eio((q - 22.5) / 1.1);
+  const rx = 150 + 90 * eio((q - 21.3) / .7) * (1 - eio((q - 22.15) / .65)) + 20 * eio((q - 22.15) / .65);
   return { c: [c[0] + wav, c[1]], rx, ry: 36, on };
 }
 const mixP = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
@@ -626,14 +630,24 @@ function guide(ctx, t, k, al, glow = 0) {   // my whole cross across the gap, in
   if (glow > 0) { ctx.globalCompositeOperation = 'screen'; ctx.strokeStyle = rgba(C.warm, .35 * glow); ctx.lineWidth = 16; ctx.stroke(pth); }
   ctx.restore();
 }
+function outlineSlots(ctx, t) {   // v2: the dashed white-pencil outline of my whole cross over the open gap; its missing span lights slot by slot
+  const al = ss(22.15, 22.6, t); if (al <= 0) return;
+  guide(ctx, t, 1, al);
+  const ol = HD.pathOf(HD.poly(crossOutline(CBHL, E - REST, FY + 34), true, 6));
+  let x = E - REST + S.left[3] * L;
+  CUTS.forEach((c, j) => { const len = c.u1 - c.u0, x0 = x; x += len; const k = ss(SLOTS[j], SLOTS[j] + .3, t); if (k <= 0) return;
+    const fl = 1 - ss(SLOTS[j] + .05, SLOTS[j] + .6, t);
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, FY - 200, len, 400); ctx.clip(); ctx.globalAlpha = k;
+    ctx.fillStyle = rgba(C.warm, .42 + .25 * fl); ctx.fill(ol);
+    ctx.setLineDash([16, 10]); ctx.lineDashOffset = -t * 16; ctx.strokeStyle = rgba(C.warm, 1); ctx.lineWidth = 5; ctx.stroke(ol); ctx.setLineDash([]);
+    ctx.globalCompositeOperation = 'screen'; ctx.strokeStyle = rgba([150, 120, 64], .5 + .4 * fl); ctx.lineWidth = 16; ctx.stroke(ol);
+    ctx.restore();
+    strokeG(ctx, HD.seg([x, FY + 34 - PW / 2 - 6], [x, FY + 34 + PW / 2 + 6], 3), 960 + j, PAT.chalk[2], { w: 3, ts: 2, te: 2, wob: .3 }); });
+}
 function glowAt(ctx, t, cx, cy, hl, seed) {   // a found piece: a warm halo and a few white-pencil sparkle ticks
   if (hl <= 0) return; const R = 140, pulse = .85 + .15 * Math.sin((t - B.back) * 5 + seed);
   ctx.save(); ctx.globalCompositeOperation = 'screen'; const g = ctx.createRadialGradient(cx, cy, 8, cx, cy, R);
   g.addColorStop(0, rgba([170, 140, 80], .6 * hl * pulse)); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore();
-  ctx.save(); ctx.globalAlpha = hl;
-  for (let i = 0; i < 7; i++) { const a = -Math.PI * (.12 + .76 * i / 6), r0 = 58 + 8 * HD.hash(i, seed), r1 = r0 + 20 + 14 * pulse;
-    strokeG(ctx, HD.seg([cx + Math.cos(a) * r0, cy + Math.sin(a) * r0 * .7], [cx + Math.cos(a) * r1, cy + Math.sin(a) * r1 * .7], 4), seed * 10 + i, PAT.chalk[2], { w: 3, ts: 4, te: 8, wob: .3 }); }
-  ctx.restore();
 }
 function drawCrumbs(ctx, t) {
   for (const q of FLECKS) { const u = t - q.t0; if (u < 0 || t > B.back + 2.5) continue;
@@ -654,17 +668,14 @@ function world(ctx, t) {
     drawFig(ctx, P.F, X && X.lie ? dc : null, X && !X.lie ? dc : null);
   });
   if (t >= 18.5 && t < 19.75) guide(ctx, t, eio((t - 18.5) / .55), 1 - ss(19.4, 19.75, t));
-  if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1, ss(24.15, 24.45, t) * (1 - .5 * ss(24.7, 25.5, t)));
+  outlineSlots(ctx, t);
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip;
     drawSaw(ctx, [lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
-  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), cu = (c.u0 + c.u1) / 2, hl = ss(B.back + .5 + (2 - c.k) * .12, B.back + .9 + (2 - c.k) * .12, t) * (1 - ss(FILL[c.k][1] + .1, FILL[c.k][1] + .6, t));
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), cu = (c.u0 + c.u1) / 2, hl = ss(21.45 + (2 - c.k) * .16, 21.85 + (2 - c.k) * .16, t);
     if (t < FILL[c.k][0]) { ctx.save(); ctx.globalAlpha = .5; ctx.drawImage(TX.shad, p.x + c.u0 - 10, p.y + 8, c.u1 - c.u0 + 20, 22); ctx.restore(); }
     drawCross(ctx, TX.gLie, c.u0, c.u1, p.x, p.y, p.a);
     glowAt(ctx, t, p.x + Math.cos(p.a) * cu, p.y + Math.sin(p.a) * cu, hl, 11 + c.k * 5); }
-  if (t >= 24.1) { const k = eo((t - 24.1) / .9), cx = E + G / 2, cy = FY + 34, R = 140 + 360 * k;
-    ctx.save(); ctx.globalCompositeOperation = 'screen'; const g = ctx.createRadialGradient(cx, cy, 20, cx, cy, R); g.addColorStop(0, rgba([150, 120, 64], .45 * (1 - .4 * k))); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore(); }
   const M = poseMe(t), F = M.F; F.me = true;
   const A = beamAim(t); F.lit = A.on * clamp(1 - Math.abs(A.c[0] - F.hip[0]) / 260);
   const myCross = X => { if (X) drawCross(ctx, X.lie ? TX.gLie : TX.gUp, X.u0, L, X.x, X.y, X.a); };
