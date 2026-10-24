@@ -118,7 +118,7 @@ function init() {
   gr.addColorStop(0, 'rgba(247,214,120,.95)'); gr.addColorStop(.35, 'rgba(244,206,108,.45)'); gr.addColorStop(.7, 'rgba(240,200,100,.12)'); gr.addColorStop(1, 'rgba(240,200,100,0)');
   gl.fillStyle = gr; gl.fillRect(0, 0, 256, 256);
   const c0 = Pilot.canvas(2, 2).getContext('2d');
-  PAT.tone = c0.createPattern(TONE, 'repeat'); PAT.toneD = c0.createPattern(TONE_D, 'repeat'); PAT.grain = c0.createPattern(GRAIN, 'repeat'); PAT.mottle = c0.createPattern(MOTTLE, 'repeat');
+  PAT.tone = c0.createPattern(TONE, 'repeat'); PAT.toneD = c0.createPattern(TONE_D, 'repeat'); PAT.grain = c0.createPattern(GRAIN, 'repeat'); { const big = Pilot.canvas(1024, 1024), bx = big.getContext('2d'); bx.imageSmoothingEnabled = true; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) bx.drawImage(MOTTLE, i * 1024, j * 1024, 1024, 1024); PAT.mottle = c0.createPattern(big, 'repeat'); }   // pre-scaled: an unscaled pattern fill is ~3x cheaper
   buildTimeline();
   CACHE = [0, 1].map(() => ({ c: Pilot.canvas(W, H), t: -1 }));
 }
@@ -735,7 +735,7 @@ function scene(ctx, t) {
   const cm = camAt(t);
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = C.field; ctx.fillRect(0, 0, W, H);
   // field mottling, drifting slowly with the camera (deep parallax)
-  ctx.save(); PAT.mottle.setTransform(new DOMMatrix().translate(-cm.x * .12, -cm.y * .12).scale(8)); ctx.fillStyle = PAT.mottle; ctx.fillRect(0, 0, W, H); ctx.restore();
+  ctx.save(); PAT.mottle.setTransform(new DOMMatrix().translate(Math.round(-cm.x * .12), Math.round(-cm.y * .12))); ctx.fillStyle = PAT.mottle; ctx.fillRect(0, 0, W, H); ctx.restore();
   // clouds (parallax .25)
   let z = setCam(ctx, cm, .25); camScale(z);
   for (const [x, y, sc, sd] of CLOUDS) cloud(ctx, x + t * 5, y + 120, sc, sd);

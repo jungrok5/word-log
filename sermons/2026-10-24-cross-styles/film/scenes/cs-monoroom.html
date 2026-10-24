@@ -116,7 +116,7 @@ function init() {
   const mw = 128, M = Pilot.canvas(mw, mw), mx = M.getContext('2d'), md = mx.createImageData(mw, mw);
   for (let y = 0; y < mw; y++) for (let x = 0; x < mw; x++) { const v = pnoise(x / 16, y / 16, 8) * .55 + pnoise(x / 8 + 3, y / 8, 16) * .3 + pnoise(x / 4, y / 4 + 5, 32) * .15, i = (y * mw + x) * 4, k = (v - .5) * 2.2;
     md.data[i] = md.data[i + 1] = md.data[i + 2] = k > 0 ? 255 : 10; md.data[i + 3] = Math.min(255, Math.abs(k) * 44); }
-  mx.putImageData(md, 0, 0); PAT.mottle = c0.createPattern(M, 'repeat');
+  mx.putImageData(md, 0, 0); { const big = Pilot.canvas(1024, 1024), bx = big.getContext('2d'); bx.imageSmoothingEnabled = true; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) bx.drawImage(M, i * 1024, j * 1024, 1024, 1024); PAT.mottle = c0.createPattern(big, 'repeat'); }   // pre-scaled: an unscaled pattern fill is ~3x cheaper
   buildTimeline();
   CACHE = [0, 1].map(() => ({ c: Pilot.canvas(W, H), t: -1 }));
 }
@@ -654,7 +654,7 @@ function scene(ctx, t) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   const sk = ctx.createLinearGradient(0, 0, 0, H); sk.addColorStop(0, C.mid); sk.addColorStop(.55, C.wall); sk.addColorStop(1, C.sky);
   ctx.fillStyle = sk; ctx.fillRect(0, 0, W, H);
-  ctx.save(); PAT.mottle.setTransform(new DOMMatrix().translate(-cm.x * .12, -cm.y * .12).scale(8)); ctx.fillStyle = PAT.mottle; ctx.fillRect(0, 0, W, H); ctx.restore();
+  ctx.save(); PAT.mottle.setTransform(new DOMMatrix().translate(Math.round(-cm.x * .12), Math.round(-cm.y * .12))); ctx.fillStyle = PAT.mottle; ctx.fillRect(0, 0, W, H); ctx.restore();
   const vis = (p, z) => { const cx = cm.x * p; return [cx - 540 / z - 80, cx + 540 / z + 80]; };
   let z = setCam(ctx, cm, .2); camScale(z); stormBand(ctx, ...vis(.2, z), t);
   z = setCam(ctx, cm, .45); camScale(z); ridge(ctx, ...vis(.45, z).map(v => v / 1));
