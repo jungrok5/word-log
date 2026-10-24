@@ -531,8 +531,8 @@ function rim(ctx, ACT, dx, dy, col, a) {   // the edge of the silhouette, lit
 }
 function withAlpha(ctx, a, fn) {
   if (a >= 1) return fn(ctx); if (a <= 0) return;
-  const g = TMP.getContext('2d'); g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H); g.setTransform(ctx.getTransform()); fn(g);
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = a; ctx.drawImage(TMP, 0, 0); ctx.restore();
+  const g = TMP.getContext('2d'), [y0, y1] = BAND; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, y0, W, y1 - y0); g.setTransform(ctx.getTransform()); fn(g);
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = a; ctx.drawImage(TMP, 0, y0, W, y1 - y0, 0, y0, W, y1 - y0); ctx.restore();
 }
 function drawAction(a, t, M, pils) {
   for (const P of pils) if (P.B) drawCross(a, 'other', 0, L, P.B.x, P.B.y, P.B.a, true);

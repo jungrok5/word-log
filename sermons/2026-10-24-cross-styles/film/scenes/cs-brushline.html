@@ -367,7 +367,7 @@ function mixSpec(A, Bs, k) {
 const TOPX = 312;
 function carryCross(F, left, a0) {
   const T = HD.pt(bearM(F), ...CONTACT), a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
-  const contact = L - Math.min(TOPX * F.s, left * L - 40);
+  const contact = left < .55 ? L - 50 : L - Math.min(TOPX * F.s, left * L - 40);   // the last, short cross is slung lower: its crossbar shows behind the shoulder, not hidden by the head
   return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false, gf: 30 * F.s, gn: 72 * F.s };
 }
 // far paw holds the post up behind the head; near paw holds it lower down (or carries the saw)
