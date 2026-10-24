@@ -64,7 +64,7 @@
   },
   {
    "id": "cs-clover",
-   "label": "11 파스텔 클로버 피크닉 (수채 색연필) · 키아트",
+   "label": "11 파스텔 클로버 피크닉 (수채 색연필)",
    "dur": 30.5,
    "audio": "scenes/sound/cs-clover.wav"
   },
@@ -100,7 +100,7 @@
   },
   {
    "id": "cs-gamecartoon",
-   "label": "17 모바일 게임 광고 카툰 (셀 셰이딩) · 키아트",
+   "label": "17 모바일 게임 광고 카툰 (셀 셰이딩)",
    "dur": 30.5,
    "audio": "scenes/sound/cs-gamecartoon.wav"
   }
