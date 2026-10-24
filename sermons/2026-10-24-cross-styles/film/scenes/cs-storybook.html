@@ -541,10 +541,10 @@ function buildWorld() {
   });
   // the ravine inside the gap: dark teal walls stepping down, mist, dark water far below
   SH.rav = sheet(E - 40, RT - 20, E + G + 40, WATER + 20, g => {
-    const r = rng(41), rg = g.createLinearGradient(0, RT, 0, WATER); rg.addColorStop(0, '#4a8a90'); rg.addColorStop(.25, '#2a5a64'); rg.addColorStop(.6, '#173a46'); rg.addColorStop(1, '#0f2a36');
+    const r = rng(41), rg = g.createLinearGradient(0, RT, 0, WATER); rg.addColorStop(0, '#1d4652'); rg.addColorStop(.3, '#10303c'); rg.addColorStop(.7, '#0a2230'); rg.addColorStop(1, '#061822');
     g.fillStyle = rg; g.fillRect(E - 40, RT - 20, G + 80, WATER - RT + 140);
-    for (const [col, inset, yTop] of [['#1f4652', 14, RT + 40], ['#173744', 46, RT + 200], ['#10283a', 84, RT + 420]]) {
-      const lw = [], rw = []; for (let y = yTop; y <= WATER + 40; y += 22) { lw.push([E + inset + r() * 16 + (y - yTop) * .07, y]); rw.push([E + G - inset - r() * 16 - (y - yTop) * .07, y]); }
+    for (const [col, inset, yTop] of [['#1a3f4b', 14, RT + 30], ['#123441', 40, RT + 150], ['#0c2835', 70, RT + 300], ['#081e2a', 100, RT + 450]]) {
+      const lw = [], rw = []; for (let y = yTop; y <= WATER + 40; y += 22) { lw.push([E + inset + r() * 14 + (y - yTop) * .13, y]); rw.push([E + G - inset - r() * 14 - (y - yTop) * .13, y]); }
       paint(g, smooth(rough([[E - 40, yTop - 30], ...lw, [E - 40, WATER + 60]], 5, inset, 12)), col, .9); paint(g, smooth(rough([[E + G + 40, yTop - 30], ...rw, [E + G + 40, WATER + 60]], 5, inset + 7, 12)), col, .9); }
   });
   // the embankment: a mossy walking surface, a rough earth face below it down to the water; the gap cut through both
@@ -626,10 +626,21 @@ function guide(ctx, t, k, al) {   // a dashed chalk outline of my whole cross ac
   const ol = crossOutline(E - REST, FY + 34), x1 = E - REST - 4 + (L + 8) * k;
   ctx.save(); ctx.globalAlpha = al; ctx.beginPath(); ctx.rect(E - REST - 10, FY - 200, x1 - (E - REST - 10), 400); ctx.clip();
   ctx.fillStyle = 'rgba(255,214,140,.14)'; ctx.fill(pathOf(ol));
-  const glow = ss(24.15, 24.45, t) * (1 - .5 * ss(24.7, 25.5, t));
+  const glow = 0;
   ctx.setLineDash([14, 9]); ctx.lineDashOffset = -t * 18; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.strokeStyle = `rgba(255,236,190,${.88 + .12 * glow})`; ctx.stroke(pathOf(ol)); ctx.setLineDash([]);
   if (glow > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = 14; ctx.strokeStyle = `rgba(255,200,110,${.3 * glow})`; ctx.stroke(pathOf(ol)); }
   ctx.restore();
+}
+// v2 ending: the dashed chalk outline of my whole cross over the open gap (ghostly); the span my cut pieces would make
+// lights slot by slot (22.9 / 23.6 / 24.3) — put together, exactly this long. Nothing is filled in; the gap stays open.
+function guideEnd(ctx, t) {
+  const a = ss(22.3, 22.8, t); if (a <= 0) return;
+  guide(ctx, t, eio((t - 22.3) / .5), a * .85);
+  for (const c of CUTS) { const t0 = SLOTS[c.k], k = ss(t0, t0 + .22, t); if (k <= 0) continue;
+    const x0 = E - REST + c.u0 + 2, x1 = E - REST + c.u1 - 2, y = FY + 34, knock = Math.exp(-Math.max(0, t - t0) * 3.5);
+    ctx.save(); ctx.globalAlpha = k; ctx.fillStyle = `rgba(255,214,130,${.3 + .2 * knock})`; ctx.fillRect(x0, y - PW / 2 + 2, x1 - x0, PW - 4);
+    ctx.setLineDash([14, 9]); ctx.lineDashOffset = -t * 18; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,238,195,.95)'; ctx.strokeRect(x0, y - PW / 2 + 2, x1 - x0, PW - 4); ctx.setLineDash([]);
+    ctx.restore(); soft(ctx, (x0 + x1) / 2, y, (x1 - x0) * .75 + 30, k * (.25 + .4 * knock)); }
 }
 function halo(ctx, x, y, R, a) { if (a <= 0) return; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(TX.halo, x - R, y - R, 2 * R, 2 * R); ctx.restore(); }
 
@@ -638,12 +649,14 @@ function world(ctx, t, cm, lk) {
   const xa = cm.x - 540 / cm.z - 60, xb = cm.x + 540 / cm.z + 60;
   drawSheet(ctx, SH.rav);
   // mist drifting in the ravine
-  ctx.save(); ctx.globalAlpha = .35; for (let k = 0; k < 3; k++) { const mx = E + G * (.2 + .3 * k) + 30 * Math.sin(t * .4 + k * 2), my = RT + 260 + k * 170; ctx.drawImage(MIST, mx - 200, my - 60, 400, 120); } ctx.restore();
+  ctx.save(); for (let k = 0; k < 4; k++) { const mx = E + G * (.25 + .17 * k) + 24 * Math.sin(t * .4 + k * 2), my = RT + 230 + k * 120; ctx.globalAlpha = .12 + .07 * k; ctx.drawImage(MIST, mx - 230, my - 50, 460, 100); } ctx.restore();   // depth haze, thicker further down
   drawSheet(ctx, SH.ground);
   // water below the embankment (open, bright turquoise like the lab's swamp)
   const wg = ctx.createLinearGradient(0, WATER - 40, 0, WATER + 700); wg.addColorStop(0, C.water0); wg.addColorStop(.3, C.water1); wg.addColorStop(1, C.water2);
   ctx.fillStyle = wg; ctx.fillRect(xa - 100, WATER, xb - xa + 200, 1200);
   ctx.fillStyle = 'rgba(30,80,92,.55)'; ctx.fillRect(xa - 100, WATER, xb - xa + 200, 70);   // the embankment's reflection
+  { const sg = ctx.createRadialGradient(E + G / 2, WATER + 10, 10, E + G / 2, WATER + 10, G * .7); sg.addColorStop(0, 'rgba(6,22,30,.85)'); sg.addColorStop(1, 'rgba(6,22,30,0)');   // the cleft's shadow on the water
+    ctx.save(); ctx.translate(E + G / 2, WATER + 10); ctx.scale(1, .22); ctx.translate(-(E + G / 2), -(WATER + 10)); ctx.fillStyle = sg; ctx.fillRect(E - G * .2, WATER + 10 - G * .7, G * 1.4, G * 1.4); ctx.restore(); }
   ctx.save(); ctx.lineCap = 'round';
   for (const d of DASH) { const xx = d.x + Math.sin(t * .6 + d.p) * 12; if (xx < xa - 100 || xx > xb) continue; const a = .5 + .5 * Math.sin(t * d.f + d.p); if (a < .15) continue;
     ctx.strokeStyle = `rgba(214,250,240,${a * d.a})`; ctx.lineWidth = d.w; ctx.beginPath(); ctx.moveTo(xx, d.y); ctx.lineTo(xx + d.l, d.y); ctx.stroke(); }
@@ -671,25 +684,23 @@ function world(ctx, t, cm, lk) {
   // the glows on top (unchalked): my cross's halo, the pieces' halos, the guide
   const M = LASTM;
   if (M && M.X) crossHalo(ctx, M.X, M.X.u0, L, M.X.a, 1);
-  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = PIECE_HL(c, t), cu = (c.u0 + c.u1) / 2;
-    halo(ctx, p.x + Math.cos(p.a) * cu, p.y + Math.sin(p.a) * cu, 70 + 60 * hl, .25 + .75 * hl * (.85 + .15 * Math.sin((t - B.back) * 5 + c.k)));
-    if (hl > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = '#ffd98a'; const cx = p.x + Math.cos(p.a) * cu, cy = p.y + Math.sin(p.a) * cu;
-      for (let n = 0; n < 7; n++) { const ph = frac(t * .45 + n / 7 + c.k * .3), mx = cx + Math.sin(n * 2.3 + t * 1.5) * 40 * (1 - ph) + (n - 3) * 10, my = cy - 10 - ph * 130, z = 5;
-        ctx.globalAlpha = hl * Math.sin(Math.PI * ph); ctx.beginPath(); ctx.moveTo(mx, my - z); ctx.lineTo(mx + z * .7, my); ctx.lineTo(mx, my + z); ctx.lineTo(mx - z * .7, my); ctx.fill(); } ctx.restore(); } }
-  const FX2 = fallX(t); if (FX2 && t < SPLASH) { const c0 = cpt(FX2, (FX2.u0 + L) / 2); halo(ctx, c0[0], c0[1], 120, .7); }
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = PIECE_HL(c, t), cu = (c.u0 + c.u1) / 2, cx = p.x + Math.cos(p.a) * cu, cy = p.y + Math.sin(p.a) * cu;
+    halo(ctx, cx, cy, 60, .22); if (hl > 0) soft(ctx, cx, cy, 160, .5 * hl * (.92 + .08 * Math.sin((t - B.back) * 2.2 + c.k))); }   // they never move; each glows softly where it lies
+  const FX2 = fallX(t); if (FX2 && t < SPLASH) { const c0 = cpt(FX2, (FX2.u0 + L) / 2), d = clamp((t - B.fall) / (SPLASH - B.fall)); halo(ctx, c0[0], c0[1], 120 * (1 - .5 * d), .7 * (1 - .6 * d)); }
   if (t >= 18.75 && t < 19.75) guide(ctx, t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
-  if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1);
+  guideEnd(ctx, t);
   drawFlecks(ctx, t);
   // the hit: chalk dust off the lip; then the splash far below
   if (t > B.fall && t < B.fall + 1.2) { const u = clamp((t - B.fall) / 1.1); ctx.save(); ctx.fillStyle = '#e4f4ec';
     for (let k = 0; k < 22; k++) { const a = Math.PI + (k / 21) * Math.PI, R = 14 + eo(u) * (70 + (k % 3) * 30), x = E + 10 + Math.cos(a) * R * 1.5, y = FY + 30 + Math.sin(a) * R * .55 - u * 16, z = 4;
       ctx.globalAlpha = .85 * (1 - u); ctx.beginPath(); ctx.moveTo(x, y - z); ctx.lineTo(x + z * .7, y); ctx.lineTo(x, y + z); ctx.lineTo(x - z * .7, y); ctx.fill(); } ctx.restore(); }
   if (t > SPLASH && t < SPLASH + 2) { const age = t - SPLASH, sx = E + G * .5; ctx.save();
-    for (let j = 0; j < 3; j++) { const a2 = age - j * .25; if (a2 < 0) continue; const k = Math.min(1, a2 / 1.5), rr = 20 + 130 * eo(k); ctx.strokeStyle = `rgba(226,252,244,${.7 * (1 - k)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(sx, WATER + 10, rr, rr * .18, 0, 0, TAU); ctx.stroke(); }
-    if (age < 1) { ctx.fillStyle = 'rgba(226,250,242,.95)'; for (const d of DROPS) { const px = sx + d.vx * age, py = WATER - d.vy * age + 900 * age * age; if (py > WATER + 6) continue; ctx.beginPath(); ctx.ellipse(px, py, d.s, d.s * 1.3, 0, 0, TAU); ctx.fill(); } }
+    for (let j = 0; j < 3; j++) { const a2 = age - j * .25; if (a2 < 0) continue; const k = Math.min(1, a2 / 1.5), rr = 14 + 70 * eo(k); ctx.strokeStyle = `rgba(226,252,244,${.45 * (1 - k)})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(sx, WATER + 10, rr, rr * .18, 0, 0, TAU); ctx.stroke(); }
+    if (age < 1) { ctx.fillStyle = 'rgba(226,250,242,.95)'; for (const d of DROPS) { const px = sx + d.vx * age * .5, py = WATER - d.vy * age * .5 + 450 * age * age; if (py > WATER + 6) continue; ctx.beginPath(); ctx.ellipse(px, py, d.s, d.s * 1.3, 0, 0, TAU); ctx.fill(); } }
     ctx.restore(); }
 }
-const PIECE_HL = (c, t) => ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t) * (1 - .6 * ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t));
+const PIECE_HL = (c, t) => PIECE_GLOW(c, t);
+function soft(ctx, x, y, R, a) { if (a <= 0) return; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(SOFTG, x - R, y - R, 2 * R, 2 * R); ctx.restore(); }
 let LASTM = null;
 function figures(ctx, t, pils) {
   for (const P of pils) if (P.B) drawCross(ctx, TX.xLie, 0, L, P.B.x, P.B.y, P.B.a);
@@ -710,7 +721,9 @@ function figures(ctx, t, pils) {
   }, null, M.X && !M.X.lie ? () => myCross(M.X) : null);
   if (M.c && t >= M.c.drop && t < M.c.drop + .09) { const c = M.c; ctx.strokeStyle = 'rgba(255,240,200,.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(c.cutX - 18, c.y - PW / 2 - 8); ctx.lineTo(c.cutX - 18, c.y + PW / 2 + 8); ctx.stroke(); }
   const FX = fallX(t);
-  if (FX && t < SPLASH + .05) { ctx.save(); if (FX.clip) { ctx.beginPath(); ctx.rect(E + 2, -4000, G - 4, 4000 + WATER + 6); ctx.clip(); } drawCross(ctx, TX.gLie, FX.u0, L, FX.x, FX.y, FX.a, 1, .7); ctx.restore(); }
+  if (FX && t < SPLASH + .05) { ctx.save(); if (FX.clip) { ctx.beginPath(); ctx.rect(E + 2, -4000, G - 4, 4000 + WATER + 6); ctx.clip(); }
+    const d = clamp((t - B.fall) / (SPLASH - B.fall)), c0 = cpt(FX, (FX.u0 + L) / 2), sc = 1 - .5 * d;   // it falls away into the cleft: smaller, hazier
+    ctx.translate(c0[0], c0[1]); ctx.scale(sc, sc); ctx.translate(-c0[0], -c0[1]); drawCross(ctx, TX.gLie, FX.u0, L, FX.x, FX.y, FX.a, 1 - .55 * d * d, .7); ctx.restore(); }
 }
 
 // ---------------- foreground plants (the lab's), motes ----------------
@@ -752,7 +765,7 @@ function endPlate(ctx, t) {   // a painted page comes over the picture
 }
 
 // ---------------- frame ----------------
-let DASH = [], DROPS = [], MOTES = [], PLANTS = [], MIST = null, SHADE = null, PLATE = null, FIG = {}, SKY = null, VIG = null, GRAIN = null;
+let SOFTG = null, DASH = [], DROPS = [], MOTES = [], PLANTS = [], MIST = null, SHADE = null, PLATE = null, FIG = {}, SKY = null, VIG = null, GRAIN = null;
 function draw(ctx, t) {
   const cm = camAt(t), lk = lightK(t);
   ctx.fillStyle = C.sky1; ctx.fillRect(0, 0, W, H);
@@ -779,6 +792,7 @@ async function init() {
   for (let t = B.fall; t < B.fall + 2; t += 1 / 120) { const X = fallX(t), c0 = cpt(X, (X.u0 + L) / 2); if (c0[1] > WATER) { SPLASH = t; break; } }
   TX.gUp = crossSprite(true, false); TX.gLie = crossSprite(true, true); TX.xUp = crossSprite(false, false); TX.xLie = crossSprite(false, true);
   FIG.c = Pilot.canvas(W, H); FIG.x = FIG.c.getContext('2d');
+  SOFTG = sprite(256, [[0, 'rgba(255,214,140,.9)'], [.35, 'rgba(255,190,110,.35)'], [1, 'rgba(255,170,90,0)']]);
   MIST = sprite(128, [[0, 'rgba(200,240,232,.6)'], [1, 'rgba(200,240,232,0)']]);
   SHADE = sprite(128, [[0, 'rgba(6,26,36,.8)'], [.6, 'rgba(6,26,36,.45)'], [1, 'rgba(6,26,36,0)']]);
   const g0 = Pilot.canvas(1, 1).getContext('2d'), sg = g0.createLinearGradient(0, 0, 0, H); sg.addColorStop(0, C.sky0); sg.addColorStop(.6, C.sky1); sg.addColorStop(1, C.near); SKY = sg;

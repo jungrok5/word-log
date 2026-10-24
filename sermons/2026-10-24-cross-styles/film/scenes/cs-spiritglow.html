@@ -24,8 +24,8 @@ const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
 const W = 1080, H = 1920, TAU = Math.PI * 2;
 const C = {
   top: '#03090c', trunk: '#040d10', ink: '#e4fbf5', fogD: '#2a7a72',
-  me: '#24404a', pil: '#1a2f36', skin: '#e3b48e', skinP: '#c79a7a', legs: '#142329', gold: '#ffbe62', goldL: '#fff1cc', goldD: '#d9782a',
-  steel: '#5f8f8b', handle: '#120b07', wood: '#0d2526', woodL: 'rgba(150,250,228,.8)',
+  me: '#2e4d59', pil: '#172a30', arm: '#43697a', skin: '#e3b48e', skinP: '#c79a7a', legs: '#142329', gold: '#ffbe62', goldL: '#fff1cc', goldD: '#d9782a',
+  steel: '#5f8f8b', handle: '#8a5a32', wood: '#0d2526', woodL: 'rgba(150,250,228,.8)',
 };
 const hx = Pilot.hex, mixHex = (a, b, k) => Pilot.rgb(Pilot.mix(hx(a), hx(b), k));
 const L = 520, PW = 34, CBX = L - 130, CBW = 32, CBH = 118, CBHL = 50;
@@ -62,7 +62,7 @@ function drawFig(ctx, F, mid, back) {
     if (!T) T = [S0[0] - f * 8 * s, S0[1] + 140 * s];
     const [el, hd] = ik(S0, T, 78 * s, 74 * s, elbowPick);
     poly(ctx, capsule(S0, el, 21 * s, 16 * s), c); poly(ctx, capsule(el, hd, 16 * s, 12 * s), c);
-    if (F.edge && c !== far) { ctx.strokeStyle = F.edge; ctx.lineWidth = 1.8; for (const q of [capsule(S0, el, 21 * s, 16 * s), capsule(el, hd, 16 * s, 12 * s)]) { ctx.beginPath(); ctx.moveTo(...q[0]); for (const v of q) ctx.lineTo(...v); ctx.closePath(); ctx.stroke(); } }
+    if (F.edge && c !== far) { ctx.strokeStyle = F.edge; ctx.lineWidth = 2.4; for (const q of [capsule(S0, el, 21 * s, 16 * s), capsule(el, hd, 16 * s, 12 * s)]) { ctx.beginPath(); ctx.moveTo(...q[0]); for (const v of q) ctx.lineTo(...v); ctx.closePath(); ctx.stroke(); } }
     const an = Math.atan2(hd[1] - el[1], hd[0] - el[0]);
     let pts;
     if (type === 'flat') pts = [[-4, -7], [10, -8], [24, -5], [28, 0], [22, 4], [-2, 6], [-8, 2]].map(([u, v]) => [hd[0] + f * u * s, hd[1] + v * s - 4 * s]);
@@ -101,7 +101,7 @@ function drawFig(ctx, F, mid, back) {
   ctx.strokeStyle = '#3a2418'; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(...Q(19, 13)); ctx.lineTo(...Q(29, 12)); ctx.stroke();   // brow
   if (mid) mid();
   if (F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist', skinF);
-  arm(sh, F.hands[1], col, F.hand?.[1] || 'fist', skin);
+  arm(sh, F.hands[1], F.armCol || col, F.hand?.[1] || 'fist', skin);
 }
 
 // ---------------- timeline: my path, the cuts (after cross-papercut) ----------------
@@ -522,8 +522,8 @@ function drawGate(ctx, t) {
 function groundGlow(ctx, x, y, w, a, warm) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; sprite(ctx, warm ? TX.warm : TX.glow, x, y, w, w * .2, a); ctx.restore(); }
 
 // ---------------- the action layer: figures, crosses, saw, pieces — then a bloom of their light ----------------
-let ACT, BLOOM, BLOOM2, TMP, RIM, BAND = [0, H];
-function rim(ctx, dx, dy, col, a) {   // the edge of the silhouette, lit
+let ACT, MEL, BLOOM, BLOOM2, TMP, RIM, BAND = [0, H];
+function rim(ctx, ACT, dx, dy, col, a) {   // the edge of the silhouette, lit
   const r = RIM.getContext('2d'), [y0, y1] = BAND, h = y1 - y0; if (h <= 0 || a <= 0) return;
   r.globalCompositeOperation = 'copy'; r.drawImage(ACT, 0, y0, W, h, 0, y0, W, h); r.globalCompositeOperation = 'destination-out'; r.drawImage(ACT, 0, y0, W, h, dx, y0 + dy, W, h);
   r.globalCompositeOperation = 'source-in'; r.fillStyle = col; r.fillRect(0, y0, W, h); r.globalCompositeOperation = 'source-over';
@@ -538,14 +538,16 @@ function drawAction(a, t, M, pils) {
   for (const P of pils) if (P.B) drawCross(a, 'other', 0, L, P.B.x, P.B.y, P.B.a, true);
   pils.slice().sort((p, q) => p.F.hip[0] - q.F.hip[0]).forEach(P => {
     const X = P.X, dc = g => X ? () => drawCross(g, 'other', X.u0, L, X.x, X.y, X.a, X.lie) : null;
-    P.F.edge = 'rgba(120,200,190,.35)'; P.F.skin = C.skinP; P.F.legCol = C.legs;
+    P.F.edge = 'rgba(4,14,18,.6)'; P.F.armCol = '#22404a'; P.F.skin = C.skinP; P.F.legCol = C.legs;
     withAlpha(a, P.F.alpha ?? 1, g => drawFig(g, P.F, X && X.lie ? dc(g) : null, X && !X.lie ? dc(g) : null));
   });
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip;
     drawSaw(a, [lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
   for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t); drawCross(a, 'mine', c.u0, c.u1, p.x, p.y, p.a, true); }
-  const F = M.F; F.col = C.me; F.edge = 'rgba(150,230,215,.45)'; F.skin = C.skin; F.legCol = C.legs; F.blink = (t % 3.7) > 3.58;
+}
+function drawMe(a, t, M) {
+  const F = M.F; F.col = C.me; F.armCol = C.arm; F.edge = 'rgba(4,14,18,.75)'; F.skin = C.skin; F.legCol = C.legs; F.blink = (t % 3.7) > 3.58;
   const myCross = X => { if (X) drawCross(a, 'mine', X.u0, L, X.x, X.y, X.a, X.lie); };
   drawFig(a, F, () => {
     if (M.X && M.X.lie) myCross(M.X);
@@ -628,17 +630,19 @@ function draw(ctx, t) {
   });
   // the glowing figures, then their bloom
   BAND = [Math.max(0, Math.floor((FY - 760) * z1 + ey1)), Math.min(H, Math.ceil((FY + 220) * z1 + ey1))];
-  const a = ACT.getContext('2d'); a.setTransform(1, 0, 0, 1, 0, 0); a.clearRect(0, BAND[0], W, BAND[1] - BAND[0]); a.setTransform(z1, 0, 0, z1, ex1, ey1);
-  a.lineCap = 'round'; a.lineJoin = 'round';
-  drawAction(a, t, M, pils);
   const hb = BAND[1] - BAND[0];
-  if (hb > 0) { const b = BLOOM.getContext('2d'), b2 = BLOOM2.getContext('2d');   // a cyan halo around every traveller (their silhouette, blurred)
-    b.globalCompositeOperation = 'source-over'; b.clearRect(0, 0, BLOOM.width, BLOOM.height); b.filter = 'blur(3px)'; b.drawImage(ACT, 0, 0, W, H, 0, 0, BLOOM.width, BLOOM.height); b.filter = 'none';
+  for (const [cv, fn, hal] of [[ACT, g => drawAction(g, t, M, pils), .8], [MEL, g => drawMe(g, t, M), 1]]) {
+    const a = cv.getContext('2d'); a.setTransform(1, 0, 0, 1, 0, 0); a.clearRect(0, BAND[0], W, hb); a.setTransform(z1, 0, 0, z1, ex1, ey1);
+    a.lineCap = 'round'; a.lineJoin = 'round'; fn(a);
+    if (hb <= 0) continue;
+    const b = BLOOM.getContext('2d'), b2 = BLOOM2.getContext('2d');   // a cyan halo around each traveller (their silhouette, blurred)
+    b.globalCompositeOperation = 'source-over'; b.clearRect(0, 0, BLOOM.width, BLOOM.height); b.filter = 'blur(3px)'; b.drawImage(cv, 0, 0, W, H, 0, 0, BLOOM.width, BLOOM.height); b.filter = 'none';
     b.globalCompositeOperation = 'source-in'; b.fillStyle = 'rgb(110,235,210)'; b.fillRect(0, 0, BLOOM.width, BLOOM.height); b.globalCompositeOperation = 'source-over';
     b2.clearRect(0, 0, BLOOM2.width, BLOOM2.height); b2.filter = 'blur(4px)'; b2.drawImage(BLOOM, 0, 0, BLOOM2.width, BLOOM2.height); b2.filter = 'none';
-    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .42; ctx.drawImage(BLOOM, 0, 0, W, H); ctx.globalAlpha = .38; ctx.drawImage(BLOOM2, 0, 0, W, H); ctx.restore(); }
-  ctx.drawImage(ACT, 0, BAND[0], W, hb, 0, BAND[0], W, hb);
-  rim(ctx, 2.6 * z1, 2.2 * z1, 'rgba(170,255,236,.95)', .9); rim(ctx, -2.2 * z1, -1.6 * z1, 'rgba(150,250,228,.9)', .6);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .42 * hal; ctx.drawImage(BLOOM, 0, 0, W, H); ctx.globalAlpha = .38 * hal; ctx.drawImage(BLOOM2, 0, 0, W, H); ctx.restore();
+    ctx.drawImage(cv, 0, BAND[0], W, hb, 0, BAND[0], W, hb);
+    rim(ctx, cv, 2.6 * z1, 2.2 * z1, 'rgba(170,255,236,.95)', .9 * hal); rim(ctx, cv, -2.2 * z1, -1.6 * z1, 'rgba(150,250,228,.9)', .6 * hal);
+  }
   layer(ctx, cm, 1, () => {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     if (M.X) { const cc = cpt(M.X, (M.X.u0 + L) / 2); sprite(ctx, TX.warm, cc[0], cc[1], 260, 260, .3); }
@@ -683,7 +687,7 @@ async function init() {
   TX.plate = Pilot.canvas(W, H); { const g = TX.plate.getContext('2d'), lg = g.createLinearGradient(0, 0, 0, H);
     lg.addColorStop(0, '#020709'); lg.addColorStop(.45, '#08201f'); lg.addColorStop(1, '#020709'); g.fillStyle = lg; g.fillRect(0, 0, W, H);
     const rg = g.createRadialGradient(540, 900, 20, 540, 900, 700); rg.addColorStop(0, 'rgba(60,170,150,.22)'); rg.addColorStop(1, 'rgba(60,170,150,0)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); grainOn(TX.plate, .45); }
-  ACT = Pilot.canvas(W, H); TMP = Pilot.canvas(W, H); RIM = Pilot.canvas(W, H); BLOOM = Pilot.canvas(W / 6, H / 6); BLOOM2 = Pilot.canvas(W / 18, H / 18);
+  ACT = Pilot.canvas(W, H); TMP = Pilot.canvas(W, H); RIM = Pilot.canvas(W, H); MEL = Pilot.canvas(W, H); BLOOM = Pilot.canvas(W / 6, H / 6); BLOOM2 = Pilot.canvas(W / 18, H / 18);
   const r = rng(505), [tx0, tx1] = extents(.3);
   for (let x = tx0; x < tx1; x += 7 + r() * 16) { const d = r(), y = 960 + Math.pow(r(), .7) * 60 - Math.abs(r() - .5) * 40 * d;
     TINY.push({ x, y, s: 4 + d * 6, a: .35 + r() * .5, ph: r() * TAU, p: [2, 3, 6][r() * 3 | 0], warm: Math.abs(x - GX * .3) < 90 }); }
