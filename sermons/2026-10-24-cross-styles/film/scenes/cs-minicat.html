@@ -254,7 +254,7 @@ function buildTimeline() {
   const OFF = [[-24, 2, -.04], [-70, -8, .05], [16, 8, -.06]];
   PIECES = CUTS.map((c, k) => ({ c, x: c.xl + OFF[k][0], y: FY - LIE + OFF[k][1], a: OFF[k][2], u0: c.u0, u1: c.u1 }));
   SAWLIE = { x: CUTS[2].cutX + 60, y: FY - LIE + 18 };
-  GX = E + G + 270;
+  GX = E + G + 640;
 }
 function pieceAt(P, t) {   // a cut piece where it fell (it slides a little off the cut and stays)
   const c = P.c, k = eo((t - c.drop) / .3);
@@ -367,7 +367,7 @@ function poseMe(t) {
   // at the edge: a sudden stop, step back for the others, come forward again to lay mine
   const EX = MEX_EDGE();
   if (t < 18.4) {
-    const bx = -190 * eio((tp - 12.9) / .7) + 190 * eio((tp - 17.55) / .7), x = EX + bx;
+    const bx = -150 * eio((tp - 12.9) / .7) + 150 * eio((tp - 17.55) / .7), x = EX + bx;
     const moving = (tp > 12.9 && tp < 13.6) || (tp > 17.55 && tp < 18.25);
     let F = moving ? walkSpec(x, FY, 1, x / 60, 60, { lean: .12, head: .05, bob: 3 }) :   // backing away, still facing the gap
        standSpec(x, FY, 1, { lean: .1, head: tp < 13 ? -.08 : .05 });
@@ -410,33 +410,33 @@ function pilX(j, t) {
   const P = PIL[j], T = B.bridges[j], x46 = P.x0 + 34 * 4.6, xb = x46 + 15 * (11.4 - 4.6);   // they plod on while I race ahead (and stay out of sight)
   if (t <= 4.6) return P.x0 + 34 * t;
   if (t <= 11.4) return x46 + 15 * (t - 4.6);
-  const k = clamp((t - 11.4) / (T - .35 - 11.4)); return lerp(xb, E - REST - HIPOFF + 30, k * k * (1.6 - .6 * k));   // then they come on, steadily, to the edge
+  const k = clamp((t - 11.4) / (T - .25 - 11.4)); return lerp(xb, E - REST - HIPOFF + 30, k * k * (1.6 - .6 * k));
 }
-function pilState(j, t) {
+function pilState(j, t) {   // lay (T−.25…T) → over (…T+.5) → pull back (…T+.8) → shoulder (…T+.95) → off into the light, clear of the gap by ≈T+1.25
   const tp = t12(t), P = PIL[j], T = B.bridges[j], yb = BY - 20, top = yb - PWL / 2 - 2;
   const tag = F => { F.pal = PILPAL; return F; };
   const carry = (x, stride = 70, o = {}) => carrySpec(tag(walkSpec(x, BY, 1, P.ph + x / stride, stride, { lean: .3, head: .34, bob: 3, face: 'strain', ...o })), 0, GREY, true);
   const ns = F => { F.strap = null; return F; };
-  if (t < T - .35) { const x = pilX(j, tp); return { F: carry(x, tp > 11.4 ? 130 : 70, tp > 11.4 ? { lean: .24, head: .2, face: 'calm' } : {}) }; }
+  if (t < T - .25) { const x = pilX(j, tp); return { F: carry(x, tp > 11.4 ? 130 : 70, tp > 11.4 ? { lean: .24, head: .2, face: 'calm' } : {}) }; }
   const XB = lying(E - REST, yb);
   const LAY = tag({ ...crouchSpec(E - REST - HIPOFF + 30, BY, 1, { lean: .9, head: .3, crouch: 20 }) }); LAY.hands = [xpt(XB, 56), xpt(XB, 20)];
-  if (t < T) { const F0 = carry(E - REST - HIPOFF + 30), k = eio((tp - T + .35) / .35), F = ns(tag(mixSpec(F0, LAY, k))), Xm = mixX(F0.X, XB, eio((t - T + .35) / .35));
+  if (t < T) { const F0 = carry(E - REST - HIPOFF + 30), k = eio((tp - T + .25) / .25), F = ns(tag(mixSpec(F0, LAY, k))), Xm = mixX(F0.X, XB, eio((t - T + .25) / .25));
     F.back = () => drawCross(ctxNow, Xm, GREY); F.hands = [xpt(Xm, lerp(GRIPU, 56, k)), xpt(Xm, lerp(GRIPU2, 20, k))]; return { F }; }
   const xs0 = E - 30, xs1 = E + G + 60;
-  if (t < T + .25) { const F = tag(mixSpec(LAY, standSpec(xs0, top, 1, { lean: .08 }), eio((tp - T) / .25))); return { F, bridge: XB, onBridge: true }; }
-  if (t < T + .8) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .25) / .55))), gy = x < E + G + 10 ? top : BY;
-    const F = tag(walkSpec(x, gy, 1, P.ph + x / 120, 120, { lean: .1, head: -.02, bob: 6, lift: 14 })); return { F, bridge: XB, onBridge: x < E + G + 10 }; }
+  if (t < T + .15) { const F = tag(mixSpec(LAY, standSpec(xs0, top, 1, { lean: .08 }), eio((tp - T) / .15))); return { F, bridge: XB, onBridge: true }; }
+  if (t < T + .5) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .15) / .35))), gy = x < E + G + 10 ? top : BY;
+    const F = tag(walkSpec(x, gy, 1, P.ph + x / 140, 140, { lean: .12, head: -.02, bob: 8, lift: 18 })); return { F, bridge: XB, onBridge: x < E + G + 10 }; }
   // from the far side: turn, crouch, take the top end and pull it back across
   const pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, [E + G, yb], -.08 * k);
   const PULLS = k => { const X = pullX(k), x = E - REST + L + PULL * k + 70; const F = tag(crouchSpec(x, BY, -1, { lean: .8, head: .25, crouch: 16 }));
     F.hands = [xpt(X, L - 50), xpt(X, L - 12)]; return [F, X]; };
-  if (t < T + 1.15) { const k = eio(clamp((tp - T - .8) / .35)), [F, X] = PULLS(k), k0 = eio((tp - T - .8) / .12);
+  if (t < T + .8) { const k = eio(clamp((tp - T - .5) / .3)), [F, X] = PULLS(k), k0 = eio((tp - T - .5) / .12);
     return { F: k0 < 1 ? tag(mixSpec(standSpec(xs1, BY, 1), F, k0)) : F, bridge: X, pulling: true }; }
   const [Fp, Xp] = PULLS(1), xg = Fp.x;
-  if (t < T + 1.35) { const k = eio((tp - T - 1.15) / .2), Fc = carry(xg, 120), F = ns(tag(mixSpec(Fp, Fc, k))), Xm = mixX(Xp, Fc.X, k);
+  if (t < T + .95) { const k = eio((tp - T - .8) / .15), Fc = carry(xg, 120), F = ns(tag(mixSpec(Fp, Fc, k))), Xm = mixX(Xp, Fc.X, k);
     F.back = () => drawCross(ctxNow, Xm, GREY); F.hands = [xpt(Xm, lerp(L - 50, GRIPU, k)), xpt(Xm, lerp(L - 12, GRIPU2, k))]; return { F }; }
-  const x = lerp(xg, GX, clamp((tp - T - 1.35) / .45)), F = carry(x, 120, { lean: .2, head: .1, face: 'calm' });
-  F.alpha = 1 - ss(T + 1.6, T + 1.9, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 70;
+  const x = lerp(xg, GX, eio(clamp((tp - T - .95) / .45))), F = carry(x, 150, { lean: .2, head: .1, face: 'calm', stance: .45, lift: 16, bob: 8 });
+  F.alpha = 1 - ss(T + 1.25, T + 1.5, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 90;
   return { F };
 }
 
@@ -450,7 +450,7 @@ function camAt(t) {
   c = mixCam(c, at(CUTS[0]), Pilot.win(t, CUTS[0].s - .05, CUTS[0].up1 + .25, .32, .35));
   c = mixCam(c, mixCam(at(CUTS[1]), at(CUTS[2]), eio((t - 9.9) / .55)), Pilot.win(t, CUTS[1].s - .1, CUTS[2].up1 + .2, .3, .4));
   if (t < 12.4) c.x = Math.min(c.x, E - 540 / c.z - 20 + 1500 * ss(11.5, 12.4, t) * ss(11.5, 12.4, t));   // the gap stays out of frame until I reach it
-  if (t >= 12) c = mixCam(c, { x: E + 230, y: WL - 330, z: .86 }, eio((t - 12.05) / .95));
+  if (t >= 12) c = mixCam(c, { x: E + 430, y: WL - 330, z: .72 }, eio((t - 12.05) / .95));
   if (t >= 18.1) c = mixCam(c, { x: E + 150, y: WL - 260, z: 1.05 }, eio((t - 18.1) / .5));
   if (t >= B.fall) c = mixCam(c, { x: E + 120, y: WL - 120, z: 1.35 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .6) c = mixCam(c, { x: E + 140, y: WL - 260, z: 1.05 }, eio((t - B.fall - .6) / .7));

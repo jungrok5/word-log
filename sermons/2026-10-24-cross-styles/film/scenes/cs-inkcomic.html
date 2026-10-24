@@ -358,30 +358,29 @@ function poseMe(t) {
   const carry = (F, lu0, saw) => { F.back = { u0: lu0 }; F.saw = saw ? 'strap' : null; return F; };
   for (const c of CUTS) {
     if (t < c.s || t >= c.up1) continue;
-    const STL = (u, saw) => carry(standSpec(c.mx, FY, -1, { sag: 10, head: .2 }), u, saw), STR = (u, saw) => carry(standSpec(c.mx, FY, 1, { sag: 10, head: .2 }), u, saw);
-    // turning round on all fours with the cross on my back: four feet planted, the body (and the load on it) squashed to a front view
-    const turnRound = (A, Bs, k, u, saw) => { const F = mixSpec(A, Bs, k); F.back = { u0: u }; F.saw = saw ? 'strap' : null; return F; };
-    // sitting up (k 0→1) from standing facing left: the cross slides off my back onto my lap, the saw comes out of the strap
-    const sitUp = (k, u, ST, saw0t) => { const { F: SP } = sawSit(c, saw0t), F = mixSpec({ ...ST, back: null, saw: null }, SP, k), Xm = mixX(backCross(ST, u), { ...c.X, u0: u }, k, 1);
-      const sv = strapSaw(ST), sg = sawState(c, saw0t).grip, sw = lerp2(sv.grip, sg, k), sa = lerp(sv.ang, CUT_ANG, k), cp = xpt(Xm, lerp(CBX - 40, c.u1 + 46, k)), lw = legsOf(ST);
-      F.legs[0] = k < .25 ? lerp2(lw[0], sw, k / .25) : sw; F.legs[1] = k < .25 ? lerp2(lw[1], cp, k / .25) : cp;
-      F.mid = () => drawCross(INKG, Xm, true); F.preNear = () => drawSaw(INKG, sw, sa); return F; };
-    const sitDown = (k, uA, uB, ST, keepSaw, dropT) => {   // the reverse: lap → back, saw → strap (or the saw stays on the road)
-      const { F: A } = sawSit(c, dropT), F = mixSpec(A, { ...ST, back: null, saw: null }, k), Xm = mixX({ ...c.X, u0: uB }, backCross(ST, uB), k, -1);
-      const sg = sawState(c, dropT).grip, sv = strapSaw(ST), cp = xpt(Xm, lerp(c.u1 + 46, CBX - 40, k)), lw = legsOf(ST);
-      const sw = keepSaw ? lerp2(sg, sv.grip, k) : null, sa = lerp(CUT_ANG, sv.ang, k), free = keepSaw ? sw : lerp2(A.legs[0], lw[0], k);
-      F.legs[0] = k > .75 ? lerp2(free, lw[0], (k - .75) / .25) : free; F.legs[1] = k > .75 ? lerp2(cp, lw[1], (k - .75) / .25) : cp;
-      F.mid = () => drawCross(INKG, Xm, true); if (keepSaw) F.preNear = () => drawSaw(INKG, sw, sa); return F; };
-    if (c.k === 2) {   // still sitting from cut 2: saw again; then down on all fours (the saw stays on the road), turn back to the road
+    // put down / pick up = turn round and sit (or the reverse) in one movement: the cross keeps its own direction the whole time
+    // (on my back walking right its foot trails left; across my lap facing left its foot sticks out in front of me), so it only
+    // slides between my back and my lap; four feet planted while the body squashes through a front view
+    const handle = (A, Bs, k, Xm, sw, sa, crossFrom, crossTo) => {
+      const F = mixSpec(A, Bs, k), cp = xpt(Xm, lerp(crossFrom, crossTo, k)), right = F.f > 0;
+      const la = A.legs || legsOf(A), lb = Bs.legs || legsOf(Bs);
+      F.legs[right ? 0 : 1] = cp; if (sw) F.legs[right ? 1 : 0] = sw; else F.legs[right ? 1 : 0] = lerp2(right ? lb[1] : la[0], right ? lb[1] : la[0], 0);
+      const walkEnd = A.sit ? lb : la, wk = A.sit ? clamp((k - .75) / .25) : clamp(1 - k / .25);   // paws leave / meet the road at the walking end
+      if (wk > 0) { F.legs[0] = lerp2(F.legs[0], walkEnd[A.sit ? 0 : 0], wk * (A.sit ? 1 : 1)); F.legs[1] = lerp2(F.legs[1], walkEnd[1], wk); }
+      F.mid = () => drawCross(INKG, Xm, true);
+      if (sw) { if (right) F.behind = () => drawSaw(INKG, sw, sa); else F.preNear = () => drawSaw(INKG, sw, sa); }
+      return F; };
+    if (c.k === 2) {   // still sitting from cut 2: saw again; then up on all fours with the short cross (the saw stays on the road)
       if (t < c.drop) { const { F, st } = sawSit(c, tp); return { F, lie: { ...st.X, u0: CUTS[1].u1 }, c, kerf: t >= c.saw0 ? st.kp : 0 }; }
-      const k = (tp - c.drop) / (c.up1 - c.drop);
-      if (k < .5) return { F: sitDown(eio(k / .5), c.u1, c.u1, STL(c.u1, false), false, c.drop - .01), c };
-      return { F: turnRound(STL(c.u1, false), STR(c.u1, false), eio((k - .5) / .5), c.u1, false), c };
+      const k = eio((tp - c.drop) / (c.up1 - c.drop)), { F: A } = sawSit(c, c.drop - .01), Bw = carry(walk(c.up1, c.mx), c.u1, false);
+      const Xm = mixX({ ...c.X, u0: c.u1 }, backCross(Bw, c.u1), k);
+      return { F: handle(A, { ...Bw, back: null, saw: null }, k, Xm, null, 0, c.u1 + 46, CBX - 40), c };
     }
-    if (t < c.s + c.d) {   // stop, turn round on all fours, then sit up: cross onto my lap, saw out of the strap
-      const k = (tp - c.s) / c.d, W0 = carry(walk(c.s, c.mx), c.u0, true);
-      if (k < .5) return { F: turnRound({ ...W0, legs: legsOf(W0) }, STL(c.u0, true), eio(k / .5), c.u0, true), c };
-      return { F: sitUp(eio((k - .5) / .5), c.u0, STL(c.u0, true), c.saw0), c };
+    const W0 = carry(walk(c.s, c.mx), c.u0, true);
+    if (t < c.s + c.d) {   // turn round and sit: the cross slides off my back onto my lap, the saw comes out of the strap
+      const k = eio((tp - c.s) / c.d), { F: SP } = sawSit(c, c.saw0), Xm = mixX(backCross(W0, c.u0), { ...c.X, u0: c.u0 }, k);
+      const sv = strapSaw(W0), sg = sawState(c, c.saw0).grip, sw = lerp2(sv.grip, sg, k), sa = lerp(sv.ang, CUT_ANG, k);
+      return { F: handle({ ...W0, back: null, saw: null, legs: legsOf(W0) }, SP, k, Xm, sw, sa, CBX - 40, c.u1 + 46), c };
     }
     if (t < c.drop) { const { F, st } = sawSit(c, tp); return { F, lie: { ...st.X, u0: c.u0 }, c, kerf: t >= c.saw0 ? st.kp : 0 }; }
     if (c.k === 1) {   // after cut 2: stay sitting and shuffle forward along the post for one more
@@ -389,10 +388,10 @@ function poseMe(t) {
       F.legs[2] = [F.legs[2][0], FY - Math.max(0, Math.sin(ph * TAU * 2)) * 10];
       return { F, lie: { ...lapCross(mx, c.u1, CUTS[2].u1), u0: c.u1 } };
     }
-    // cut 1 done: lie down with the cross back on my back and the saw back in the strap, then turn round to the road
-    const k = (tp - c.drop) / (c.up1 - c.drop);
-    if (k < .5) return { F: sitDown(eio(k / .5), c.u0, c.u1, STL(c.u1, true), true, c.drop - .01), c };
-    return { F: turnRound(STL(c.u1, true), STR(c.u1, true), eio((k - .5) / .5), c.u1, true), c };
+    // cut 1 done: up on all fours and round to the road, the cross sliding back up onto my back, the saw back into the strap
+    const k = eio((tp - c.drop) / (c.up1 - c.drop)), { F: A } = sawSit(c, c.drop - .01), Bw = carry(walk(c.up1, c.mx), c.u1, true);
+    const Xm = mixX({ ...c.X, u0: c.u1 }, backCross(Bw, c.u1), k), sv = strapSaw(Bw), sg = sawState(c, c.drop - .01).grip, sw = lerp2(sg, sv.grip, k), sa = lerp(CUT_ANG, sv.ang, k);
+    return { F: handle(A, { ...Bw, back: null, saw: null }, k, Xm, sw, sa, c.u1 + 46, CBX - 40), c };
   }
   if (t < 12) return { F: carry(walk(tp), u0, t < CUTS[2].drop) };
   // at the edge: a sudden stop (my nose over the gap), back off for the others, come forward again to lay mine
@@ -450,20 +449,20 @@ function pilState(j, t) {
     F.legs[0] = xpt(Xm, lerp(CBX - 40, 30, k)); F.legs[1] = xpt(Xm, lerp(CBX - 80, 80, k)); if (k < .2) { const lw = legsOf(F0); F.legs[0] = lerp2(lw[0], F.legs[0], k / .2); F.legs[1] = lerp2(lw[1], F.legs[1], k / .2); }
     F.mid = () => drawCross(INKG, Xm, false); return { F }; }
   const xs0 = EX + 40, xs1 = E + GAP + 230, top = yb - PWL / 2 - 4;
-  if (t < T + .6) { const k0 = eio(clamp((tp - T) / .12)), x = lerp(xs0, xs1, eio(clamp((tp - T - .05) / .55))), on = x - 180 < E + GAP && x + 160 > E;
+  if (t < T + .5) { const k0 = eio(clamp((tp - T) / .12)), x = lerp(xs0, xs1, eio(clamp((tp - T - .05) / .45))), on = x - 180 < E + GAP && x + 160 > E;
     const W = tag(walkSpec(x, on ? top : BY, 1, P.ph + x / 120, { stride: 26, head: .2, sag: 0 })); return { F: k0 < 1 ? tag(mixSpec(LAY, W, k0)) : W, bridge: XB, onBridge: on }; }
   // from the far side: turn round and sit, forepaws on the top end, haul it back across
   const pullX = k => ({ ...XB, x: XB.x + PULL * k });
   const PULLS = k => { const X = pullX(k), tip = xpt(X, L - 20), rx = tip[0] + 170; return [tag(sitSpec(rx, BY, -1, [xpt(X, L - 10), xpt(X, L - 60)], { head: .35, rot: .05, sit: .45 })), X]; };
-  if (t < T + .95) { const k = eio(clamp((tp - T - .65) / .3)), [F, X] = PULLS(k), k0 = eio(clamp((tp - T - .6) / .15));
+  if (t < T + .75) { const k = eio(clamp((tp - T - .55) / .2)), [F, X] = PULLS(k), k0 = eio(clamp((tp - T - .5) / .1));
     return { F: k0 < 1 ? tag(mixSpec(tag(standSpec(xs1, BY, 1)), F, k0)) : F, bridge: X }; }
   const [Fp, Xp] = PULLS(1), xg = Fp.x + 60;
-  if (t < T + 1.25) { const k = eio((tp - T - .95) / .3), Fc = carry(xg), F = tag(mixSpec(Fp, { ...Fc, back: null }, k)), Xm = mixX(Xp, backCross(Fc, 0), k);
+  if (t < T + 1.0) { const k = eio((tp - T - .75) / .25), Fc = carry(xg), F = tag(mixSpec(Fp, { ...Fc, back: null }, k)), Xm = mixX(Xp, backCross(Fc, 0), k);
     const cp = xpt(Xm, lerp(L - 10, CBX - 40, k)); if (F.f < 0) F.legs[0] = cp; else F.legs[1] = cp;
     if (k > .75) { const lw = legsOf(Fc); F.legs = F.legs.map((p, i) => lerp2(p, lw[i], (k - .75) / .25)); }
     F.mid = () => drawCross(INKG, Xm, false); return { F }; }
-  const x = lerp(xg, GX, clamp((tp - T - 1.25) / .45)), F = carry(x, { stride: 26, head: .05 });
-  F.alpha = 1 - ss(T + 1.5, T + 1.8, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 120;
+  const x = lerp(xg, GX, clamp((tp - T - 1.0) / .45)), F = carry(x, { stride: 26, head: .05 });
+  F.alpha = 1 - ss(T + 1.3, T + 1.6, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 120;
   return { F };
 }
 
