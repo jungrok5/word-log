@@ -359,7 +359,8 @@ function poseMe(t) {
   if (t < 18.4) {
     const bx = -190 * eio((tp - 12.9) / .7) + 190 * eio((tp - 17.55) / .7), x = EX + bx;
     const moving = (tp > 12.9 && tp < 13.6) || (tp > 17.55 && tp < 18.25);
-    let F = moving ? walkSpec(x, FY, 1, x / 60, 60, { lean: .12, head: .05, bob: 3 }) : standSpec(x, FY, 1, { lean: .1, head: tp < 13 ? -.08 : .05 });
+    let F = moving ? walkSpec(x, FY, 1, x / 60, 60, { lean: .12, head: .05, bob: 3 }) :   // backing away, still facing the gap
+       standSpec(x, FY, 1, { lean: .1, head: tp < 13 ? -.08 : .05 });
     if (tp < 12.9) { F.lean = -.1 * Math.sin(Math.PI * clamp((tp - 12) / .5)) + .08; F.face = tp < 12.8 ? 'shock' : 'calm'; }
     if (!moving && tp > 13.6) { F.head = .05 + .08 * Math.sin(tp * 1.3); F.face = 'look'; }
     return { F: carried(F, u0, false) };
