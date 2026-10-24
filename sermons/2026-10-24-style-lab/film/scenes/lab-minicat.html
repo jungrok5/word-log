@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>왜 나만 · 09 미니멀 고양이</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hi+Melody&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 09 — minimal line on a flat field. One cornflower-blue field (the whole frame is still water) with a faint paper tooth;
+   a thin, steady black hand line; a small white cat in cream pyjamas; the soft lavender of reflections (clouds, the moon,
+   the cat itself, mirrored and simplified into blobs with a part-outline); sparse broken ripple arcs. Almost nothing
+   moves: the cat trudges on twos under a big cloth bundle, each step leaves a small ring; ahead a little sparkler light
+   catches (white rays, tiny star sparks, a pale warm core — and its reflection); the bundle slips off and lands on the
+   water, and rings widen slowly across the field. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng, noise } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const C = { field: '#5680bd', lav: '#7c91c8', lavL: '#a9b2d4', moon: '#b3b9c9', ink: '#1a1c28', white: '#fbfcfd', cream: '#f2e8c6', cream2: '#e3d8b4', refl: '#8d9bcb', refl2: '#a7afd0' };
+const t12 = t => Math.floor(t * 12 + 1e-6) / 12;
+const G = 1130, FS = 1.3, CXF = 540;    // feet on the water; the cat is drawn scaled up around (CXF, G)
+let LWK = 1;
+
+// ---------------- hand line (steady: a fixed tremor, no boil) ----------------
+const wob = (p, a = 1) => [p[0] + (noise(p[0] * .05 + 40, p[1] * .05) - .5) * 1.6 * a, p[1] + (noise(p[0] * .05, p[1] * .05 + 90) - .5) * 1.6 * a];
+function chaikin(pts, closed, it = 3) {
+  for (let r = 0; r < it; r++) { const o = [], n = pts.length, m = closed ? n : n - 1; if (!closed) o.push(pts[0]);
+    for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); }
+    if (!closed) o.push(pts[n - 1]); pts = o; }
+  return pts;
+}
+function resample(pts, closed, step = 10) {
+  const o = [], n = pts.length, m = closed ? n : n - 1;
+  for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n], d = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(d / step));
+    for (let j = 0; j < k; j++) o.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); }
+  if (!closed) o.push(pts[n - 1]); return o;
+}
+function pathOf(pts, closed = true) { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); if (closed) p.closePath(); return p; }
+// o.part = [from, to] (0..1 along the outline): stroke only that stretch (the reflections' half-outline)
+function ink(ctx, pts, o = {}) {
+  const closed = o.closed !== false, sm = o.smooth !== false && pts.length > 2;
+  const P = resample(sm ? chaikin(pts, closed) : pts, closed, 9).map(p => wob(p, o.amp ?? 1)), path = pathOf(P, closed);
+  if (o.fill) { ctx.fillStyle = o.fill; ctx.fill(path); }
+  if (o.lw !== 0) { ctx.strokeStyle = o.col || C.ink; ctx.lineWidth = (o.lw || 3) * LWK; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    if (o.part) { const n = P.length, a = Math.floor(o.part[0] * n), b = Math.floor(o.part[1] * n), q = []; for (let i = a; i <= b; i++) q.push(P[((i % n) + n) % n]); ctx.stroke(pathOf(q, false)); }
+    else ctx.stroke(path); }
+  return path;
+}
+const ell = (cx, cy, rx, ry, n = 24) => { const o = []; for (let i = 0; i < n; i++) { const a = i / n * TAU; o.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); } return o; };
+const rot2 = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
+const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+function tube(line, wd) {
+  const L = [], R = [];
+  for (let i = 0; i < line.length; i++) { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1]; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    L.push([line[i][0] - dy * wd[i], line[i][1] + dx * wd[i]]); R.push([line[i][0] + dy * wd[i], line[i][1] - dx * wd[i]]); }
+  return L.concat(R.reverse());
+}
+// an irregular lavender blob (cloud reflection)
+function blobPts(cx, cy, rx, ry, seed, n = 18) { const r = rng(seed), o = []; for (let i = 0; i < n; i++) { const a = i / n * TAU, k = .72 + r() * .5 + .18 * Math.sin(a * 3 + seed);
+  o.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k * (.8 + .4 * r())]); } return o; }
+
+// ---------------- prebuilt ----------------
+let BG, GRAIN, GLOW, STEPS = [];
+function init() {
+  BG = Pilot.canvas(W, H); const b = BG.getContext('2d');
+  b.fillStyle = C.field; b.fillRect(0, 0, W, H);
+  // very faint tonal drift (paper, not gradient)
+  const mw = 60, mh = 106, m = Pilot.canvas(mw, mh), mx = m.getContext('2d'), md = mx.createImageData(mw, mh);
+  for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) { const v = Pilot.fbm(x * .08 + 9, y * .08 + 2, 3), i = (y * mw + x) * 4, k = (v - .5) * 2;
+    md.data[i] = md.data[i + 1] = md.data[i + 2] = k > 0 ? 255 : 0; md.data[i + 3] = Math.abs(k) * 16; }
+  mx.putImageData(md, 0, 0); b.drawImage(m, 0, 0, W, H);
+  // moon (a soft grey-lavender disc)
+  ink(b, ell(850, 670, 64, 50, 20).map((q, i) => [q[0] + Math.sin(i * 1.7) * 3, q[1] + Math.cos(i * 2.3) * 3]), { fill: C.moon, lw: 3 });
+  // cloud reflections: lavender, part-outlined along their lower edges
+  for (const [cx, cy, rx, ry, sd, part] of [[960, 1010, 170, 70, 11, [.0, .55]], [1040, 1110, 90, 40, 5, [.05, .5]], [150, 1560, 220, 80, 7, [-.05, .6]], [360, 1640, 140, 34, 13, [0, .5]], [60, 820, 110, 30, 17, [0, .5]]])
+    ink(b, blobPts(cx, cy, rx, ry, sd, 20), { fill: C.lav, lw: 3, part });
+  // reflected stars: a few tiny white specks
+  const r = rng(21); b.fillStyle = 'rgba(240,244,255,.8)'; for (let i = 0; i < 24; i++) { b.beginPath(); b.arc(r() * W, 160 + r() * 1600, .9 + r() * 1.4, 0, TAU); b.fill(); }
+  // paper tooth: fine, light
+  GRAIN = Pilot.canvas(W, H); const g = GRAIN.getContext('2d'), gd = g.createImageData(W, H), rr = rng(9);
+  for (let i = 0; i < W * H; i++) { const v = rr() - .5, j = i * 4; if (v > 0) { gd.data[j] = gd.data[j + 1] = gd.data[j + 2] = 255; gd.data[j + 3] = v * 34; } else { gd.data[j] = 10; gd.data[j + 1] = 20; gd.data[j + 2] = 50; gd.data[j + 3] = -v * 38; } }
+  g.putImageData(gd, 0, 0);
+  GLOW = Pilot.canvas(128, 128); { const x = GLOW.getContext('2d'), gr = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(255,246,214,1)'); gr.addColorStop(.25, 'rgba(255,238,196,.55)'); gr.addColorStop(.6, 'rgba(240,226,200,.12)'); gr.addColorStop(1, 'rgba(230,220,210,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); }
+  // footfalls: when each foot lands (for the step rings)
+  let prev = null;
+  for (let i = 0; i <= 26 * 12; i++) { const t = i / 120; if (t > B.stop) break; const ph = pose(t).ph;
+    if (prev != null) for (const off of [0, .5]) if (Math.floor(prev + off) !== Math.floor(ph + off)) { STEPS.push([t, legFoot(ph, off, pose(t).hip[0]).x + (off ? -6 : 4)]); }
+    prev = ph; }
+}
+
+// ---------------- the cat (poses on twos) ----------------
+const D = 62, CYC = 1.5, STANCE = .6, LEG1 = 25, LEG2 = 25, X0 = 395;
+function pose(t) {
+  const u = clamp(t / B.stop), dist = D * CYC * (1.5 * u - .5 * u * u * u), ph = dist / D;
+  const sag = ss(B.stop, B.stop + .35, t) * (1 - ss(B.drop + .15, B.drop + .7, t));
+  const look = ss(B.look + .05, B.look + .5, t), relief = ss(B.drop + .1, B.drop + .8, t), walking = t < B.stop;
+  const bob = walking ? 4 * (.5 + .5 * Math.cos(ph * 2 * TAU)) : 0;
+  const breath = Math.sin((t - B.drop) * 2.4) * ss(B.drop + .7, B.drop + 1.3, t);
+  const hip = [X0 + dist, G - 46 + bob + sag * 4 - relief * 2 - breath];
+  const lean = lerp(.24 + (walking ? .03 * Math.cos(ph * 2 * TAU) : 0) + sag * .07 - look * .08, .02, eo(relief));
+  const head = lerp(lerp(.34 + sag * .12, -.2, eio(look)), -.05, relief);
+  return { ph, hip, lean, head, sag, look, relief, walking };
+}
+function legFoot(ph, off, hipX) {
+  let p = ((ph + off) % 1 + 1) % 1, rel, lift = 0; const L = D * STANCE;
+  if (p < STANCE) rel = L / 2 - p / STANCE * L; else { const q = (p - STANCE) / (1 - STANCE); rel = -L / 2 + L * ss(0, 1, q); lift = Math.sin(Math.PI * q) * 9; }
+  return { x: hipX + rel + 4, y: G - lift };
+}
+function ik(h, f, l1, l2) {
+  const dx = f[0] - h[0], dy = f[1] - h[1], d = Math.min(Math.hypot(dx, dy), l1 + l2 - .5), a = Math.atan2(dy, dx);
+  const al = Math.acos(clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1));
+  return [h[0] + Math.cos(a - al) * l1, h[1] + Math.sin(a - al) * l1];
+}
+const BUND = [[-58, -50], [-74, -14], [-76, 30], [-62, 60], [-30, 74], [12, 76], [48, 64], [66, 36], [68, -6], [56, -40], [30, -58], [0, -62], [-30, -60]];
+function bundle(ctx, c, ang, sx, sy, fill, part) {
+  const T = p => { const q = rot2([p[0] * sx, p[1] * sy], ang); return [c[0] + q[0], c[1] + q[1]]; };
+  ink(ctx, BUND.map(T), { fill, part });
+  if (part) return;
+  ink(ctx, [[-14, -58], [-34, -86], [-6, -78], [4, -62], [16, -80], [40, -84], [22, -56]].map(T), { fill });   // knot ears
+  ink(ctx, ell(4, -60, 12, 8, 14).map(T), { fill });
+  ink(ctx, [[-40, -30], [-50, 6]].map(T), { closed: false, lw: 2.4 }); ink(ctx, [[30, 30], [44, 50]].map(T), { closed: false, lw: 2.4 });
+}
+function bundlePose(tp, p, TF) {
+  if (tp < B.drop) return { c: TF(-66, 76), a: p.lean * .9, sx: 1, sy: 1, on: true, landed: false };
+  const p0 = pose(B.drop), a0 = p0.lean, c0 = [p0.hip[0] - 66 * Math.cos(a0) + 76 * Math.sin(a0), p0.hip[1] - 66 * Math.sin(a0) - 76 * Math.cos(a0)];
+  const c1 = [p0.hip[0] - 120, G - 58], s = clamp((tp - B.drop) / .24);
+  let c = [lerp(c0[0], c1[0], s), c0[1] + (c1[1] - c0[1]) * s * s], sx = 1, sy = 1;
+  const k = tp - (B.drop + .24); if (k >= 0) { const sq = Math.exp(-k * 7) * Math.cos(k * 18); sy = 1 - .1 * sq; sx = 1 + .07 * sq; c = [c[0], G - 58 * sy + Math.sin(k * 3.2) * 2 * ss(.3, 1, k)]; }
+  return { c, a: lerp(a0 * .9, -.06, s), sx, sy, on: false, landed: k >= 0 };
+}
+function drawCat(ctx, tp, refl) {
+  const p = pose(tp), a = p.lean, up = [Math.sin(a), -Math.cos(a)], fw = [Math.cos(a), Math.sin(a)];
+  const TF = (u, v) => [p.hip[0] + u * fw[0] + v * up[0], p.hip[1] + u * fw[1] + v * up[1]];
+  const bp = bundlePose(tp, p, TF);
+  if (refl) {   // the reflection: the same figure flipped about the water line, simplified into lavender blobs
+    ctx.save(); ctx.translate(0, 2 * G + 6); ctx.scale(1, -1);
+    ink(ctx, tube([TF(-6, 2), TF(-6, -34)], [24, 22]), { fill: C.refl2, lw: 0 });
+    ink(ctx, [[-40, 0], [-44, 50], [-36, 84], [30, 86], [44, 52], [40, 0]].map(q => TF(q[0], q[1])), { fill: C.refl, lw: 3, part: [.5, 1.0] });
+    const hc = TF(14, 132); ink(ctx, blobPts(hc[0], hc[1], 56, 46, 2, 14), { fill: C.refl2, lw: 3, part: [.45, .95] });
+    if (bp.landed || !bp.on) { } else bundle(ctx, bp.c, bp.a, 1, 1, C.refl, [.3, .85]);
+    ctx.restore();
+    if (!bp.on) { ctx.save(); ctx.translate(0, 2 * G + 6); ctx.scale(1, -1); bundle(ctx, [bp.c[0], Math.min(bp.c[1], G - 58 * bp.sy)], bp.a, bp.sx, bp.sy, C.refl, [.3, .85]); ctx.restore(); }
+    // feet's dark-lavender shadows on the water
+    for (const off of [0, .5]) { const f = legFoot(p.ph, off, p.hip[0]); if (f.y > G - 3) ink(ctx, ell(f.x + 4 - (off ? 6 : 0), G + 8, 16, 6, 12), { fill: C.refl, lw: 0 }); }
+    return p;
+  }
+  if (!bp.on) bundle(ctx, bp.c, bp.a, bp.sx, bp.sy, C.white);
+  if (bp.on) bundle(ctx, bp.c, bp.a, 1, 1, C.white);
+  // legs: short cream trousers, white feet
+  for (const [off, dx, col] of [[.5, -8, C.cream2], [0, 6, C.cream]]) {
+    const f = legFoot(p.ph, off, p.hip[0]), hp = [p.hip[0] + dx, p.hip[1]], ank = [f.x + dx * .6, f.y - 8], kn = ik(hp, ank, LEG1, LEG2);
+    ink(ctx, ell(ank[0] + 3, ank[1] + 2, 13, 8, 14), { fill: C.white, lw: 2.8 });
+    ink(ctx, tube([[hp[0], hp[1] - 10], kn, [ank[0], ank[1] - 2]], [17, 16, 14]), { fill: col, lw: 2.8 });
+  }
+  // pyjama top
+  ink(ctx, [[-36, -8], [-40, 36], [-34, 70], [-14, 82], [16, 82], [34, 70], [42, 36], [40, -8], [0, -12]].map(q => TF(q[0], q[1])), { fill: C.cream });
+  // straps over the shoulder
+  if (bp.on) ink(ctx, [TF(-34, 72), TF(-6, 86), TF(20, 78), TF(28, 52), TF(22, 24)], { closed: false, lw: 6, col: C.ink });
+  if (bp.on) ink(ctx, [TF(-34, 72), TF(-6, 86), TF(20, 78), TF(28, 52), TF(22, 24)], { closed: false, lw: 2.6, col: C.white });
+  // buttons
+  ctx.fillStyle = C.cream; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.8 * LWK;
+  for (const v of [24, 48]) { const q = TF(30, v); ctx.beginPath(); ctx.arc(q[0], q[1], 3.6, 0, TAU); ctx.fill(); ctx.stroke(); }
+  // head: white, wide, ears with inner lines; collar
+  const ha = a * .5 + p.head, hu = [Math.sin(ha), -Math.cos(ha)], hf = [Math.cos(ha), Math.sin(ha)];
+  const nk = TF(6, 80), hc = [nk[0] + hu[0] * 50 + hf[0] * 6, nk[1] + hu[1] * 50 + hf[1] * 6];
+  const HF = (u, v) => [hc[0] + u * hf[0] + v * hu[0], hc[1] + u * hf[1] + v * hu[1]];
+  ink(ctx, [[-30, 8], [-12, -4], [0, 6], [14, -4], [32, 8], [14, 20], [0, 12], [-14, 20]].map(q => TF(q[0] + 4, q[1] + 78)), { fill: C.white, lw: 2.6 });
+  const head = [[-54, -10], [-56, 14], [-52, 34], [-46, 62], [-30, 44], [0, 46], [24, 46], [44, 64], [52, 34], [58, 12], [56, -12], [38, -34], [0, -40], [-36, -34]].map(q => HF(q[0], q[1]));
+  ink(ctx, head, { fill: C.white });
+  ink(ctx, [HF(-36, 38), HF(-30, 28)], { closed: false, lw: 2.2 }); ink(ctx, [HF(30, 38), HF(26, 28)], { closed: false, lw: 2.2 });
+  // brows (worried) — the cat faces a little toward us and right
+  const ey = p.look > .5 ? -2 : -8;
+  ctx.fillStyle = C.ink;
+  if (p.look > .5) for (const u of [-6, 30]) { const e = HF(u, ey); ctx.beginPath(); ctx.ellipse(e[0], e[1], 3.6, 4.4, 0, 0, TAU); ctx.fill(); }
+  else for (const u of [-6, 30]) ink(ctx, [HF(u - 6, ey + 1), HF(u, ey - 2), HF(u + 6, ey + 1)], { closed: false, lw: 2.4 });
+  ink(ctx, [HF(-12, 16), HF(-4, 20)], { closed: false, lw: 2 }); ink(ctx, [HF(26, 18), HF(34, 14)], { closed: false, lw: 2 });
+  const mo = HF(13, -18); if (p.look > .5 && p.relief < .5) { ctx.beginPath(); ctx.ellipse(mo[0], mo[1], 2.8, 3.4, 0, 0, TAU); ctx.fill(); }
+  else ink(ctx, [HF(9, -18), HF(13, -20), HF(17, -18)], { closed: false, lw: 2 });
+  for (const s of [-1, 1]) { const o = s < 0 ? HF(-46, -12) : HF(52, -10); ink(ctx, [o, [o[0] + s * 26, o[1] - 4]], { closed: false, lw: 1.8 }); ink(ctx, [[o[0], o[1] + 6], [o[0] + s * 24, o[1] + 10]], { closed: false, lw: 1.8 }); }
+  // arm + paw as one shape, close to the body (holding the strap, then hanging)
+  const sh = TF(-8, 64), el = TF(-6, 38), hand = bp.on ? TF(6, 16) : lerp2(TF(6, 16), TF(0, 8), p.relief);
+  ink(ctx, tube([sh, el, hand, [hand[0] + 6 * fw[0], hand[1] + 6 * fw[1]]], [13, 12, 11, 8]), { fill: C.cream, lw: 2.8 });
+  ink(ctx, ell(hand[0] + 4, hand[1] + 2, 8, 7, 12), { fill: C.white, lw: 2.4 });
+  return p;
+}
+
+// ---------------- light ahead: a sparkler star over the water ----------------
+const SP = [790, 870];
+function sparkler(ctx, tp, t, mirror) {
+  const on = ss(B.look - .02, B.look + .12, tp); if (on <= 0) return;
+  const k = Math.round(tp * 12), r = rng(1000 + k), pop = tp - B.look < .2 ? 1.35 - (tp - B.look) * 1.75 : 1;
+  const bob = Math.sin(t * 1.6) * 5, cx = SP[0], cy = mirror ? 2 * G + 6 - (SP[1] + bob) : SP[1] + bob, a = mirror ? .5 : 1;
+  ctx.save(); ctx.globalAlpha = on * a;
+  ctx.globalAlpha = on * a * .85; ctx.drawImage(GLOW, cx - 70 * pop, cy - 70 * pop, 140 * pop, 140 * pop);
+  ctx.globalAlpha = on * a * .35; ctx.drawImage(GLOW, cx - 170, cy - 170, 340, 340);
+  ctx.globalAlpha = on * a; ctx.strokeStyle = mirror ? '#dfe6f6' : '#ffffff'; ctx.lineCap = 'round';
+  // rays: re-drawn on twos, lengths flicker
+  ctx.lineWidth = 1.8; ctx.beginPath();
+  for (let i = 0; i < 26; i++) { const an = r() * TAU, l0 = 6 + r() * 6, l = (30 + r() * 62) * pop; ctx.moveTo(cx + Math.cos(an) * l0, cy + Math.sin(an) * l0); ctx.lineTo(cx + Math.cos(an) * l, cy + Math.sin(an) * l); }
+  ctx.stroke();
+  // tiny star sparks (asterisks) flying out, each lives ~.6 s
+  ctx.lineWidth = 1.6; ctx.beginPath();
+  for (let i = 0; i < 16; i++) { const rr = rng(77 + i), born = B.look + rr() * .6, life = .5 + rr() * .3, per = .55 + rr() * .3;
+    let age = tp - born; if (age < 0) continue; age = age % per; if (age > life) continue;
+    const an = rr() * TAU, sp = 120 + rr() * 90, d = 30 + age * sp, x = cx + Math.cos(an + Math.floor((tp - born) / per)) * d, y = cy + Math.sin(an + Math.floor((tp - born) / per)) * d + age * age * 60;
+    const s = 6 * (1 - age / life) + 2;
+    for (let j = 0; j < 3; j++) { const q = j * Math.PI / 3 + .3; ctx.moveTo(x - Math.cos(q) * s, y - Math.sin(q) * s); ctx.lineTo(x + Math.cos(q) * s, y + Math.sin(q) * s); } }
+  ctx.stroke();
+  ctx.fillStyle = '#fffbe9'; ctx.beginPath(); ctx.arc(cx, cy, 6 * pop, 0, TAU); ctx.fill();
+  ctx.restore();
+}
+
+// ---------------- ripples ----------------
+function arc(ctx, cx, cy, rx, ry, a0, a1, lw = 3, col = C.ink) {
+  const pts = []; for (let i = 0; i <= 18; i++) { const a = a0 + (a1 - a0) * i / 18; pts.push(wob([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry])); }
+  ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.stroke(pathOf(pts, false));
+}
+const FIELD_ARCS = (() => { const r = rng(5), o = []; for (let i = 0; i < 11; i++) { const rx = 300 + i * 62 + r() * 30, big = rx > 640, span = .18 + r() * .3, a0 = big ? r() * TAU : .5 + r() * (Math.PI - 1 - span); o.push([rx, a0, span]); } return o; })();
+function ripples(ctx, t) {
+  // the big quiet rings across the field, centred near the cat, very slowly widening
+  const cx = 520, cy = 1190, g = t * 3.2;
+  for (const [rx, a0, span] of FIELD_ARCS) { const R = rx + g; arc(ctx, cx, cy, R, R * .42, a0, a0 + span, 2.6); }
+  for (const [rx, a0, span] of [[430, 3.6, .35], [470, 4.5, .3], [520, 5.4, .28], [400, 4.0, .2], [560, 3.9, .22]]) { const R = rx + g * .7; arc(ctx, 560, 900, R, R * .3, a0, a0 + span, 2.6); }
+  // step rings
+  for (const [t0, x] of STEPS) { const k = (t - t0) / 1.6; if (k < 0 || k > 1) continue; const wx = CXF + (x - CXF) * FS, a = 1 - k;
+    ctx.save(); ctx.globalAlpha = a; const R = 22 + k * 90; arc(ctx, wx, G + 4, R, R * .32, .1, 1.1, 2.4); arc(ctx, wx, G + 4, R, R * .32, 2.2, 3.0, 2.4); arc(ctx, wx, G + 4, R * .6, R * .2, 3.6, 4.6, 2.2); ctx.restore(); }
+  // the bundle lands: rings widen slowly, a few drops
+  const land = B.drop + .24; if (t >= land) { const p0 = pose(B.drop), x = CXF + (p0.hip[0] - 120 - CXF) * FS, y = G + 4;
+    for (let i = 0; i < 4; i++) { const k = (t - land - i * .28) / 2.6; if (k < 0 || k > 1) continue; const R = 90 + eo(k) * 380, a = (1 - k) * (i ? .85 : 1);
+      ctx.save(); ctx.globalAlpha = a; arc(ctx, x, y, R, R * .32, -.2 + i, 1.3 + i, 2.8); arc(ctx, x, y, R, R * .32, 2.0 + i, 3.3 + i, 2.8); arc(ctx, x, y, R * .95, R * .3, 4.2 + i, 5.1 + i, 2.4); ctx.restore(); }
+    const dk = (t - land) / .45; if (dk < 1) { ctx.save(); ctx.globalAlpha = 1 - dk * dk;
+      for (const [vx, vy] of [[-120, -220], [-60, -300], [70, -280], [130, -200], [10, -330]]) { const dx = x + vx * dk * .9, dy = y - 40 + vy * dk + 700 * dk * dk;
+        ink(ctx, [[dx, dy - 7], [dx + 4, dy + 1], [dx, dy + 4], [dx - 4, dy + 1]], { fill: C.white, lw: 2 }); } ctx.restore(); } }
+}
+
+function draw(ctx, t) {
+  const tp = t12(t);
+  ctx.drawImage(BG, 0, 0);
+  ripples(ctx, t);
+  sparkler(ctx, tp, t, true);
+  ctx.save(); ctx.translate(CXF, G); ctx.scale(FS, FS); ctx.translate(-CXF, -G); LWK = 1 / FS;
+  drawCat(ctx, tp, true);
+  drawCat(ctx, tp, false);
+  ctx.restore(); LWK = 1;
+  sparkler(ctx, tp, t, false);
+  Story.captions(ctx, t, S.lines, { font: "'Hi Melody',cursive", weight: 400, size: 80, y: 400, color: C.ink, shadow: 'rgba(0,0,0,0)', shadowBlur: 0 });
+  ctx.drawImage(GRAIN, 0, 0);
+}
+
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 80px 'Hi Melody'"], init, draw });
+</script>
+</body>
+</html>
