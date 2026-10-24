@@ -278,7 +278,7 @@ function pilState(i, t) {
   const tp = t12(t), P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY;
   const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 300 - 130 * j, xc = E - 46;
     if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3);
-    let rank = 0; for (let q = 0; q < j; q++) rank += 1 - ss(B.bridges[q] + .3, B.bridges[q] + 1.1, tt);
+    let rank = 0; for (let q = 0; q < j; q++) rank += 1 - ss(B.bridges[q] + .2, B.bridges[q] + .75, tt);
     return lerp(xb, xc - 190 * rank, ss(12, 13.3, tt)); };
   const carry = (tt, x, gy = BY, stride = 118, lean = .27) => { const F = walkSpec(x, gy, SPI, 1, P.ph + x / (stride * SPI), stride, lean, 18); F.col = C.pil; F.tilt = .05; const X = carryCross(F, 1, -.4); gripCarry(F, X); return [F, X]; };
   if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }

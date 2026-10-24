@@ -433,12 +433,12 @@ function poseMe(t) {
       const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k); F.pal = PAL.me; F.eye = 'open';
-        const hs = hangSaw(WA); F.paws[1] = [lerp(hs.grip[0], cg[0], k), lerp(hs.grip[1], cg[1], k)]; F.farBehind = k > .5;
+        const hs = hangSaw(WA); F.paws[1] = [lerp(hs.grip[0], cg[0], k), lerp(hs.grip[1], cg[1], k)]; F.farBehind = true;
         return { F, X: mixX(XA, XL, k), c, saw: { grip: F.paws[1], ang: lerp(hs.ang, CUT_ANG + (CUT_ANG < hs.ang ? 0 : 0), k) } }; }
       if (t < c.drop) { const st = sawState(c, t), F = sawSpec(c, t); return { F, X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k); F.pal = PAL.me; F.eye = 'open';
       const hs = hangSaw(WB); if (!last) F.paws[1] = [lerp(cg[0], hs.grip[0], k), lerp(cg[1], hs.grip[1], k)];
-      F.farBehind = k < .5;
+      F.farBehind = true;
       return { F, X: mixX(XL, XB, k), c, saw: { grip: F.paws[1], ang: lerp(CUT_ANG, last ? CUT_ANG + .3 : hs.ang, k) } };
     }
   }

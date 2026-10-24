@@ -463,15 +463,15 @@ function vMe(t) {
   if (t < 8.6) return lerp(380, 150, (t - 8.3) / .3);
   if (t < 9.0) return 150 * (1 - ss(8.6, 9.0, t));
   if (t < 10.0) return 0;
-  if (t < 10.4) return 450 * Math.sin(Math.PI * (t - 10) / .4);
-  if (t < 11.35) return 0;
-  if (t < 12.0) return 640 * Math.sin(Math.PI * (t - 11.35) / .65);
+  if (t < 10.4) return 286 * Math.sin(Math.PI * (t - 10) / .4);           // still crouched: shuffle along the cross to the next cut
+  if (t < 11.6) return 0;
+  if (t < 12.0) return 640 * Math.sin(Math.PI * (t - 11.6) / .4);
   return 0;
 }
 const strideMe = t => t < 4.6 ? 74 : t < 8.8 ? 190 : 110;
 const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
-const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .4, saw0: 9.4, drop: 9.8, up1: 10.4, stay: true }, { s: 10.4, d: 0, saw0: 10.55, drop: 11.2, up1: 11.6 }];   // between cuts 2 and 3 the cross stays down
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
 const SLOTS = [22.9, 23.6, 24.3];   // the outline's missing span lights slot by slot (one piece's length each)
 const FLECKS = [], STEPS = [];
@@ -484,6 +484,7 @@ function buildTimeline() {
   E = meX(12) + 52;
   CUTS.forEach((c, k) => {
     c.k = k; c.mx = meX(c.s); c.cutX = c.mx - CUTD; c.u0 = L * (1 - S.left[k]); c.u1 = L * (1 - S.left[k + 1]); c.baseX = c.cutX - c.u1; c.y = FY + 26;
+    if (k === 2) { c.baseX = CUTS[1].baseX; c.cutX = c.baseX + c.u1; c.mx = c.cutX + CUTD; }   // the same lying cross, cut further along
     const r = rng(100 + k);
     for (let n = 0; n < 16; n++) FLECKS.push({ t0: n < 11 ? lerp(c.saw0, c.drop, n / 11) : c.drop + r() * .05, x: c.cutX + (r() - .5) * 8, y: c.y - PW / 2,
       vx: (r() - .5) * (n < 11 ? 170 : 300), vy: -(80 + r() * (n < 11 ? 150 : 240)), land: FY + 20 + r() * 44, r0: r() * TAU, vr: (r() - .5) * 16, sz: 5 + r() * 4, col: XME.h, line: XME.g });
@@ -587,9 +588,14 @@ function poseMe(t) {
         F.hand = ['grip', kk > .5 ? 'flat' : 'fist']; F.farFront = true;
         return { F, X: Xm, c, saw: { grip: F.hands[0], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t), F = sawSpec(c, t); F.eye = c.k ? 'calm' : 'strain'; return { F, X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
+      if (c.stay) { const c3 = CUTS[2], S3 = sawSpec(c3, tp), g3 = sawState(c3, tp).grip, k = eio((tp - 10.0) / .4), F = mixSpec(SP, S3, k);
+        F.hands[0] = [lerp(cg[0], g3[0], k), lerp(cg[1], g3[1], k)]; F.hands[1] = [lerp(SP.hands[1][0], S3.hands[1][0], k), lerp(SP.hands[1][1], S3.hands[1][1], k) - 26 * Math.sin(Math.PI * k)];
+        F.hand = ['grip', 'flat']; F.farFront = true; F.eye = 'calm';
+        return { F, X: { ...XL, u0: L * (1 - S.left[2]) }, c, saw: { grip: F.hands[0], ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k);
       const Xm = mixX(XL, XB, k), kk = ss(0, .3, k), onBeam = cpt(Xm, Math.max(Xm.u0 + 16, lerp(c.u1 + 60, XB.contact - 38, k)), 7 * k);
-      F.hands[0] = [lerp(cg[0], WB.hands[0][0], k), lerp(cg[1], WB.hands[0][1], k)]; F.hands[1] = [lerp(SP.hands[1][0], onBeam[0], kk), lerp(SP.hands[1][1], onBeam[1], kk)];
+      const ks = ss(0, .45, k), clear = 60 * Math.sin(Math.PI * clamp(k / .8));
+      F.hands[0] = [lerp(cg[0], WB.hands[0][0], ks) + clear * .4, lerp(cg[1], WB.hands[0][1], ks) - clear]; F.hands[1] = [lerp(SP.hands[1][0], onBeam[0], kk), lerp(SP.hands[1][1], onBeam[1], kk)];
       F.hand = [last && k > .5 ? 'fist' : 'grip', k > .5 ? 'fist' : 'flat']; F.farFront = !(last && k > .5); F.eye = 'calm';
       const saw = last ? null : { grip: F.hands[0], ang: lerp(CUT_ANG, hangAng(1), k) };
       return { F, X: Xm, c, saw };
@@ -605,12 +611,16 @@ function poseMe(t) {
     const [G2, X] = carried(F, -.6, left, false); return { F: G2, X }; }
   const XLay = { x: E - REST - L * (1 - left), y: FY + 34, a: 0, u0: L * (1 - left), lie: true };
   // laying it: kneeling at the lip, both paws pressing the near end down
-  const LAY = { ...standSpec(E - 46, FY, SME, 1), hip: [E - 46, FY - 62 * SME], ang: 1.2, feet: [[E - 92, FY], [E - 18, FY]], tilt: -.35 };
-  LAY.hands = [cpt(XLay, L * (1 - left) + 46), cpt(XLay, L * (1 - left) + 14)]; LAY.hand = ['flat', 'flat'];
+  const LAY = { ...standSpec(E - 46, FY, SME, 1), hip: [E - 46, FY - 40 * SME], ang: 1.25, feet: [[E - 96, FY], [E - 14, FY]], tilt: -.35 };
+  const U1 = XLay.u0 + 86, U2 = XLay.u0 + 58; LAY.hands = [cpt(XLay, U1, -PW / 2 + 4), cpt(XLay, U2, -PW / 2 + 4)]; LAY.hand = ['flat', 'flat'];
+  const XMid = { x: E - 66 - XLay.u0, y: FY - 150, a: -.1, u0: XLay.u0, lie: false };   // held in front of the belly
+  const HOLD = { ...standSpec(E - 52, FY, SME, 1, .12), tilt: .25, eye: 'calm' }; HOLD.hands = [cpt(XMid, U1, 4), cpt(XMid, U2, 6)];
   const REACH = { ...LAY, hip: [E - 52, FY - 80 * SME], ang: .6, hands: [[E - 130, FY - 90], [E + 64, FY - 10]], hand: ['fist', 'open'], eye: 'shock', tilt: .1, sweat: 1 };
-  if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = carried(ST, -.6, left, false), k = eio((tp - 18.4) / .4);
-      const F = mixSpec(STc[0], LAY, k), Xm = mixX(STc[1], XLay, k);
-      F.hands = [cpt(Xm, lerp(Math.min(L - 16, STc[1].contact + 40), XLay.u0 + 46, k)), cpt(Xm, lerp(Math.max(STc[1].u0 + 16, STc[1].contact - 38), XLay.u0 + 14, k), 7 * (1 - k))];
+  if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = carried(ST, -.6, left, false), X0 = STc[1];
+      if (tp < 18.65) { const k = eio((tp - 18.4) / .25), F = mixSpec(STc[0], HOLD, k), Xm = mixX(X0, XMid, k);
+        F.hands = [cpt(Xm, lerp(Math.min(L - 16, X0.contact + 40), U1, k), 4 * k), cpt(Xm, lerp(Math.max(X0.u0 + 16, X0.contact - 38), U2, k), 7 - k)]; return { F, X: Xm, lay: true }; }
+      const k = eio((tp - 18.65) / .25), F = mixSpec(HOLD, LAY, k), Xm = mixX(XMid, XLay, k);
+      F.hands = [cpt(Xm, U1, lerp(4, -PW / 2 + 4, k)), cpt(Xm, U2, lerp(6, -PW / 2 + 4, k))];
       F.hand = k > .5 ? ['flat', 'flat'] : ['fist', 'fist']; return { F, X: Xm, lay: true }; }
     const F = { ...LAY, eye: tp > 18.95 ? 'down' : 'calm' }; return { F, X: XLay, lay: true }; }
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; F.eye = tp > 20.6 ? 'down' : 'shock'; F.sweat = tp > 20.6 ? 0 : 1; return { F, X: null }; }
