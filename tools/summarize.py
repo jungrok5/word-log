@@ -30,6 +30,18 @@ PROMPT = """이 영상은 한국 교회의 예배 실황입니다. 설교 제목
 ## 인용된 성경 구절 (장절과 들리는 그대로의 문구)
 ## 흐름 (도입 → 대지 → 결론, 각 2–3줄)"""
 
+# type "reference": a short video someone wants recreated — describe what is on screen, evenly, from start to end
+REF_PROMPT = """이 영상은 우리가 따라 만들어 보고 싶은 참고 영상입니다(세로 쇼츠). 처음부터 끝까지 빠짐없이, 고르게 보고 마크다운으로 적으세요.
+화면에 보이는 것만 쓰세요. 추측은 '(추정)'이라고 표시하세요. 시각은 [m:ss.s]로 쓰세요.
+# 참고 영상 분석
+## 기본 정보 (전체 길이, 화면 비율, 컷 수, 배경색, 전체 분위기)
+## 0.5초 간격 타임라인 (처음부터 끝까지 빠짐없이 — 각 줄: [시각] 인물의 동작(팔·다리·몸·표정·발이 닿는 곳) / 카메라(앵글·줌·이동) / 키보드·키(어떤 키가 눌리고 빛나는지, 색) / 글자·그래픽(무엇이 어디서 어떻게 나타나고 움직이는지, 폰트 느낌, 색, 입체감) / 소리(음악 박자·효과음))
+## 반복되는 규칙 (발이 키에 닿는 순간과 키·글자가 반응하는 타이밍의 관계, 글자가 조립되는 방식, 리듬)
+## 시작과 끝 (첫 프레임, 마지막 프레임, 반복 재생 연결)
+## 인물 (생김새·옷·화풍, 춤의 종류와 동작 목록, 영상 내내 모습이 일관적인지)
+## 그래픽 요소 목록 (키보드 모양·원근, 키캡, 빛, 날아가는 키캡, 글자 효과, 스파크 선 등 — 각각 어떻게 움직이는지)
+## 소리 (음악 장르·템포, 효과음 종류와 시점)"""
+
 
 def call(model, body, key, timeout=900):
     req = urllib.request.Request(f"{API}/models/{model}:generateContent", data=json.dumps(body).encode(),
@@ -157,9 +169,14 @@ def main():
                 continue
             os.replace(out, os.path.join(os.path.dirname(meta_path), "material.prev.md"))
         meta = json.load(open(meta_path, encoding="utf-8"))
-        if not meta.get("url") or meta.get("type", "sermon") != "sermon" or meta.get("material"):
+        ref = meta.get("type") == "reference"   # a video to recreate → reference.md (what is on screen, evenly)
+        if ref:
+            out = os.path.join(os.path.dirname(meta_path), "reference.md")
+            if os.path.exists(out) and not (FORCE and ONLY):
+                continue
+        if not meta.get("url") or meta.get("type", "sermon") not in ("sermon", "reference") or meta.get("material"):
             continue   # material: "<other folder>" = this film reuses that folder's material
-        prompt = PROMPT.format(**meta)
+        prompt = REF_PROMPT if ref else PROMPT.format(**meta)
         config = {"temperature": 0.2, "max_output_tokens": 16384, "thinking_level": os.environ.get("THINKING", "low")}
         for m in [ok] + [x for x in MODELS if x != ok]:
             print(f"… {meta_path}: summarising with {m}")
@@ -183,6 +200,8 @@ def main():
             print(f"✅ wrote {out} ({len(txt)} chars)")
             break
         else:
+            if ref:
+                sys.exit(f"❌ could not analyse {meta_path} (no audio route for a visual reference)")
             print(f"… YouTube link refused; trying the audio route with {ok}")
             try:
                 txt = via_audio(ok, prompt, meta["url"], key)
