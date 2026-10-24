@@ -198,7 +198,7 @@ function drawFig(ctx, F, mid, back, mid0) {
   leg(F.feet[1], K.leg);
   if (mid0) mid0();
   if (mid0 && !F.farFront) arm(shF, F.hands[0], shade(K.sl, .78), F.hand?.[0] || 'fist');
-  const nearUp = mid0 && F.hands[1] && F.hands[1][1] < sh[1];   // a hand up on the carried beam: the arm goes behind the head, not across the face
+  const nearUp = !!(F.hands[1] && F.hands[1][1] < sh[1] - 6 * s);   // a hand up on the carried beam: the arm goes behind the head, not across the face
   if (nearUp) arm(sh, F.hands[1], K.sl, F.hand?.[1] || 'fist');
   // collar: a pale knit band with a dotted pattern, and the fur ruff under the chin
   const c0 = P(-12, 128), c1 = P(34, 128); ctx.strokeStyle = K.wh; ctx.lineWidth = 16 * s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(...c0); ctx.lineTo(...c1); ctx.stroke();

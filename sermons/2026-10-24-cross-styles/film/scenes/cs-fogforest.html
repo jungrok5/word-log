@@ -24,7 +24,7 @@ const C = {
   sky0: '#2f5a60', sky1: '#7cb0b2', fog: '#9fcaca', fogD: '#6f9ea1',
   p1: '#86b5b6', p2: '#6f9fa2', p3: '#5b8b8f', p4: '#3e6b70', p5: '#2b5257', p6: '#16343a', p7: '#0b1c20',
   me: '#0a171a', pil: '#163238', gold: '#e4a35c', goldL: '#ffdca6', goldD: '#9c5b26', steel: '#a9cfcd',
-  ink: '#eef6f4', warmCore: '#fff0cf',
+  ink: '#eef6f4', warmCore: '#fff0cf', handle: '#5a7574',
 };
 const hx = Pilot.hex, mixHex = (a, b, k) => Pilot.rgb(Pilot.mix(hx(a), hx(b), k));
 const L = 520, PW = 34, CBX = L - 130, CBW = 32, CBH = 118, CBHL = 50;   // cross: post length, width; crossbar (from foot), thickness, half-length upright / lying
@@ -341,7 +341,7 @@ function drawSaw(ctx, grip, ang) {
   const blade = [P(0, 30), P(172, 18)]; for (let u = 172; u >= 0; u -= 9) blade.push(P(u, (u / 9 | 0) % 2 ? 3 : -3));
   poly(ctx, blade, C.steel);
   ctx.strokeStyle = 'rgba(40,70,72,.6)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(...P(4, 27)); ctx.lineTo(...P(168, 16)); ctx.stroke();
-  poly(ctx, [P(-4, 36), P(-38, 46), P(-52, 20), P(-40, -4), P(-6, 2)], C.me);
+  poly(ctx, [P(-4, 36), P(-38, 46), P(-52, 20), P(-40, -4), P(-6, 2)], C.handle);
 }
 function sawSpec(c, t) {
   const f = -1, mx = c.mx, s = SME, st = sawState(c, t);
@@ -642,7 +642,7 @@ function drawAction(a, t, M, pils) {
   // the pieces I cut, lying where they fell (they fly into the gap at the end)
   for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t); drawCross(a, 'mine', c.u0, c.u1, p.x, p.y, p.a, true); }
   // me, my cross, the saw
-  const F = M.F; F.col = C.me; F.armCol = '#1c3237'; F.edge = 'rgba(150,200,200,.5)';
+  const F = M.F; F.col = C.me; F.armCol = '#26413f';
   const myCross = X => { if (X) drawCross(a, 'mine', X.u0, L, X.x, X.y, X.a, X.lie); };
   drawFig(a, F, () => {
     if (M.X && M.X.lie) myCross(M.X);

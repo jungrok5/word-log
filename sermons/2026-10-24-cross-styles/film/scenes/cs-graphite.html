@@ -697,7 +697,7 @@ function world(ctx, t) {
 const FONT = "'Gamja Flower',cursive";
 function endPlate(ctx, t) {   // the page darkens to a quiet charcoal ground for the card
   const k = ss(B.end - .2, B.end + .35, t); if (k <= 0) return;
-  ctx.save(); ctx.globalAlpha = k * .9; ctx.drawImage(TX.endPlate, 0, 0); ctx.restore();
+  ctx.save(); ctx.globalAlpha = k; ctx.drawImage(TX.endPlate, 0, 0); ctx.restore();   // v2: a calm, opaque plate
 }
 function draw(ctx, t) {
   const cm = camAt(t);
@@ -727,8 +727,8 @@ async function init() {
   { const c = Pilot.canvas(200, 60), g = c.getContext('2d'); g.filter = 'blur(8px)'; g.fillStyle = rgba(C.light, 1); g.beginPath(); g.ellipse(100, 30, 80, 16, 0, 0, TAU); g.fill(); TX.puff = c; }
   { const c = Pilot.canvas(W, H), g = c.getContext('2d'), rg = g.createRadialGradient(540, 1000, 300, 540, 1000, 1200); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(10,9,8,.38)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); TX.vig = c; }
   TX.flick = [0, 1, 2].map(i => Pilot.speckle(540, 960, 60, 40 + i, .6));
-  { const c = Pilot.canvas(W, H), g = c.getContext('2d'); g.lineJoin = g.lineCap = 'round'; fillG(g, R4(0, 0, W, H), [40, 38, 36], 1.2, 1); hatch(g, R4(0, 0, W, H), -.15, 16, 120, PAT.black[1], .4, 991, { w: 3 });
-    smudge(g, [[80, 700], [1000, 690], [1010, 1260], [70, 1270]], [70, 66, 62], .5, 40, 992); strokeG(g, HD.seg([340, 1010], [740, 1006], 6), 993, PAT.chalk[1], { w: 3 }); TX.endPlate = c; }
+  { const c = Pilot.canvas(W, H), g = c.getContext('2d'); g.lineJoin = g.lineCap = 'round'; g.fillStyle = 'rgb(40,38,36)'; g.fillRect(0, 0, W, H); fillG(g, R4(0, 0, W, H), [40, 38, 36], 1.2, 1); hatch(g, R4(0, 0, W, H), -.15, 16, 120, PAT.black[1], .4, 991, { w: 3 });
+    smudge(g, [[80, 700], [1000, 690], [1010, 1260], [70, 1270]], [70, 66, 62], .5, 40, 992); HD.ink(g, HD.wob(HD.seg([360, 1010], [720, 1006], 6), 993, 1.2, 60), { w: 3, ts: 30, te: 40, mn: .3, press: .4, seed: 993, col: 'rgba(214,208,198,.55)' }); TX.endPlate = c; }
 }
 Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 74px 'Gamja Flower'"], init, draw });
 
