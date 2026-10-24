@@ -20,7 +20,10 @@ window.SCRIPT = {
     tip: 19.3,              // …held short for ~1 s, then it tips
     fall: 19.6,             // it falls into the chasm (the hit). I do NOT fall.
     back: 21.2,             // I turn: the pieces I cut lie on the road behind me
-    fill: [22.2, 24.4],     // they glow, lift and fly into the missing span one by one (a dashed outline of my whole cross shows the gap) — exactly filling it
+    fill: [22.2, 24.4],     // cross-styles v2 (owner, after 3/4 reviewers read the flying-in fill as a happy ending): the pieces STAY on the road.
+                            //   I stay at the lip and look back; the camera travels back along the road and each piece glows where it lies;
+                            //   the dashed outline of my whole cross over the gap lights slot by slot at 22.9 / 23.6 / 24.3 (= the pieces'
+                            //   lengths) — "put together, exactly this" — and the gap stays OPEN. Nothing flies, nothing is repaired.
     end: 26.5,              // end card (4 s), then the loop into frame 0
   },
   /* how much of my cross is left after each cut (1 = the full length the gap needs) */
@@ -31,7 +34,7 @@ window.SCRIPT = {
     [5.2, 8.6, '이렇게 가벼운데,\n왜 진작 안 했을까'],
     [8.9, 11.6, '한 번만 더'],
     [12.0, 14.0, '그런데—\n길이 없다'],
-    [14.2, 18.2, '그들은\n지고 온 것을 건너갔다'],
+    [14.2, 18.2, '그들은\n지고 온 십자가로 건넜다'],   /* cross-styles v2: 4/4 reviewers misread "지고 온 것을 건너갔다" */
     [18.6, 20.8, '내 것만,\n모자랐다'],
     [21.2, 26.2, '덜어 낸 건 짐이 아니었다.\n건너갈 다리였다', '“자기 십자가를 지고 나를 따를 것이니라” 마태복음 16:24 (개역개정)'],
   ],
