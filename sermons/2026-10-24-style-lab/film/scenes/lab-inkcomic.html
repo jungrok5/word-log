@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 미니멀 잉크 만화 · UFO 곰</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* ---- hand-drawn toolkit (shared by the lab-* hand-drawn scenes; inlined at build time) ----
+   Lines are variable-width ribbons built from densely sampled polylines: a static hand wobble per stroke (seeded),
+   a boil displacement per drawing (3 drawings cycled on 8–12 fps), pressure along the length, tapered ends, ragged
+   edges. Ink is laid on a white layer that is multiplied onto a paper whose tooth is a real height field, so ink drops
+   out in the valleys and pencil only catches the peaks. */
+const TAU = Math.PI * 2;
+const { clamp, lerp, ss, eo, eio, rng, noise, fbm } = Pilot;
+const W = 1080, H = 1920;
+const S = window.SCRIPT, B = S.beat;
+const HD = {};
+HD.hash = (i, s = 0) => { let h = (Math.imul(i | 0, 374761393) + Math.imul(s | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+HD.t12 = t => Math.floor(t * 12 + 1e-6) / 12;
+HD.spline = (P, step = 3, closed = false) => {
+  const n = P.length; if (n < 2) return P.map(p => p.slice());
+  const get = i => closed ? P[((i % n) + n) % n] : P[clamp(i, 0, n - 1)];
+  const out = [], segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
+    const L = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), m = Math.max(1, Math.ceil(L / step));
+    for (let j = 0; j < m; j++) { const t = j / m, t2 = t * t, t3 = t2 * t;
+      out.push([0, 1].map(k => .5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3))); }
+  }
+  out.push(closed ? out[0].slice() : P[n - 1].slice()); return out;
+};
+HD.seg = (a, b, step = 4) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), m = Math.max(1, Math.ceil(L / step)), o = [];
+  for (let i = 0; i <= m; i++) o.push([lerp(a[0], b[0], i / m), lerp(a[1], b[1], i / m)]); return o; };
+HD.poly = (P, closed = false, step = 4) => { const o = []; const n = P.length, m = closed ? n : n - 1; for (let i = 0; i < m; i++) { const sg = HD.seg(P[i], P[(i + 1) % n], step); if (i) sg.shift(); o.push(...sg); } return o; };
+HD.arc = (cx, cy, rx, ry, a0, a1, step = 4, rot = 0) => { const L = Math.abs(a1 - a0) * Math.max(rx, ry), m = Math.max(2, Math.ceil(L / step)), o = [], c = Math.cos(rot), s = Math.sin(rot);
+  for (let i = 0; i <= m; i++) { const a = lerp(a0, a1, i / m), x = Math.cos(a) * rx, y = Math.sin(a) * ry; o.push([cx + x * c - y * s, cy + x * s + y * c]); } return o; };
+HD.normals = pts => pts.map((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; });
+HD.lengths = pts => { const s = [0]; for (let i = 1; i < pts.length; i++) s.push(s[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return s; };
+// hand wobble: perpendicular low-frequency displacement
+HD.wob = (pts, seed, amp, wl = 120) => { if (!amp || pts.length < 2) return pts; const N = HD.normals(pts), Sx = HD.lengths(pts), oy = (seed * 17.37) % 997;
+  return pts.map((p, i) => { const d = (noise(Sx[i] / wl, oy) - .5) * 2 * amp; return [p[0] + N[i][0] * d, p[1] + N[i][1] * d]; }); };
+// one boiled drawing: a new wobble + a tiny drift, per drawing index f
+HD.boil = (pts, seed, f, amp, wl = 90) => { if (!amp) return pts; const s = (seed * 31 + f * 977) | 0, dx = (HD.hash(s, 1) - .5) * amp, dy = (HD.hash(s, 2) - .5) * amp;
+  return HD.wob(pts, s, amp, wl).map(p => [p[0] + dx, p[1] + dy]); };
+HD.xf = (pts, m) => pts.map(p => [m.a * p[0] + m.c * p[1] + m.e, m.b * p[0] + m.d * p[1] + m.f]);   // apply a DOMMatrix-like
+HD.mat = (x, y, rot = 0, sx = 1, sy = sx) => { const c = Math.cos(rot), s = Math.sin(rot); return { a: c * sx, b: s * sx, c: -s * sy, d: c * sy, e: x, f: y }; };
+HD.mul = (A, Bm) => ({ a: A.a * Bm.a + A.c * Bm.b, b: A.b * Bm.a + A.d * Bm.b, c: A.a * Bm.c + A.c * Bm.d, d: A.b * Bm.c + A.d * Bm.d, e: A.a * Bm.e + A.c * Bm.f + A.e, f: A.b * Bm.e + A.d * Bm.f + A.f });
+HD.pt = (m, x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
+// variable-width ribbon (round caps where the end is wide)
+HD.ribbon = (pts, wf) => {
+  const n = pts.length, N = HD.normals(pts), Sx = HD.lengths(pts), L = Sx[n - 1] || 1, Lf = [], Rt = [], ws = [];
+  for (let i = 0; i < n; i++) { const w = Math.max(0, wf(Sx[i] / L, Sx[i], i, L)) / 2; ws.push(w); Lf.push([pts[i][0] + N[i][0] * w, pts[i][1] + N[i][1] * w]); Rt.push([pts[i][0] - N[i][0] * w, pts[i][1] - N[i][1] * w]); }
+  const p = new Path2D(); p.moveTo(Lf[0][0], Lf[0][1]); for (let i = 1; i < n; i++) p.lineTo(Lf[i][0], Lf[i][1]);
+  const ae = Math.atan2(N[n - 1][1], N[n - 1][0]); if (ws[n - 1] > .4) p.arc(pts[n - 1][0], pts[n - 1][1], ws[n - 1], ae, ae + Math.PI, true); else p.lineTo(Rt[n - 1][0], Rt[n - 1][1]);
+  for (let i = n - 1; i >= 0; i--) p.lineTo(Rt[i][0], Rt[i][1]);
+  const a0 = Math.atan2(N[0][1], N[0][0]); if (ws[0] > .4) p.arc(pts[0][0], pts[0][1], ws[0], a0 + Math.PI, a0, true);
+  p.closePath(); return p;
+};
+// an ink line: o = { w, ts, te (taper lengths px), mn (tip width fraction), press, pw (pressure wavelength), rough, seed, col, dry }
+HD.ink = (ctx, pts, o = {}) => {
+  if (!pts || pts.length < 2) return;
+  const w = o.w ?? 8, ts = o.ts ?? w * 2.5, te = o.te ?? w * 3.5, mn = o.mn ?? .2, press = o.press ?? .3, pw = o.pw ?? 70, rough = o.rough ?? .08, seed = o.seed ?? 1, mnE = o.mnE ?? mn;
+  const wf = (u, s, i, L) => { const k = Math.min(1, mn + (1 - mn) * ss(0, ts, s)) * Math.min(1, mnE + (1 - mnE) * ss(0, te, L - s));
+    return w * k * (1 + press * (noise(s / pw, seed * 3.7 % 500) - .5) * 2) * (1 + rough * (HD.hash(i, seed) - .5) * 2); };
+  ctx.fillStyle = o.col || '#151312'; ctx.fill(HD.ribbon(pts, wf));
+  if (o.blob) { ctx.beginPath(); ctx.arc(pts[0][0], pts[0][1], w * o.blob, 0, TAU); ctx.fill(); }   // a marker resting a moment at the start
+  if (o.dry) {   // dry-brush streaks in the tail: thin paper-white lines along the stroke
+    const N = HD.normals(pts), Sx = HD.lengths(pts), L = Sx[Sx.length - 1], r = rng(seed * 7 + 3);
+    ctx.save(); ctx.strokeStyle = o.paper || '#fff'; ctx.lineCap = 'round';
+    for (let k = 0; k < (o.dryN || 4); k++) { const f = (r() - .5) * .7, u0 = 1 - o.dry * (.3 + .7 * r()); ctx.lineWidth = (o.dryW || 1) * (.5 + r() * .7); ctx.globalAlpha = .55 + r() * .45; ctx.beginPath(); let st = false;
+      for (let i = 0; i < pts.length; i++) { const u = Sx[i] / L; if (u < u0) continue; const ww = wf(u, Sx[i], i, L) * f; const x = pts[i][0] + N[i][0] * ww, y = pts[i][1] + N[i][1] * ww; if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y); }
+      ctx.stroke(); }
+    ctx.restore();
+  }
+};
+// a closed hand shape: fill (paper white or colour) — the outline is drawn separately with HD.ink
+HD.fillPts = (ctx, pts, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.fill(); };
+HD.pathOf = pts => { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (const q of pts) p.lineTo(q[0], q[1]); p.closePath(); return p; };
+
+// ---- paper: a tooth height field (full frame) → paper colour, ink dropout (white specks), pencil deposit masks ----
+HD.tooth = (seed = 1, s1 = 6, s2 = 2.2, fib = 0) => {
+  const T = new Float32Array(W * H), r = rng(seed), ox = r() * 500, oy = r() * 500;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let v = .62 * noise(x / s1 + ox, y / s1 + oy) + .38 * noise(x / s2 + oy, y / s2 + ox);
+    T[y * W + x] = v; }
+  if (fib) { // fibres: thin streaks raised a little
+    for (let k = 0; k < fib; k++) { let x = r() * W, y = r() * H, a = r() * TAU; const l = 8 + r() * 30;
+      for (let i = 0; i < l; i++) { a += (r() - .5) * .3; x += Math.cos(a); y += Math.sin(a); const xi = x | 0, yi = y | 0; if (xi >= 0 && yi >= 0 && xi < W && yi < H) T[yi * W + xi] = Math.min(1, T[yi * W + xi] + .18); } } }
+  return T;
+};
+// paper canvas: base colour, low-frequency mottling, embossed tooth (light from top-left), fine grain, edge falloff
+HD.paper = (T, o = {}) => {
+  const c = Pilot.canvas(W, H), g = c.getContext('2d'), d = g.createImageData(W, H), D = d.data, base = o.base || [250, 249, 245];
+  const mot = o.mott ?? 6, emb = o.emb ?? 26, gr = o.grain ?? 4, vig = o.vig ?? 0, r = rng(o.seed || 9), mscale = o.mscale || 260;
+  const tint = o.tint || [0, 0, 0];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, x0 = Math.max(0, x - 1), y0 = Math.max(0, y - 1), x1 = Math.min(W - 1, x + 1), y1 = Math.min(H - 1, y + 1);
+    const sh = (T[y0 * W + x0] - T[y1 * W + x1]) * emb, m = (noise(x / mscale + 40, y / mscale + 7) - .5) * 2 * mot;
+    const dx = (x / W - .5), dy = (y / H - .5), v = -vig * (dx * dx * 1.4 + dy * dy) * 4;
+    const n = (r() - .5) * gr, k = sh + m + n + v;
+    D[i * 4] = base[0] + k + tint[0] * m / (mot || 1); D[i * 4 + 1] = base[1] + k + tint[1] * m / (mot || 1); D[i * 4 + 2] = base[2] + k + tint[2] * m / (mot || 1); D[i * 4 + 3] = 255; }
+  g.putImageData(d, 0, 0); return c;
+};
+// a full-frame canvas of colour `col` whose alpha follows the tooth: mode 'peak' (pencil catches the peaks) or 'valley' (ink misses the valleys)
+HD.toothMask = (T, col, mode = 'valley', thr = .35, soft = .18, amax = 1) => {
+  const c = Pilot.canvas(W, H), g = c.getContext('2d'), d = g.createImageData(W, H), D = d.data, rgb = Pilot.hex(col);
+  for (let i = 0; i < W * H; i++) { const v = mode === 'peak' ? (T[i] - thr) / soft : (thr - T[i]) / soft, a = clamp(v) * amax;
+    D[i * 4] = rgb[0]; D[i * 4 + 1] = rgb[1]; D[i * 4 + 2] = rgb[2]; D[i * 4 + 3] = a * 255; }
+  g.putImageData(d, 0, 0); return c;
+};
+// layers: a white canvas you draw ink on, then multiply onto the frame
+HD.layer = () => { const c = Pilot.canvas(W, H), g = c.getContext('2d'); g.lineJoin = 'round'; g.lineCap = 'round'; return { c, g }; };
+HD.clearWhite = (g, x = 0, y = 0, w = W, h = H) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.fillStyle = '#fff'; g.fillRect(x, y, w, h); g.restore(); };
+HD.dropout = (g, mask, a = 1, x = 0, y = 0, w = W, h = H) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = a; g.drawImage(mask, x, y, w, h, x, y, w, h); g.restore(); };
+HD.multiply = (ctx, c, x = 0, y = 0, w = W, h = H, a = 1) => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = a; ctx.drawImage(c, x, y, w, h, x, y, w, h); ctx.restore(); };
+
+// walk: distance along x with a slowing stop (speed 1 → 0 over the last `dec` fraction), from a lookup table
+HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for (let i = 1; i <= n; i++) { const u = i / n; s += 1 - ss(1 - dec, 1, u); tab.push(s); }
+  return t => { if (t <= 0) return x0 + (t / T) * n * (x1 - x0) / tab[n]; if (t >= T) return x1; const f = t / T * n, i = Math.floor(f), k = f - i; return x0 + (x1 - x0) * lerp(tab[i], tab[Math.min(n, i + 1)], k) / tab[n]; }; };
+
+/* lab-inkcomic — minimal black marker line comic on white (ref 16): wobbly, uneven, slightly blobby marker line,
+   lots of white, deadpan. A bear plods in with a big cardboard box strapped to its back; a flying saucer hangs there.
+   It stops; the hatch opens and a pale warm beam comes down (the one accent); the bear looks up; the box slides off
+   the rump and thumps down; then the beam, pulsing, lifts the bear a little off the ground — legs dangling. */
+const INK = '#141414', PAPER = '#ffffff';
+const G = 1532, X0 = 250, X1 = 545, A = 22;
+const walkX = HD.walker(X0, X1, B.stop, .3);
+const bf = t => Math.floor(t * 8 + 1e-6) % 3;
+const TX = {};
+const MW = 9, SC = 1.14;
+function mk(g, pts, seed, f, o = {}) { HD.ink(g, HD.boil(HD.wob(pts, seed, o.wob ?? 3, 150), seed, f, o.boil ?? 1.6, 90), { w: MW, ts: 6, te: 8, mn: .78, press: .16, pw: 110, rough: .07, seed, col: INK, blob: .58, ...o }); }
+function fillW(g, pts, seed, f) { HD.fillPts(g, HD.boil(pts, seed, f, 1.2, 80), PAPER); }
+function tubeNear(g, pts, w, seed, f, clipOut) { const q = HD.boil(HD.spline(pts, 3), seed, f, 1.2, 70);
+  g.save(); g.clip(clipOut, 'evenodd'); HD.ink(g, q, { w: w + 2 * MW, ts: 2, te: 2, mn: 1, press: .05, rough: .05, seed, col: INK }); g.restore();
+  HD.ink(g, q, { w, ts: 2, te: 2, mn: 1, press: .02, rough: 0, seed: seed + 1, col: PAPER }); }
+function tube(g, pts, w, seed, f) { const q = HD.boil(HD.spline(pts, 3), seed, f, 1.2, 70);
+  HD.ink(g, q, { w: w + 2 * MW, ts: 26, te: 2, mn: .3, mnE: 1, press: .05, rough: .05, seed, col: INK });
+  HD.ink(g, q, { w, ts: 34, te: 2, mn: .05, mnE: 1, press: .02, rough: 0, seed: seed + 1, col: PAPER }); }
+
+// ---------------- the saucer (static drawings, it bobs as a whole) ----------------
+const UX = 560, UY = 846;
+function drawUFO(g, f, hatch) {
+  const P = (x, y) => [UX + x, UY + y];
+  const dome = HD.arc(UX, UY - 58, 168, 128, Math.PI * 1.02, Math.PI * 1.98, 4);
+  fillW(g, dome.concat([P(170, -40), P(-170, -40)]), 1, f);
+  mk(g, dome, 2, f, { w: 9.5 });
+  mk(g, HD.seg(P(0, -186), P(2, -228), 3), 3, f, { w: 7 }); const ball = HD.arc(UX + 2, UY - 236, 11, 10, 0, TAU, 2); HD.fillPts(g, HD.boil(ball, 4, f, .8, 20), INK);
+  // the lens: upper sweep and the rim
+  const up = HD.spline([P(-392, 48), P(-300, -30), P(-150, -64), P(0, -72), P(150, -64), P(300, -30), P(392, 48)], 4);
+  const rimTop = HD.spline([P(-392, 48), P(-250, 26), P(0, 18), P(250, 26), P(392, 48)], 4);
+  const rimBot = HD.spline([P(-392, 48), P(-250, 104), P(0, 124), P(250, 104), P(392, 48)], 4);
+  fillW(g, up.concat(rimBot.slice().reverse()), 5, f);
+  mk(g, up, 6, f, { w: 10.5 }); mk(g, rimTop, 7, f, { w: 8.5 }); mk(g, rimBot, 8, f, { w: 10.5 });
+  // portholes along the rim band and the upper sweep
+  const r = rng(9);
+  for (let i = -6; i <= 6; i++) { const u = i / 6.6, x = u * 360, y = 62 + 42 * (1 - u * u) - 4; const d = HD.arc(UX + x + (r() - .5) * 6, UY + y - 2, 5, 4.4, 0, TAU, 2); HD.fillPts(g, HD.boil(d, 20 + i, f, .6, 12), INK); }
+  for (let i = -4; i <= 4; i++) { const u = i / 4.6, x = u * 300, y = -26 - 30 * (1 - u * u); const d = HD.arc(UX + x, UY + y, 4.6, 4, 0, TAU, 2); HD.fillPts(g, HD.boil(d, 40 + i, f, .6, 12), INK); }
+  // the hatch underneath
+  const hk = hatch;   // 0 closed (a flat slot), 1 open (an ellipse)
+  const ha = HD.arc(UX, UY + 128, 150, lerp(6, 34, hk), 0, TAU, 4);
+  if (hk > 0) fillW(g, ha, 50, f);
+  mk(g, hk > 0 ? ha : HD.seg(P(-110, 126), P(110, 128), 4), 51, f, { w: 9 });
+}
+// the little pilot: two dots in the dome that blink
+function pilot(g, t, f, uy) {
+  const blink = ((t + .3) % 2.4) < .12 || (t > B.look && t < B.look + .1);
+  const ex = UX - 30 + (t > B.look ? 10 : 0);
+  if (!blink) for (const dx of [0, 34]) { const d = HD.arc(ex + dx, UY - 120 + uy, 6, 7, 0, TAU, 2); HD.fillPts(g, HD.boil(d, 60 + dx, f, .5, 10), INK); }
+  else for (const dx of [0, 34]) mk(g, HD.seg([ex + dx - 7, UY - 120 + uy], [ex + dx + 7, UY - 120 + uy], 2), 62 + dx, f, { w: 5, blob: 0 });
+}
+function drawGround(g, f) {
+  mk(g, HD.seg([40, G + 4], [620, G - 2], 5), 70, f, { w: 6, mn: .4, ts: 30, te: 60, wob: 3 });
+  mk(g, HD.seg([590, G + 2], [1040, G - 6], 5), 71, f, { w: 6, mn: .3, ts: 50, te: 30, wob: 3 });
+  mk(g, HD.seg([140, G + 40], [230, G + 40], 4), 72, f, { w: 5, mn: .3, ts: 20, te: 20 });
+  mk(g, HD.seg([820, G + 36], [880, G + 34], 4), 73, f, { w: 5, mn: .3, ts: 20, te: 20 });
+}
+
+// ---------------- the bear ----------------
+function pose(t) {
+  const q = HD.t12(t), moving = q < B.stop, x = walkX(Math.min(q, B.stop)), ph = (x - X0) * Math.PI / (2 * A);
+  let sag = moving ? 7 * Math.pow(Math.sin(ph), 2) : 7 * (1 - ss(B.stop, B.stop + .4, q)) + 4 * ss(B.stop, B.stop + .3, q), head = .16, lift = 0;
+  const st = eo((q - B.stop) / .3);
+  const leg = k => { const pp = ph + (k % 2 ? Math.PI : 0); let dx = A * Math.sin(pp), ly = moving ? 14 * Math.max(0, Math.cos(pp)) : 0; if (!moving) { dx = lerp(dx, [6, -6, -4, 4][k], st); } return [dx, ly]; };
+  head = lerp(head, -.3, eio((q - B.look) / .35));
+  const off = eo((q - B.drop) / .4); sag = lerp(sag, -4, off);
+  lift = 52 * eio((q - 4.75) / 1.0);
+  return { q, x, ph, sag, head, lift, leg, moving };
+}
+// body frame: origin at the body's centre, facing right; y up is negative
+const BODY = HD.spline([[156, 6], [96, 48], [0, 56], [-100, 50], [-162, 10], [-176, -44], [-140, -104], [-40, -128], [60, -126], [118, -94]], 4);
+const HEAD = HD.spline([[112, -96], [150, -122], [204, -112], [244, -80], [272, -62], [268, -36], [238, -24], [200, -6], [156, 6]], 3);
+function box(g, M, f, seed = 100) {
+  const P = pts => HD.xf(pts, M);
+  // a cardboard box: front face, top face going back, a strip of tape, flap lines
+  const fr = [[-128, -98], [92, -100], [96, -262], [-124, -266]], tp = [[-124, -266], [96, -262], [62, -302], [-150, -306]];
+  fillW(g, P(fr.concat(tp.slice(1))), seed, f);
+  mk(g, P(HD.poly([fr[3], fr[0], fr[1], fr[2]])), seed + 1, f);
+  mk(g, P(HD.seg(fr[2], fr[3], 4)), seed + 2, f);
+  mk(g, P(HD.poly([[96, -262], [62, -302], [-150, -306], [-124, -266]])), seed + 3, f, { w: 8.5 });
+  mk(g, P(HD.seg([-14, -264], [-40, -304], 3)), seed + 4, f, { w: 6, mn: .5 });
+  mk(g, P(HD.seg([-10, -262], [-12, -214], 3)), seed + 5, f, { w: 6, mn: .5 });
+  mk(g, P(HD.spline([[-128, -180], [-20, -178], [92, -182]], 4)), seed + 10, f, { w: 5.5, mn: .6, blob: 0 });
+  mk(g, P(HD.spline([[-24, -100], [-22, -180], [-26, -264]], 4)), seed + 11, f, { w: 5.5, mn: .6, blob: 0 });
+  // "this side up" arrows, tiny and wobbly — the deadpan joke of a parcel
+  mk(g, P(HD.spline([[40, -146], [40, -190]], 3)), seed + 6, f, { w: 5, mn: .5, blob: 0 }); mk(g, P(HD.spline([[28, -176], [40, -192], [52, -176]], 3)), seed + 7, f, { w: 5, mn: .5, blob: 0 });
+  mk(g, P(HD.spline([[64, -146], [64, -190]], 3)), seed + 8, f, { w: 5, mn: .5, blob: 0 }); mk(g, P(HD.spline([[52, -176], [64, -192], [76, -176]], 3)), seed + 9, f, { w: 5, mn: .5, blob: 0 });
+}
+function drawBear(g, t, f) {
+  const p = pose(t), q = p.q, bx = p.x, by = G - 150 * SC + p.sag - p.lift;
+  const Mb = HD.mul(HD.mat(bx, by, -.02), HD.mat(0, 0, 0, SC));
+  const P = pts => HD.xf(pts, Mb);
+  // the box: on the back → slides back off the rump → lands behind
+  let Mx;
+  const s1 = clamp((q - 4.0) / .25);
+  if (q < 4.25) Mx = HD.mul(Mb, HD.mat(-60 * s1 * s1, 8 * s1, -.32 * s1 * s1));
+  else { const a = HD.mul(Mb, HD.mat(-60, 8, -.32)), land = HD.mat(bx - 270, G + 98 * SC, -.06, SC), k = clamp((q - 4.25) / .15);
+    if (q < B.drop) Mx = { a: lerp(a.a, land.a, k), b: lerp(a.b, land.b, k), c: lerp(a.c, land.c, k), d: lerp(a.d, land.d, k), e: lerp(a.e, land.e, k), f: lerp(a.f, land.f, k * k) };
+    else { const sq = 1 - .1 * Math.sin(Math.PI * clamp((q - B.drop) / .2)); Mx = HD.mul(HD.mat(bx - 270, G, -.06), HD.mat(0, 0, 0, (2 - sq) * SC, sq * SC)); Mx = HD.mul(Mx, HD.mat(0, 98)); } }
+  const boxBehind = q >= 4.1;
+  if (boxBehind && q >= B.drop) box(g, Mx, f);
+  // far legs (behind the body)
+  const footY = k => p.lift > 0 ? by + 150 * SC - 4 + [0, 3, 1, 4][k] * (p.lift / 52) * 2 : G - p.leg(k)[1];
+  const legAt = (k, xb) => { const [dx] = p.leg(k), dang = p.lift > 0 ? [3, -2, 2, -3][k] * (p.lift / 52) : 0, top = HD.pt(Mb, xb, 8), fx = top[0] + (p.lift > 0 ? dang : dx), fy = footY(k);
+    return [top, [lerp(top[0], fx, .5) + 2, lerp(top[1], fy, .5)], [fx, fy - 12]]; };
+  for (const [k, xb] of [[1, 112], [3, -78]]) tube(g, legAt(k, xb), 40 * SC, 200 + k * 3, f);
+  // body + head (one white shape), outline
+  fillW(g, P(BODY), 210, f);
+  const Mh = HD.mul(Mb, HD.mul(HD.mat(126, -48, p.head), HD.mat(-126, 48)));
+  const Hp = pts => HD.xf(pts, Mh);
+  { const a = P([BODY[BODY.length - 1]])[0], b = Hp([HEAD[0]])[0], c = P([BODY[0]])[0], d = Hp([HEAD[HEAD.length - 1]])[0], m = P([[110, -40]])[0]; HD.fillPts(g, [a, b, Hp([[150, -40]])[0], d, c, m], PAPER); }
+  mk(g, P(BODY), 211, f, { w: 10 });
+  fillW(g, Hp(HEAD.concat([[132, -40]])), 212, f);
+  mk(g, Hp(HEAD), 213, f, { w: 9.5 });
+  { const a = P([BODY[BODY.length - 1]])[0], b = Hp([HEAD[0]])[0], c = P([BODY[0]])[0], d = Hp([HEAD[HEAD.length - 1]])[0];   // keep the neck closed as the head turns
+    if (Math.hypot(a[0] - b[0], a[1] - b[1]) > 3) mk(g, HD.seg(a, b, 2), 214, f, { w: 9.5, blob: 0 }); if (Math.hypot(c[0] - d[0], c[1] - d[1]) > 3) mk(g, HD.seg(c, d, 2), 215, f, { w: 9.5, blob: 0 }); }
+  for (const [ex, ey, s] of [[152, -120, 220], [182, -120, 222]]) { const e = HD.arc(ex, ey, 12, 11, Math.PI * 1.05, Math.PI * 1.98, 2); fillW(g, Hp(HD.arc(ex, ey, 12, 11, Math.PI, TAU, 2)), s, f); mk(g, Hp(e), s + 1, f, { w: 7.5 }); }
+  const nose = Hp(HD.arc(266, -50, 10, 8, 0, TAU, 2)); HD.fillPts(g, HD.boil(nose, 230, f, .6, 12), INK);
+  const eye = Hp(HD.arc(214, -80, 5.5, 6, 0, TAU, 2)); HD.fillPts(g, HD.boil(eye, 231, f, .5, 10), INK);
+  mk(g, Hp(HD.spline([[246, -30], [234, -24]], 2)), 232, f, { w: 4.5, blob: 0 });
+  // sweat drop while it plods
+  if (p.moving && Math.floor(q * 3) % 2 === 0) mk(g, Hp(HD.spline([[180, -128], [172, -114], [176, -104], [186, -108], [184, -118], [180, -128]], 2)), 240, f, { w: 4.5, blob: 0 });
+  // strap round the belly (while the box is on)
+  // near legs (in front: the tube's white erases the belly line where they join)
+  const bodyW = P(BODY), clipOut = new Path2D(); clipOut.rect(-100, -100, W + 200, H + 200); clipOut.addPath(HD.pathOf(bodyW));
+  for (const [k, xb] of [[2, -100], [0, 92]]) tubeNear(g, legAt(k, xb).map((pt, i) => i ? pt : HD.pt(Mb, xb, 10)), 42 * SC, 260 + k * 3, f, clipOut);
+  for (const [k, xb] of [[2, -100], [0, 92]]) { const L = legAt(k, xb), ft = L[2]; for (let i = 0; i < 3; i++) mk(g, HD.seg([ft[0] + 8 + i * 8, ft[1] + 16], [ft[0] + 8 + i * 8, ft[1] + 26], 2), 270 + k * 5 + i, f, { w: 3.5, blob: 0, mn: .5 }); }
+  if (!(boxBehind && q >= B.drop)) box(g, Mx, f);
+  if (p.lift > 6) { const k = p.lift / 52; for (const [dx, w2] of [[-150, 110], [40, 120]]) mk(g, HD.seg([bx + dx * (1 - .2 * k), G + 14], [bx + dx + w2 * (1 - .3 * k), G + 14], 4), 330 + dx, f, { w: 4.5, blob: 0, mn: .3, ts: 20, te: 20 }); }
+  // thump lines
+  if (q >= B.drop && q < B.drop + .35) { const lx = bx - 270;
+    for (const [ax, ay, cx, cy] of [[-170, -20, -210, -40], [-176, 14, -224, 10], [130, -20, 170, -40], [136, 14, 184, 10]]) mk(g, HD.seg([lx + ax, G + ay], [lx + cx, G + cy], 3), 300 + ax, f, { w: 6, blob: 0, mn: .4 }); }
+}
+// the beam: two long wobbly lines and a pulsing pale-warm fill (the one colour)
+function beam(ctx, g, t, f, uy) {
+  const q = HD.t12(t); if (q < B.look) return 0;
+  const on = q < B.look + .09 ? .5 : 1, pulse = .5 + .5 * Math.sin((q - B.look) * TAU * 1.4);
+  const tl = [UX - 146, UY + 134 + uy], tr = [UX + 146, UY + 134 + uy], bl = [UX - 360, G + 20], brr = [UX + 360, G + 20];
+  g.save(); g.globalCompositeOperation = 'multiply';
+  const poly = HD.boil([tl, ...HD.seg(tl, bl, 40).slice(1), ...HD.seg(brr, tr, 40)], 400, f, 2, 120);
+  HD.fillPts(g, poly, `rgba(253,226,140,${(.42 + .16 * pulse) * on})`);
+  // a softer core, breathing with the pulse
+  const core = HD.boil([[UX - 120, UY + 140 + uy], [UX - 250, G + 10], [UX + 250, G + 10], [UX + 120, UY + 140 + uy]], 401, f, 2, 120);
+  HD.fillPts(g, core, `rgba(255,214,120,${(.12 + .14 * pulse) * on})`);
+  g.restore();
+  mk(g, HD.seg(tl, bl, 5), 410, f, { w: 7, mn: .35, ts: 10, te: 80, wob: 5 });
+  mk(g, HD.seg(tr, brr, 5), 411, f, { w: 7, mn: .35, ts: 10, te: 80, wob: 5 });
+  // three little pulse ticks under the hatch
+  if (pulse > .55) for (const dx of [-60, 0, 60]) mk(g, HD.seg([UX + dx * 1.3, UY + 180 + uy], [UX + dx * 1.5, UY + 204 + uy], 2), 420 + dx, f, { w: 4.5, blob: 0, mn: .5 });
+  return on;
+}
+
+// ---------------- frame ----------------
+let INKL;
+function draw(ctx, t) {
+  const f = bf(t), g = INKL.g, q = HD.t12(t), uy = Math.round(6 * Math.sin(q * 1.9));
+  ctx.drawImage(TX.paper, 0, 0);
+  HD.clearWhite(g);
+  g.drawImage(TX.ground[f], 0, 0);
+  const hk = q < B.look ? 0 : q < B.look + .09 ? .5 : 1;
+  beam(ctx, g, t, f, uy);
+  g.save(); g.translate(0, uy); g.drawImage(hk ? TX.ufoOpen[f] : TX.ufo[f], 0, 0); g.restore();
+  pilot(g, t, f, uy);
+  drawBear(g, t, f);
+  HD.dropout(g, TX.drop, .35);
+  HD.multiply(ctx, INKL.c);
+  ctx.save(); ctx.translate([0, 1, -1][f], [0, -1, 1][f]);
+  Story.captions(ctx, t, S.lines, { font: "'Gaegu',cursive", weight: 700, size: 80, y: 400, color: '#151515', shadow: 'rgba(0,0,0,0)', shadowBlur: 0 });
+  ctx.restore();
+}
+async function init() {
+  const T = HD.tooth(8, 4, 1.5, 900);
+  TX.paper = HD.paper(T, { base: [253, 253, 251], mott: 2, emb: 5, grain: 2, vig: .015 });
+  TX.drop = HD.toothMask(T, '#ffffff', 'valley', .22, .07, .7);
+  const mkL = fn => [0, 1, 2].map(f => { const L = HD.layer(); HD.clearWhite(L.g); fn(L.g, f); return L.c; });
+  TX.ground = mkL((g, f) => drawGround(g, f));
+  // the saucer layers are transparent outside its white fill so the bob can shift them over the white ink layer
+  const mkT = fn => [0, 1, 2].map(f => { const L = HD.layer(); fn(L.g, f); return L.c; });
+  TX.ufo = mkT((g, f) => drawUFO(g, f, 0)); TX.ufoOpen = mkT((g, f) => drawUFO(g, f, 1));
+  INKL = HD.layer();
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 80px 'Gaegu'"], init, draw });
+
+</script>
+</body>
+</html>

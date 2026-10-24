@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 01 안개 숲 실루엣</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 01 — misty silhouette forest (atmospheric digital painting: flat silhouettes in 6 depth planes, aerial perspective
+   toward one teal fog colour, hanging moss, a giant shape in the fog, a tiny figure for scale).
+   Each plane is a prebuilt flat silhouette (with a faint dry-brush streak texture); fog pools between planes as
+   gradient veils plus drifting noise banks at different speeds. The camera dollies sideways and back (period = DUR),
+   so planes slide past each other at their depth and the loop closes. The one accent: a lantern lit far down the path.
+   The traveller is a jointed silhouette (two-bone legs driven by distance walked, so feet never skate) with a rim of
+   fog light; a heavy pack hangs from shoulder straps held by both hands, and at the drop it slides off and lands. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2, M = 170;   // M: parallax margin on each side of a plane
+const C = {
+  sky0: '#2f5a60', sky1: '#7cb0b2', glow: '#c6e4e2', fog: '#9fcaca', fogD: '#6f9ea1',
+  p1: '#86b5b6', p2: '#6f9fa2', p3: '#5b8b8f', p4: '#3e6b70', p5: '#244a50', p6: '#16343a', p7: '#0b1c20',
+  fig: '#0c1d21', figL: '#24464a', ink: '#eef6f4', warmCore: '#fff0cf',
+};
+const hx = Pilot.hex;
+
+// ---------------- silhouette builders (draw into a plane's canvas, world x + M) ----------------
+function quadSeg(g, x0, y0, w0, x1, y1, w1) {   // a tapered segment with round joints
+  const a = Math.atan2(y1 - y0, x1 - x0), nx = -Math.sin(a), ny = Math.cos(a);
+  g.beginPath(); g.moveTo(x0 + nx * w0 / 2, y0 + ny * w0 / 2); g.lineTo(x1 + nx * w1 / 2, y1 + ny * w1 / 2);
+  g.lineTo(x1 - nx * w1 / 2, y1 - ny * w1 / 2); g.lineTo(x0 - nx * w0 / 2, y0 - ny * w0 / 2); g.closePath(); g.fill();
+  g.beginPath(); g.arc(x1, y1, w1 / 2, 0, TAU); g.fill();
+}
+function moss(g, r, x, y, len, wd = 1) {   // hanging moss: a thin ragged tuft and a few hair-thin wisps
+  const tw = (2.4 + r() * 3) * wd, L0 = len * (.5 + r() * .6), pts = [], q = [];
+  for (let i = 0; i <= 12; i++) { const u = i / 12, wv = tw * Math.pow(1 - u, .7) * (.6 + .4 * Math.sin(u * 9 + x));
+    const cx = x + Math.sin(u * 5 + y) * 2.5 * u; pts.push([cx - wv, y + L0 * u]); q.push([cx + wv, y + L0 * u]); }
+  g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const p of pts) g.lineTo(p[0], p[1]); for (const p of q.reverse()) g.lineTo(p[0], p[1]); g.closePath(); g.fill();
+  const n = 2 + (r() * 4 | 0);
+  for (let k = 0; k < n; k++) {
+    let px = x + (r() - .5) * tw * 3, py = y + r() * L0 * .3; const L = len * (.25 + r() * .7), steps = 8;
+    for (let i = 0; i < steps; i++) { const nx = px + (r() - .5) * 2, ny = py + L / steps;
+      g.lineWidth = (.7 + r() * .7) * wd * (1 - i / steps * .5); g.beginPath(); g.moveTo(px, py); g.lineTo(nx, ny); g.stroke(); px = nx; py = ny; }
+  }
+}
+// a branch: kinked, tapering, forking; twigs at the tips; moss on the near-horizontal stretches
+function branch(g, r, x, y, ang, len, wd, depth, o) {
+  const n = 5 + (r() * 4 | 0), seg = len / n;
+  for (let i = 0; i < n; i++) {
+    ang += (r() - .5) * o.kink + (o.up ?? .05) * Math.sign(-Math.PI / 2 - ang) * .2;
+    const x2 = x + Math.cos(ang) * seg, y2 = y + Math.sin(ang) * seg, w2 = Math.max(.9, wd * (1 - .55 / n * (i + 1)));
+    quadSeg(g, x, y, wd, x2, y2, w2);
+    if (o.moss && depth <= o.mossDepth && Math.abs(Math.sin(ang)) < .55 && r() < o.moss) moss(g, r, x2, y2 + w2 * .3, o.mossLen * (.5 + r()), o.mossW || 1);
+    if (depth > 0 && i > 0 && r() < .42) branch(g, r, x2, y2, ang + (r() < .5 ? -1 : 1) * (.45 + r() * .6), len * (.45 + r() * .3), w2 * .8, depth - 1, o);
+    x = x2; y = y2; wd = w2;
+  }
+  if (depth === 0 || wd < 3) twigs(g, r, x, y, ang, len * .3, Math.min(wd, 2.2), 3);
+  else branch(g, r, x, y, ang + (r() - .5) * .8, len * .55, wd * .75, depth - 1, o);
+}
+function twigs(g, r, x, y, ang, len, wd, d) {
+  if (d < 0 || len < 4) return;
+  const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+  g.lineWidth = wd; g.beginPath(); g.moveTo(x, y); g.lineTo(x2, y2); g.stroke();
+  const k = 1 + (r() < .6);
+  for (let i = 0; i <= k; i++) twigs(g, r, x2, y2, ang + (r() - .5) * 1.4, len * (.5 + r() * .3), wd * .7, d - 1);
+}
+// a gnarled trunk with flared roots; returns spine points so branches can start on it
+function trunk(g, r, x, yb, h, w, o = {}) {
+  const N = 40, L = [], R = [], sp = [], lean = o.lean || 0, bend = o.bend || 0, ph = r() * 9;
+  for (let i = 0; i <= N; i++) {
+    const u = i / N, y = yb - h * u;
+    const cx = x + lean * h * u + bend * Math.sin(u * Math.PI) * h * .12 + (Pilot.noise(u * 5 + ph, 1) - .5) * w * .5;
+    const flare = 1 + 1.4 * Math.pow(Math.max(0, .14 - u) / .14, 2), wu = w * (1 - .62 * u) * flare;
+    const jag = (Pilot.noise(u * 22 + ph, 3) - .5) * w * .12;
+    L.push([cx - wu / 2 + jag, y]); R.push([cx + wu / 2 + jag * .6, y]); sp.push([cx, y, wu]);
+  }
+  g.beginPath(); g.moveTo(L[0][0] - w * .6, yb + 4); for (const p of L) g.lineTo(p[0], p[1]);
+  for (let i = R.length - 1; i >= 0; i--) g.lineTo(R[i][0], R[i][1]); g.lineTo(R[0][0] + w * .6, yb + 4); g.closePath(); g.fill();
+  // roots spreading into the ground
+  for (const s of [-1, 1]) for (let k = 0; k < 2; k++) quadSeg(g, x + s * w * .25, yb - h * .03, w * .35, x + s * w * (.9 + r() * .8), yb + 6, w * .08);
+  return sp;
+}
+function ridge(g, x0, x1, yf, col) {   // a filled ground shape whose top edge is yf(x)
+  g.fillStyle = col; g.beginPath(); g.moveTo(x0, H + 50); for (let x = x0; x <= x1; x += 6) g.lineTo(x, yf(x)); g.lineTo(x1, H + 50); g.closePath(); g.fill();
+}
+function grass(g, r, x0, x1, yf, n, hgt) {
+  for (let i = 0; i < n; i++) { const x = x0 + r() * (x1 - x0), y = yf(x) + 2, k = 2 + (r() * 4 | 0);
+    for (let j = 0; j < k; j++) { const a = -Math.PI / 2 + (r() - .5) * .9, l = hgt * (.4 + r());
+      g.lineWidth = 1.2 + r(); g.beginPath(); g.moveTo(x + j * 2, y); g.quadraticCurveTo(x + j * 2 + Math.cos(a) * l * .3, y - l * .6, x + j * 2 + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke(); } }
+}
+function bramble(g, r, x, y, h) {   // a dead bush: thin forking sticks from one root
+  for (let k = 0; k < 7; k++) twigBranch(g, r, x + (r() - .5) * 10, y, -Math.PI / 2 + (r() - .5) * 1.5, h * (.5 + r() * .6), 3.2, 4);
+}
+function twigBranch(g, r, x, y, a, l, w, d) {
+  if (d < 0) return; const n = 4; let px = x, py = y;
+  for (let i = 0; i < n; i++) { a += (r() - .5) * .5; const nx = px + Math.cos(a) * l / n, ny = py + Math.sin(a) * l / n;
+    g.lineWidth = w * (1 - i / n * .5); g.beginPath(); g.moveTo(px, py); g.lineTo(nx, ny); g.stroke();
+    if (r() < .5) twigBranch(g, r, nx, ny, a + (r() < .5 ? -1 : 1) * (.5 + r() * .5), l * .45, w * .6, d - 1); px = nx; py = ny; }
+}
+// a colossal rib, rising out of the fog and curling over (the giant shape in the fog)
+function rib(g, x, yb, h, reach, w) {
+  const pts = []; for (let i = 0; i <= 40; i++) { const u = i / 40, a = u * Math.PI * .92;
+    pts.push([x + reach * (1 - Math.cos(a)) * .5 + Math.sin(u * 9) * 2, yb - h * Math.sin(a) * (1 - u * .08) - u * u * h * .1, w * (1 - u * .78)]); }
+  for (let i = 0; i < pts.length - 1; i++) quadSeg(g, pts[i][0], pts[i][1], pts[i][2], pts[i + 1][0], pts[i + 1][1], pts[i + 1][2]);
+}
+
+// ---------------- textures ----------------
+function streakTex() {   // soft dry-brush mottling (painted with a flat brush): low-frequency blotches, a little grain
+  const N = 256, c = Pilot.canvas(N, N), g = c.getContext('2d'), d = g.createImageData(N, N);
+  const tile = (f, x, y) => { const a = f(x, y), b = f(x - N, y), cc = f(x, y - N), e = f(x - N, y - N), u = x / N, v = y / N;
+    return a * (1 - u) * (1 - v) + b * u * (1 - v) + cc * (1 - u) * v + e * u * v; };
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const v = tile((a, b) => Pilot.fbm(a / 40 + 3, b / 60, 4), x, y) * .75 + tile((a, b) => Pilot.noise(a / 3 + 9, b / 12), x, y) * .25, i = (y * N + x) * 4;
+    const k = (v - .5) * 2; d.data[i] = d.data[i + 1] = d.data[i + 2] = k > 0 ? 255 : 0; d.data[i + 3] = Math.min(1, Math.abs(k) * 1.6) * 255; }
+  g.putImageData(d, 0, 0); return c;
+}
+// a drifting fog bank: horizontally tileable fbm, soft-thresholded, fading at its top and bottom
+function fogTex(w, h, seed, sc, thr, col, shape = 'band') {
+  const c = Pilot.canvas(w, h), g = c.getContext('2d'), d = g.createImageData(w, h), [R, G, Bc] = hx(col), o = seed * 13.1;
+  for (let y = 0; y < h; y++) { const v = y / h, m = shape === 'band' ? Math.pow(Math.sin(Math.PI * v), 1.4) : Math.pow(v, .8) * (1 - ss(.92, 1, v) * 0);
+    for (let x = 0; x < w; x++) {
+      const f = (xx) => Pilot.fbm(xx / sc + o, y / (sc * .55) + o, 5);
+      const n = ((w - x) * f(x) + x * f(x - w)) / w;
+      const a = clamp((n - thr) * 2.6) * m, i = (y * w + x) * 4;
+      d.data[i] = R; d.data[i + 1] = G; d.data[i + 2] = Bc; d.data[i + 3] = a * 255; } }
+  g.putImageData(d, 0, 0); return c;
+}
+function grainTex() {
+  const N = 256, c = Pilot.canvas(N, N), g = c.getContext('2d'), d = g.createImageData(N, N), r = rng(91);
+  for (let i = 0; i < N * N; i++) { const v = 128 + (r() - .5) * 46; d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = v; d.data[i * 4 + 3] = 255; }
+  g.putImageData(d, 0, 0); return c;
+}
+
+// a colossal stag standing in the fog, head lowered toward the path (the giant shape). Faces left; s = scale.
+function stag(g, r, x, yb, s) {
+  g.save(); g.translate(x, yb); g.scale(s, s);
+  const leg = (pts, w0, w1) => { for (let i = 0; i < pts.length - 1; i++) { const u0 = i / (pts.length - 1), u1 = (i + 1) / (pts.length - 1);
+    quadSeg(g, pts[i][0], pts[i][1], lerp(w0, w1, u0), pts[i + 1][0], pts[i + 1][1], lerp(w0, w1, u1)); } };
+  leg([[-112, -280], [-122, -150], [-116, -60], [-112, 0]], 34, 9);          // far front leg
+  leg([[118, -290], [146, -170], [128, -70], [134, 0]], 40, 9);               // far hind leg
+  g.beginPath(); g.moveTo(160, -350);
+  g.bezierCurveTo(90, -372, -20, -366, -92, -384);                            // back to withers
+  g.bezierCurveTo(-128, -420, -150, -470, -176, -548);                        // neck (back edge) up to the poll
+  g.bezierCurveTo(-190, -566, -214, -560, -232, -540);                        // forehead
+  g.bezierCurveTo(-250, -520, -262, -504, -276, -480);                        // nose bridge
+  g.bezierCurveTo(-282, -468, -270, -458, -254, -462);                        // muzzle, chin
+  g.bezierCurveTo(-232, -470, -214, -474, -204, -480);                        // jaw
+  g.bezierCurveTo(-188, -440, -184, -392, -170, -352);                        // throat ruff down to the chest
+  g.bezierCurveTo(-176, -318, -160, -280, -132, -262);                        // chest
+  g.bezierCurveTo(-60, -238, 40, -240, 112, -258);                            // belly
+  g.bezierCurveTo(150, -268, 176, -300, 178, -332);                           // haunch
+  g.lineTo(186, -342); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(-196, -552); g.quadraticCurveTo(-176, -590, -150, -584); g.quadraticCurveTo(-166, -566, -184, -542); g.fill();   // ear
+  leg([[-92, -280], [-90, -150], [-96, -60], [-90, 0]], 36, 10);              // near front leg
+  leg([[96, -284], [122, -170], [100, -70], [104, 0]], 44, 10);               // near hind leg
+  // antlers: two broad beams sweeping up and back, tines curving forward (the crown reads against the fog)
+  for (const [bx, by, sp, wd, sc] of [[-206, -556, -.32, 16, .9], [-184, -560, .1, 19, 1]]) {
+    let px = bx, py = by, a = -1.5 + sp, w = wd;
+    for (let i = 0; i < 8; i++) { a += .12 + (r() - .5) * .06; const l = (30 - i * 1.5) * sc, nx = px + Math.cos(a) * l, ny = py + Math.sin(a) * l, nw = w * .86;
+      quadSeg(g, px, py, w, nx, ny, nw);
+      if (i === 0 || i === 2 || i === 4 || i === 6) { let tx = nx, ty = ny, ta = a - 1.25 - (i === 0 ? .5 : 0), tw = nw * .85;
+        for (let j = 0; j < 5; j++) { ta += .2; const tl = (i === 0 ? 14 : 19 - j * 2) * sc, ux = tx + Math.cos(ta) * tl, uy = ty + Math.sin(ta) * tl; quadSeg(g, tx, ty, tw, ux, uy, tw * .72); tx = ux; ty = uy; tw *= .72; } }
+      px = nx; py = ny; w = nw; }
+    for (let j = 0; j < 3; j++) { const ta = a - .3 + (j - 1) * .45; quadSeg(g, px, py, w, px + Math.cos(ta) * 24 * sc, py + Math.sin(ta) * 24 * sc, 1.6); }
+  }
+  // moss hanging from the antlers (it has stood here a long time)
+  for (let k = 0; k < 5; k++) moss(g, r, -250 + k * 24 + r() * 10, -650 - r() * 50, 50 + r() * 50, 1.3);
+  g.restore();
+}
+
+// ---------------- the planes ----------------
+const PL = [];
+function plane(depth, build, col, streak = .1) {
+  const c = Pilot.canvas(W + 2 * M, H), g = c.getContext('2d');
+  g.translate(M, 0); g.fillStyle = col; g.strokeStyle = col; g.lineCap = 'round'; g.lineJoin = 'round';
+  build(g); g.setTransform(1, 0, 0, 1, 0, 0);
+  if (streak) { g.globalCompositeOperation = 'source-atop'; g.globalAlpha = streak; const p = g.createPattern(TX.streak, 'repeat'); g.fillStyle = p; g.fillRect(0, 0, c.width, H); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+  return { c, depth };
+}
+const G0 = 1512;
+const GROUND = x => G0 + ss(560, 1000, x) * 70 * (1 + Math.sin(x / 60) * .1) + (1 - ss(-60, 200, x)) * Math.sin(x / 50) * 5 + Math.sin(x / 23) * 1.2 * ss(520, 600, x);
+const LANT = { x: 838, y: 1252 };   // the lantern (world x on the far ridge plane)
+const RIDGE = x => 1326 + Math.sin(x / 210) * 14 - ss(560, 1100, x) * 26;
+function gnarled(g, r, x, yb, h, w, o) {
+  const sp = trunk(g, r, x, yb, h, w, o);
+  for (let k = 0; k < o.n; k++) { const s = sp[o.from + (r() * (40 - o.from) | 0)], side = o.side ? o.side * (k % 3 === 2 ? -1 : 1) : (k % 2 ? 1 : -1);
+    branch(g, r, s[0], s[1], -Math.PI / 2 + side * (.45 + r() * .75), o.len * (.6 + r() * .6), s[2] * .5, o.depth || 3, { kink: .6, moss: o.moss || 0, mossDepth: 3, mossLen: o.mossLen || 60, mossW: o.mossW || 1 }); }
+  return sp;
+}
+function buildPlanes() {
+  // 1 — far trees, nearly fog: few, broad, leaning
+  PL.push(plane(.1, g => { const r = rng(11);
+    for (const [x, w, b] of [[-90, 40, .5], [120, 26, -.3], [330, 30, .6], [560, 22, -.5], [760, 34, .4], [980, 28, -.6], [1160, 44, .3]])
+      gnarled(g, r, x, 1460, 1480, w, { bend: b, lean: (r() - .5) * .08, n: 6, from: 14, len: 200, depth: 2 }); }, C.p1, .04));
+  // 2 — the giant in the fog, between two far trees
+  PL.push(plane(.2, g => { const r = rng(12);
+    stag(g, r, 640, 1400, 1.18);
+    for (const [x, w, b] of [[40, 38, .6], [1080, 42, -.7]]) gnarled(g, r, x, 1430, 1460, w, { bend: b, n: 7, from: 12, len: 230, side: x < 500 ? 1 : -1, moss: .25, mossLen: 50 });
+  }, C.p2, .05));
+  // 3 — the far ridge and the lantern post at the end of the path
+  PL.push(plane(.34, g => { const r = rng(13);
+    ridge(g, -M, W + M, RIDGE, C.p3);
+    g.lineWidth = 7; g.beginPath(); g.moveTo(LANT.x, RIDGE(LANT.x) + 6); g.lineTo(LANT.x + 2, LANT.y - 30); g.stroke();
+    g.lineWidth = 4; g.beginPath(); g.moveTo(LANT.x + 2, LANT.y - 28); g.lineTo(LANT.x - 18, LANT.y - 26); g.stroke();
+    g.lineWidth = 2; g.beginPath(); g.moveTo(LANT.x - 16, LANT.y - 26); g.lineTo(LANT.x - 16, LANT.y - 20); g.stroke();
+    g.beginPath(); g.moveTo(LANT.x - 24, LANT.y - 14); g.lineTo(LANT.x - 8, LANT.y - 14); g.lineTo(LANT.x - 12, LANT.y - 20); g.lineTo(LANT.x - 20, LANT.y - 20); g.fill();   // lamp cap
+    g.fillRect(LANT.x - 22, LANT.y + 2, 12, 4); g.lineWidth = 1.5; for (const dx of [-22, -10]) { g.beginPath(); g.moveTo(LANT.x + dx, LANT.y - 14); g.lineTo(LANT.x + dx, LANT.y + 2); g.stroke(); }
+    grass(g, r, -M, W + M, RIDGE, 70, 16);
+    bramble(g, r, 260, RIDGE(260), 80); bramble(g, r, 990, RIDGE(990), 70); }, C.p3, .06));
+  // 4 — mid trees, gnarled and mossy, leaving the clearing open
+  PL.push(plane(.5, g => { const r = rng(14);
+    gnarled(g, r, 60, 1430, 1560, 64, { bend: .9, n: 8, from: 24, len: 230, side: 1, moss: .3, mossLen: 90, mossW: 1.1 });
+    gnarled(g, r, 1000, 1430, 1560, 70, { bend: -.8, n: 8, from: 24, len: 230, side: -1, moss: .3, mossLen: 90, mossW: 1.1 });
+    ridge(g, -M, W + M, x => 1428 + Math.sin(x / 120) * 8 + ss(500, 900, x) * 10, C.p4); grass(g, r, -M, W + M, x => 1428 + Math.sin(x / 120) * 8 + ss(500, 900, x) * 10, 80, 18); }, C.p4, .07));
+  // 5 — near trees
+  PL.push(plane(.74, g => { const r = rng(15);
+    gnarled(g, r, 210, 1600, 1700, 84, { bend: -.5, n: 7, from: 18, len: 280, side: -1, moss: .35, mossLen: 120, mossW: 1.3 });
+    gnarled(g, r, 1110, 1600, 1700, 120, { bend: -.6, n: 7, from: 22, len: 260, side: -1, moss: .35, mossLen: 130, mossW: 1.4 });
+    bramble(g, r, 900, 1600, 170); }, C.p5, .08));
+  // 6 — the ground the traveller walks on
+  PL.push(plane(1, g => { const r = rng(16);
+    ridge(g, -M, W + M, GROUND, C.p6); grass(g, r, -M, W + M, GROUND, 150, 20);
+    bramble(g, r, 690, GROUND(690) + 4, 100); bramble(g, r, 70, GROUND(70) + 2, 70); }, C.p6, .06));
+  // 7 — the frame: an enormous trunk at the left, a limb arching over the top, roots and brambles in front
+  PL.push(plane(1.3, g => { const r = rng(17);
+    const sp = trunk(g, r, -70, 2000, 2150, 300, { bend: .5 });
+    branch(g, r, sp[25][0] + 60, sp[25][1], -.5, 720, 84, 3, { kink: .35, up: 0, moss: .3, mossDepth: 3, mossLen: 170, mossW: 1.6 });
+    branch(g, r, sp[33][0] + 30, sp[33][1], -1.1, 420, 54, 3, { kink: .5, moss: .3, mossDepth: 3, mossLen: 110, mossW: 1.3 });
+    const sp2 = trunk(g, r, 1190, 2000, 2150, 220, { bend: -.6 });
+    branch(g, r, sp2[29][0] - 40, sp2[29][1], Math.PI + .45, 520, 64, 3, { kink: .45, up: 0, moss: .35, mossDepth: 3, mossLen: 140, mossW: 1.4 });
+    const FR = x => 1800 + (x - 300) * (x - 300) / 9000 * .3 - ss(700, 1250, x) * 70;
+    ridge(g, -M, W + M, FR, C.p7); bramble(g, r, 930, FR(930), 240); bramble(g, r, 160, FR(160), 150); grass(g, r, -M, W + M, FR, 120, 40); }, C.p7, .08));
+}
+
+// ---------------- the traveller (model units: feet on y = 0, facing +x; drawn scaled by FS) ----------------
+const FS = 1.55, THIGH = 34, SHIN = 34, TORSO = 48;
+const X0 = 330, WALK = 112;   // world x at t=0; model-unit distance walked before the stop
+const V = WALK / (B.stop - .3);
+function distAt(t) { const a = B.stop - .6; if (t <= a) return V * t; const u = clamp((t - a) / .6); return V * a + V * .6 * (u - u * u / 2); }
+function ik(ax, ay, fx, fy, a, b) {
+  const dx = fx - ax, dy = fy - ay, d = Math.min(Math.hypot(dx, dy), a + b - .5);
+  const th = Math.atan2(dy, dx), al = Math.acos(clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1));
+  const k1 = [ax + Math.cos(th - al) * a, ay + Math.sin(th - al) * a], k2 = [ax + Math.cos(th + al) * a, ay + Math.sin(th + al) * a];
+  return k1[0] > k2[0] ? k1 : k2;   // knees bend forward
+}
+function pose(t) {
+  const D = distAt(t), STEP = 26, ph = D / (2 * STEP), stopK = ss(B.stop - .35, B.stop + .15, t);
+  const rel = ss(B.drop - .05, B.drop + .9, t);
+  const lean = lerp(.36, .44, ss(B.stop, B.stop + .4, t)) * (1 - rel) + .06 * rel;
+  const head = lerp(.62, -.08, eio(clamp((t - B.look) / .7))) + .04 * Math.sin((t - B.drop) * 2.4) * ss(B.drop + .5, B.drop + 1.2, t);
+  const breath = Math.sin((t - B.drop) * 2.6) * 1.2 * ss(B.drop + .3, B.drop + 1, t);
+  const feet = [0, .5].map((o, i) => {
+    const p = (ph + o) % 1; let fx, lift = 0;
+    if (p < .6) fx = STEP * .6 * (1 - 2 * p / .6); else { const q = (p - .6) / .4; fx = -STEP * .6 + STEP * 1.2 * eio(q); lift = Math.sin(Math.PI * q) * 7; }
+    return [D + lerp(fx, i ? -6 : 8, stopK), -lift * (1 - stopK)];
+  });
+  const sag = 4 * ss(B.stop, B.stop + .4, t) * (1 - rel);
+  const bob = (1 - stopK) * 2.2 * Math.cos(ph * 2 * TAU) + sag;
+  const hip = [D + 3 + lean * 4, -(THIGH + SHIN - 3) + bob];
+  return { D, hip, feet, lean, head, breath, ph, stopK, rel };
+}
+const PACK = { w: 46, h: 72 };
+function packState(t, P, sh, U, F) {
+  const at = (f, u) => [sh[0] + F[0] * f + U[0] * u, sh[1] + F[1] * f + U[1] * u];
+  const c = at(-34, -26), t0 = B.drop - .36;
+  if (t < t0) { const pre = ss(B.drop - 1, t0, t); return { x: c[0] - pre * 3, y: c[1] + pre * 9, a: P.lean + pre * .12, on: 1 }; }
+  const a0 = { x: c[0] - 3, y: c[1] + 9, a: P.lean + .12 }, land = { x: P.D - 40, y: -PACK.h * .46, a: -.2 }, u = clamp((t - t0) / (B.drop - t0));
+  if (t < B.drop) return { x: lerp(a0.x, land.x, u), y: lerp(a0.y, land.y, u * u), a: lerp(a0.a, land.a - .35, u), on: 0 };
+  const v = clamp((t - B.drop) / .32);
+  return { x: land.x, y: land.y - Math.sin(v * Math.PI) * 4 * (1 - v), a: lerp(land.a - .35, land.a, eo(v)), on: 0, sq: Math.max(0, 1 - (t - B.drop) / .1) };
+}
+function packShape(g, p) {
+  g.save(); g.translate(p.x, p.y); g.rotate(p.a); if (p.sq) g.scale(1 + .1 * p.sq, 1 - .12 * p.sq);
+  const { w, h } = PACK; g.fillStyle = C.fig;
+  g.beginPath(); g.roundRect(-w / 2, -h / 2, w, h, [14, 16, 9, 9]); g.fill();
+  g.beginPath(); g.ellipse(-9, -h / 2 - 5, w * .42, 9, -.06, 0, TAU); g.fill();                 // bedroll, set back
+  g.beginPath(); g.ellipse(-w / 2 - 4, h * .12, 7, 15, 0, 0, TAU); g.fill();                    // side pouch
+  g.strokeStyle = C.figL; g.lineWidth = 1.8;
+  for (const y of [-.1, .24]) { g.beginPath(); g.moveTo(-w / 2 + 3, h * y); g.quadraticCurveTo(0, h * y + 3, w / 2 - 3, h * y - 1); g.stroke(); }
+  
+  g.restore();
+}
+function figure(g, t) {
+  const P = pose(t), [hX, hY] = P.hip, U = [Math.sin(P.lean), -Math.cos(P.lean)], F = [Math.cos(P.lean), Math.sin(P.lean)];
+  const sh = [hX + U[0] * TORSO, hY + U[1] * TORSO - P.breath];
+  const at = (f, u) => [sh[0] + F[0] * f + U[0] * u, sh[1] + F[1] * f + U[1] * u];
+  const neck = at(4, 7), hp = P.head + P.lean * .4;   // head pitch: bowed under the load, lifted at the light
+  const fwd = lerp(1, .35, P.rel), hd = [neck[0] + (Math.sin(.9 - hp * .2) * 10 + Math.cos(hp) * 4) * fwd, neck[1] - Math.cos(.9 - hp * .2) * 10 - (1 - fwd) * 4];
+  const pk = packState(t, P, sh, U, F);
+  g.fillStyle = C.fig; g.strokeStyle = C.fig; g.lineCap = 'round'; g.lineJoin = 'round';
+  const leg = (f, w) => { const k = ik(hX, hY, f[0], f[1] - 3, THIGH, SHIN);
+    g.lineWidth = w; g.beginPath(); g.moveTo(hX, hY); g.lineTo(k[0], k[1]); g.stroke();
+    g.lineWidth = w * .8; g.beginPath(); g.moveTo(k[0], k[1]); g.lineTo(f[0], f[1] - 3); g.stroke();
+    g.beginPath(); g.moveTo(f[0] - 4, f[1] - 6); g.quadraticCurveTo(f[0] + 10, f[1] - 7, f[0] + 11, f[1]); g.lineTo(f[0] - 5, f[1]); g.closePath(); g.fill(); };
+  leg(P.feet[1], 9);
+  if (!pk.on) packShape(g, pk);
+  // the far arm (only its hand shows, on the far strap) and the cloak
+  const sw = Math.sin(P.ph * TAU) * 2.5 * (1 - P.stopK), hem = hY + 26;
+  const back = [hX - 19 + sw - P.lean * 8, hem + 1], front = [hX + 17 + sw * .5 + P.lean * 12, hem - 3];
+  g.beginPath(); g.moveTo(...at(-12, 2));
+  g.quadraticCurveTo(hX - 20, hY - 10, back[0], back[1]);
+  for (let i = 1; i <= 7; i++) { const u = i / 7; g.lineTo(lerp(back[0], front[0], u), lerp(back[1], front[1], u) + (i % 2 ? 3.5 : 0) + Math.sin(i * 1.7 + P.ph * 6) * 1.2); }
+  g.quadraticCurveTo(hX + 20 + P.lean * 18, hY - 8, ...at(11, -4)); g.lineTo(...at(8, 4)); g.closePath(); g.fill();
+  // neck and hooded head
+  g.lineWidth = 10; g.beginPath(); g.moveTo(...at(1, 0)); g.lineTo(...neck); g.stroke();
+  g.save(); g.translate(hd[0], hd[1]); g.rotate(hp);
+  g.beginPath(); g.ellipse(1, 0, 12, 13, 0, 0, TAU); g.fill();
+  g.beginPath(); g.moveTo(-7, -9); g.quadraticCurveTo(-12, -16, -6, -22); g.quadraticCurveTo(0, -14, 6, -10); g.fill();   // hood tip
+  g.beginPath(); g.moveTo(9, -1); g.lineTo(14, 3); g.lineTo(9, 6); g.fill();                                              // brow / nose
+  g.restore();
+  if (pk.on) packShape(g, pk);
+  // the straps over the shoulder, and the near hand gripping them at the chest (until they slip)
+  const grip = 1 - ss(B.drop - .75, B.drop - .3, t);
+  const handOn = at(12, -14), handOff = [hX + 12 + P.lean * 10, hY + 14];
+  const hand = [lerp(handOff[0], handOn[0], grip), lerp(handOff[1], handOn[1], grip)];
+  const elbow = grip > .5 ? at(4, -30) : [lerp(at(2, -24)[0], hX + 6, 1 - grip), lerp(at(2, -24)[1], hY - 4, 1 - grip)];
+  if (pk.on || grip > .05) { const top = [pk.x + Math.cos(pk.a) * 14 + Math.sin(pk.a) * 30, pk.y - Math.cos(pk.a) * 30 + Math.sin(pk.a) * 14];
+    g.strokeStyle = C.figL; g.lineWidth = 2.6; g.beginPath(); g.moveTo(...top); g.quadraticCurveTo(...at(4, 6), ...(grip > .3 ? hand : at(10, -16))); g.stroke(); }
+  g.strokeStyle = C.fig; g.lineWidth = 9.5; g.beginPath(); g.moveTo(...at(1, -2)); g.lineTo(...elbow); g.stroke();
+  g.lineWidth = 7.5; g.beginPath(); g.moveTo(...elbow); g.lineTo(...hand); g.stroke();
+  g.beginPath(); g.arc(hand[0], hand[1], 4.8, 0, TAU); g.fill();
+  leg(P.feet[0], 10);
+  return { P, pk };
+}
+
+// ---------------- frame ----------------
+const TX = {};
+let FIG = null, FIGR = null, GRAIN = null;
+const camAt = t => 70 * (.5 - .5 * Math.cos(TAU * t / S.DUR));   // dolly right and back: closes the loop
+const lightK = t => ss(B.look - .3, B.look + .5, t) * (1 - .07 * (.5 + .5 * Math.sin(t * 17)) * (.5 + .5 * Math.sin(t * 6.3)));
+function veil(ctx, y0, y1, a, col = C.fog) {
+  const g = ctx.createLinearGradient(0, y0, 0, y1), [r, gg, b] = hx(col);
+  g.addColorStop(0, `rgba(${r},${gg},${b},0)`); g.addColorStop(1, `rgba(${r},${gg},${b},${a})`);
+  ctx.fillStyle = g; ctx.fillRect(0, y0, W, H - y0);
+}
+function bank(ctx, tex, y, h, speed, t, cam, depth, alpha) {
+  const tw = W * 1.6, off = ((t * speed + cam * depth) % tw + tw) % tw;
+  ctx.globalAlpha = alpha; ctx.drawImage(tex, -off, y, tw, h); ctx.drawImage(tex, tw - off, y, tw, h); ctx.globalAlpha = 1;
+}
+let WARM = null;
+function warm(ctx, x, y, R, a, mode = 'source-over') {   // warm light scattered in the fog around the lantern (a prebuilt sprite)
+  if (a <= 0) return; ctx.save(); ctx.globalCompositeOperation = mode; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(WARM, x - R, y - R, 2 * R, 2 * R); ctx.restore();
+}
+function warmSprite() { const N = 256, c = Pilot.canvas(N, N), g = c.getContext('2d'), gr = g.createRadialGradient(N / 2, N / 2, 1, N / 2, N / 2, N / 2);
+  gr.addColorStop(0, 'rgba(255,214,150,1)'); gr.addColorStop(.18, 'rgba(246,178,104,.6)'); gr.addColorStop(.5, 'rgba(214,160,110,.2)'); gr.addColorStop(1, 'rgba(200,160,120,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, N, N); return c; }
+// Fog veils pool toward the ground between planes. A veil is uniform in x, so it can be baked (source-atop) into every
+// plane behind it and into the sky — the camera only slides sideways. Film grain is baked into each plane the same way.
+const VEILS = [[0, 640, 1480, .72], [1, 900, 1460, .55], [2, 1100, 1440, .35], [3, 1000, 1470, .36], [4, 1250, 1600, .3], [5, 1500, 1920, .16, '#6f9ea1']];
+function bake(c, from, grain) {
+  const g = c.getContext('2d'), m = Pilot.canvas(c.width, c.height); m.getContext('2d').drawImage(c, 0, 0);
+  g.save(); g.globalCompositeOperation = 'source-atop';
+  for (const [i, y0, y1, a, col] of VEILS) if (i >= from) { const [r, gg, b] = hx(col || C.fog), lg = g.createLinearGradient(0, y0, 0, y1);
+    lg.addColorStop(0, `rgba(${r},${gg},${b},0)`); lg.addColorStop(1, `rgba(${r},${gg},${b},${a})`); g.fillStyle = lg; g.fillRect(0, y0, c.width, H - y0); }
+  const vg = g.createLinearGradient(0, 0, 0, 560); vg.addColorStop(0, 'rgba(10,26,28,.6)'); vg.addColorStop(1, 'rgba(10,26,28,0)'); g.fillStyle = vg; g.fillRect(0, 0, c.width, 560);
+  g.globalCompositeOperation = 'soft-light'; g.globalAlpha = .4; g.fillStyle = grain; g.fillRect(0, 0, c.width, c.height);
+  g.globalAlpha = 1; g.globalCompositeOperation = 'destination-in'; g.drawImage(m, 0, 0); g.restore();
+}
+function draw(ctx, t) {
+  const cam = camAt(t), lk = lightK(t);
+  ctx.drawImage(TX.sky, 0, 0);
+  const put = i => ctx.drawImage(PL[i].c, -M - cam * PL[i].depth, 0);
+  const lx = LANT.x - cam * PL[2].depth - 16, ly = LANT.y - 6;
+  bank(ctx, TX.fogHi, 520, 560, 8, t, cam, .06, .4);
+  put(0);
+  bank(ctx, TX.fogA, 980, 460, 12, t, cam, .15, .5);
+  put(1);
+  bank(ctx, TX.fogB, 1120, 360, -10, t, cam, .27, .55);
+  // the lantern: lit at the look, its light scattering through the fog in front of it
+  warm(ctx, lx, ly, 420, lk * .5, 'screen');
+  put(2);
+  if (lk > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = lk;
+    const cg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 16); cg.addColorStop(0, C.warmCore); cg.addColorStop(.45, 'rgba(255,206,130,.85)'); cg.addColorStop(1, 'rgba(255,170,90,0)');
+    ctx.fillStyle = cg; ctx.fillRect(lx - 16, ly - 16, 32, 32); ctx.restore(); }
+  warm(ctx, lx, ly, 300, lk * .6);
+  bank(ctx, TX.fogB, 1170, 360, 20, t, cam, .4, .6);
+  warm(ctx, lx, ly + 20, 520, lk * .16);
+  put(3);
+  bank(ctx, TX.fogA, 1260, 380, -16, t, cam, .62, .45);
+  put(4);
+  warm(ctx, lx - 40, ly + 60, 700, lk * .12);
+  put(5);
+  // the traveller (drawn at FS into a sprite; rim of fog light from the clearing, warm on the face side once lit)
+  const fc = FIG.getContext('2d'); fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, FIG.width, FIG.height);
+  const OX = 150, OY = 330; fc.setTransform(FS, 0, 0, FS, OX, OY); const fg = figure(fc, t); fc.setTransform(1, 0, 0, 1, 0, 0);
+  const rc = FIGR.getContext('2d'); rc.save(); rc.clearRect(0, 0, FIGR.width, FIGR.height);
+  rc.drawImage(FIG, 0, 0); rc.globalCompositeOperation = 'destination-out'; rc.drawImage(FIG, -2.4, 2.8);
+  rc.globalCompositeOperation = 'source-in'; rc.fillStyle = 'rgba(190,230,228,.6)'; rc.fillRect(0, 0, FIGR.width, FIGR.height); rc.restore();
+  if (lk > 0) { rc.save(); rc.globalAlpha = lk; const w2 = FIGW.getContext('2d'); w2.clearRect(0, 0, FIGW.width, FIGW.height); w2.globalCompositeOperation = 'source-over'; w2.drawImage(FIG, 0, 0);
+    w2.globalCompositeOperation = 'destination-out'; w2.drawImage(FIG, -3.2, .6); w2.globalCompositeOperation = 'source-in'; w2.fillStyle = 'rgba(255,190,120,.9)'; w2.fillRect(0, 0, FIGW.width, FIGW.height);
+    w2.globalCompositeOperation = 'source-over'; rc.drawImage(FIGW, 0, 0); rc.restore(); }
+  const fx = X0 - cam - OX, fy = G0 - OY;
+  ctx.drawImage(FIG, fx, fy);
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.drawImage(FIGR, fx, fy); ctx.restore();
+  // ground mist kicked up where the pack lands
+  if (t > B.drop) { const u = clamp((t - B.drop) / 1.4), px = X0 + fg.pk.x * FS - cam, py = G0 - 6;
+    for (let i = 0; i < 5; i++) { const s = (i - 2) * .5, R = 24 + eo(u) * (70 + i * 10), cx = px + s * eo(u) * 110, cy = py - 6 - u * 16;
+      const gr = ctx.createRadialGradient(cx, cy, 2, cx, cy, R); gr.addColorStop(0, `rgba(196,220,214,${.3 * (1 - u)})`); gr.addColorStop(1, 'rgba(196,220,214,0)');
+      ctx.fillStyle = gr; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); } }
+  bank(ctx, TX.fogLow, G0 - 70, 150, 26, t, cam, 1, .5); bank(ctx, TX.fogA, G0 + 10, 300, 34, t, cam, 1, .35);
+  put(6);
+  liveMoss(ctx, t, cam);
+  bank(ctx, TX.fogLow, 1720, 240, 44, t, cam, 1.3, .3);
+  Story.captions(ctx, t, S.lines, { font: "'Gowun Batang',serif", weight: 700, size: 66, color: C.ink, y: 410, shadow: 'rgba(6,22,24,.9)', shadowBlur: 22 });
+}
+// a few long moss strands hanging from the overhanging limb, swaying in the moving air (drawn live)
+const LM = [];
+function liveMoss(ctx, t, cam) {
+  ctx.save(); ctx.strokeStyle = C.p7; ctx.lineCap = 'round';
+  for (const m of LM) { const x0 = m.x - cam * 1.3; let px = x0, py = m.y;
+    for (let i = 1; i <= m.n; i++) { const u = i / m.n, sw = Math.sin(t * TAU / 3 + m.ph + u * 1.6) * m.amp * u * u;
+      const nx = x0 + sw + Math.sin(i * 1.3 + m.ph) * 2, ny = m.y + m.len * u;
+      ctx.lineWidth = m.w * (1 - u * .75); ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(nx, ny); ctx.stroke(); px = nx; py = ny; } }
+  ctx.restore();
+}
+let FIGW = null;
+async function init() {
+  TX.streak = streakTex();
+  buildPlanes();
+  TX.sky = Pilot.canvas(W, H); { const g = TX.sky.getContext('2d'), lg = g.createLinearGradient(0, 0, 0, H);
+    lg.addColorStop(0, C.sky0); lg.addColorStop(.34, C.sky1); lg.addColorStop(.6, '#a9d0cf'); lg.addColorStop(1, '#8ab7b7'); g.fillStyle = lg; g.fillRect(0, 0, W, H);
+    const rg = g.createRadialGradient(600, 1060, 30, 600, 1060, 820); rg.addColorStop(0, 'rgba(214,238,236,1)'); rg.addColorStop(.45, 'rgba(184,222,220,.5)'); rg.addColorStop(1, 'rgba(180,218,216,0)');
+    g.fillStyle = rg; g.fillRect(0, 0, W, H); }
+  TX.fogHi = fogTex(270, 130, 1, 60, .42, '#b6dcda');
+  TX.fogA = fogTex(300, 110, 2, 46, .45, '#a8d2d0');
+  TX.fogB = fogTex(300, 110, 3, 40, .42, '#9ec9c8');
+  TX.fogLow = fogTex(300, 70, 4, 34, .38, '#a0c8c7', 'low');
+  FIG = Pilot.canvas(520, 420); FIGR = Pilot.canvas(520, 420); FIGW = Pilot.canvas(520, 420);
+  GRAIN = FIG.getContext('2d').createPattern(grainTex(), 'repeat'); WARM = warmSprite();
+  bake(TX.sky, 0, GRAIN); PL.forEach((L, i) => bake(L.c, i, GRAIN));
+  const r = rng(44); for (let i = 0; i < 7; i++) LM.push({ x: 330 + i * 70 + r() * 30, y: 470 - i * 34 + r() * 30, len: 80 + r() * 130, n: 12, w: 2 + r() * 1.4, amp: 6 + r() * 6, ph: r() * 6 });
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 66px 'Gowun Batang'"], init, draw });
+</script>
+</body>
+</html>

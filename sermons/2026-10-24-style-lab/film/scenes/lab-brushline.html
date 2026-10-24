@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 미니멀 붓선 · 커피 곰</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hi+Melody&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* ---- hand-drawn toolkit (shared by the lab-* hand-drawn scenes; inlined at build time) ----
+   Lines are variable-width ribbons built from densely sampled polylines: a static hand wobble per stroke (seeded),
+   a boil displacement per drawing (3 drawings cycled on 8–12 fps), pressure along the length, tapered ends, ragged
+   edges. Ink is laid on a white layer that is multiplied onto a paper whose tooth is a real height field, so ink drops
+   out in the valleys and pencil only catches the peaks. */
+const TAU = Math.PI * 2;
+const { clamp, lerp, ss, eo, eio, rng, noise, fbm } = Pilot;
+const W = 1080, H = 1920;
+const S = window.SCRIPT, B = S.beat;
+const HD = {};
+HD.hash = (i, s = 0) => { let h = (Math.imul(i | 0, 374761393) + Math.imul(s | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+HD.t12 = t => Math.floor(t * 12 + 1e-6) / 12;
+HD.spline = (P, step = 3, closed = false) => {
+  const n = P.length; if (n < 2) return P.map(p => p.slice());
+  const get = i => closed ? P[((i % n) + n) % n] : P[clamp(i, 0, n - 1)];
+  const out = [], segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
+    const L = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), m = Math.max(1, Math.ceil(L / step));
+    for (let j = 0; j < m; j++) { const t = j / m, t2 = t * t, t3 = t2 * t;
+      out.push([0, 1].map(k => .5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3))); }
+  }
+  out.push(closed ? out[0].slice() : P[n - 1].slice()); return out;
+};
+HD.seg = (a, b, step = 4) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), m = Math.max(1, Math.ceil(L / step)), o = [];
+  for (let i = 0; i <= m; i++) o.push([lerp(a[0], b[0], i / m), lerp(a[1], b[1], i / m)]); return o; };
+HD.arc = (cx, cy, rx, ry, a0, a1, step = 4, rot = 0) => { const L = Math.abs(a1 - a0) * Math.max(rx, ry), m = Math.max(2, Math.ceil(L / step)), o = [], c = Math.cos(rot), s = Math.sin(rot);
+  for (let i = 0; i <= m; i++) { const a = lerp(a0, a1, i / m), x = Math.cos(a) * rx, y = Math.sin(a) * ry; o.push([cx + x * c - y * s, cy + x * s + y * c]); } return o; };
+HD.normals = pts => pts.map((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; });
+HD.lengths = pts => { const s = [0]; for (let i = 1; i < pts.length; i++) s.push(s[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return s; };
+// hand wobble: perpendicular low-frequency displacement
+HD.wob = (pts, seed, amp, wl = 120) => { if (!amp || pts.length < 2) return pts; const N = HD.normals(pts), Sx = HD.lengths(pts), oy = (seed * 17.37) % 997;
+  return pts.map((p, i) => { const d = (noise(Sx[i] / wl, oy) - .5) * 2 * amp; return [p[0] + N[i][0] * d, p[1] + N[i][1] * d]; }); };
+// one boiled drawing: a new wobble + a tiny drift, per drawing index f
+HD.boil = (pts, seed, f, amp, wl = 90) => { if (!amp) return pts; const s = (seed * 31 + f * 977) | 0, dx = (HD.hash(s, 1) - .5) * amp, dy = (HD.hash(s, 2) - .5) * amp;
+  return HD.wob(pts, s, amp, wl).map(p => [p[0] + dx, p[1] + dy]); };
+HD.xf = (pts, m) => pts.map(p => [m.a * p[0] + m.c * p[1] + m.e, m.b * p[0] + m.d * p[1] + m.f]);   // apply a DOMMatrix-like
+HD.mat = (x, y, rot = 0, sx = 1, sy = sx) => { const c = Math.cos(rot), s = Math.sin(rot); return { a: c * sx, b: s * sx, c: -s * sy, d: c * sy, e: x, f: y }; };
+HD.mul = (A, Bm) => ({ a: A.a * Bm.a + A.c * Bm.b, b: A.b * Bm.a + A.d * Bm.b, c: A.a * Bm.c + A.c * Bm.d, d: A.b * Bm.c + A.d * Bm.d, e: A.a * Bm.e + A.c * Bm.f + A.e, f: A.b * Bm.e + A.d * Bm.f + A.f });
+HD.pt = (m, x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
+// variable-width ribbon (round caps where the end is wide)
+HD.ribbon = (pts, wf) => {
+  const n = pts.length, N = HD.normals(pts), Sx = HD.lengths(pts), L = Sx[n - 1] || 1, Lf = [], Rt = [], ws = [];
+  for (let i = 0; i < n; i++) { const w = Math.max(0, wf(Sx[i] / L, Sx[i], i, L)) / 2; ws.push(w); Lf.push([pts[i][0] + N[i][0] * w, pts[i][1] + N[i][1] * w]); Rt.push([pts[i][0] - N[i][0] * w, pts[i][1] - N[i][1] * w]); }
+  const p = new Path2D(); p.moveTo(Lf[0][0], Lf[0][1]); for (let i = 1; i < n; i++) p.lineTo(Lf[i][0], Lf[i][1]);
+  const ae = Math.atan2(N[n - 1][1], N[n - 1][0]); if (ws[n - 1] > .4) p.arc(pts[n - 1][0], pts[n - 1][1], ws[n - 1], ae, ae + Math.PI, true); else p.lineTo(Rt[n - 1][0], Rt[n - 1][1]);
+  for (let i = n - 1; i >= 0; i--) p.lineTo(Rt[i][0], Rt[i][1]);
+  const a0 = Math.atan2(N[0][1], N[0][0]); if (ws[0] > .4) p.arc(pts[0][0], pts[0][1], ws[0], a0 + Math.PI, a0, true);
+  p.closePath(); return p;
+};
+// an ink line: o = { w, ts, te (taper lengths px), mn (tip width fraction), press, pw (pressure wavelength), rough, seed, col, dry }
+HD.ink = (ctx, pts, o = {}) => {
+  if (!pts || pts.length < 2) return;
+  const w = o.w ?? 8, ts = o.ts ?? w * 2.5, te = o.te ?? w * 3.5, mn = o.mn ?? .2, press = o.press ?? .3, pw = o.pw ?? 70, rough = o.rough ?? .08, seed = o.seed ?? 1;
+  const wf = (u, s, i, L) => { const k = Math.min(1, mn + (1 - mn) * ss(0, ts, s)) * Math.min(1, mn + (1 - mn) * ss(0, te, L - s));
+    return w * k * (1 + press * (noise(s / pw, seed * 3.7 % 500) - .5) * 2) * (1 + rough * (HD.hash(i, seed) - .5) * 2); };
+  ctx.fillStyle = o.col || '#151312'; ctx.fill(HD.ribbon(pts, wf));
+  if (o.dry) {   // dry-brush streaks in the tail: thin paper-white lines along the stroke
+    const N = HD.normals(pts), Sx = HD.lengths(pts), L = Sx[Sx.length - 1], r = rng(seed * 7 + 3);
+    ctx.save(); ctx.strokeStyle = o.paper || '#fff'; ctx.lineCap = 'round';
+    for (let k = 0; k < (o.dryN || 4); k++) { const f = (r() - .5) * .7, u0 = 1 - o.dry * (.3 + .7 * r()); ctx.lineWidth = (o.dryW || 1) * (.5 + r() * .7); ctx.globalAlpha = .55 + r() * .45; ctx.beginPath(); let st = false;
+      for (let i = 0; i < pts.length; i++) { const u = Sx[i] / L; if (u < u0) continue; const ww = wf(u, Sx[i], i, L) * f; const x = pts[i][0] + N[i][0] * ww, y = pts[i][1] + N[i][1] * ww; if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y); }
+      ctx.stroke(); }
+    ctx.restore();
+  }
+};
+// a closed hand shape: fill (paper white or colour) — the outline is drawn separately with HD.ink
+HD.fillPts = (ctx, pts, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.fill(); };
+HD.pathOf = pts => { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (const q of pts) p.lineTo(q[0], q[1]); p.closePath(); return p; };
+
+// ---- paper: a tooth height field (full frame) → paper colour, ink dropout (white specks), pencil deposit masks ----
+HD.tooth = (seed = 1, s1 = 6, s2 = 2.2, fib = 0) => {
+  const T = new Float32Array(W * H), r = rng(seed), ox = r() * 500, oy = r() * 500;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let v = .62 * noise(x / s1 + ox, y / s1 + oy) + .38 * noise(x / s2 + oy, y / s2 + ox);
+    T[y * W + x] = v; }
+  if (fib) { // fibres: thin streaks raised a little
+    for (let k = 0; k < fib; k++) { let x = r() * W, y = r() * H, a = r() * TAU; const l = 8 + r() * 30;
+      for (let i = 0; i < l; i++) { a += (r() - .5) * .3; x += Math.cos(a); y += Math.sin(a); const xi = x | 0, yi = y | 0; if (xi >= 0 && yi >= 0 && xi < W && yi < H) T[yi * W + xi] = Math.min(1, T[yi * W + xi] + .18); } } }
+  return T;
+};
+// paper canvas: base colour, low-frequency mottling, embossed tooth (light from top-left), fine grain, edge falloff
+HD.paper = (T, o = {}) => {
+  const c = Pilot.canvas(W, H), g = c.getContext('2d'), d = g.createImageData(W, H), D = d.data, base = o.base || [250, 249, 245];
+  const mot = o.mott ?? 6, emb = o.emb ?? 26, gr = o.grain ?? 4, vig = o.vig ?? 0, r = rng(o.seed || 9), mscale = o.mscale || 260;
+  const tint = o.tint || [0, 0, 0];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x, x0 = Math.max(0, x - 1), y0 = Math.max(0, y - 1), x1 = Math.min(W - 1, x + 1), y1 = Math.min(H - 1, y + 1);
+    const sh = (T[y0 * W + x0] - T[y1 * W + x1]) * emb, m = (noise(x / mscale + 40, y / mscale + 7) - .5) * 2 * mot;
+    const dx = (x / W - .5), dy = (y / H - .5), v = -vig * (dx * dx * 1.4 + dy * dy) * 4;
+    const n = (r() - .5) * gr, k = sh + m + n + v;
+    D[i * 4] = base[0] + k + tint[0] * m / (mot || 1); D[i * 4 + 1] = base[1] + k + tint[1] * m / (mot || 1); D[i * 4 + 2] = base[2] + k + tint[2] * m / (mot || 1); D[i * 4 + 3] = 255; }
+  g.putImageData(d, 0, 0); return c;
+};
+// a full-frame canvas of colour `col` whose alpha follows the tooth: mode 'peak' (pencil catches the peaks) or 'valley' (ink misses the valleys)
+HD.toothMask = (T, col, mode = 'valley', thr = .35, soft = .18, amax = 1) => {
+  const c = Pilot.canvas(W, H), g = c.getContext('2d'), d = g.createImageData(W, H), D = d.data, rgb = Pilot.hex(col);
+  for (let i = 0; i < W * H; i++) { const v = mode === 'peak' ? (T[i] - thr) / soft : (thr - T[i]) / soft, a = clamp(v) * amax;
+    D[i * 4] = rgb[0]; D[i * 4 + 1] = rgb[1]; D[i * 4 + 2] = rgb[2]; D[i * 4 + 3] = a * 255; }
+  g.putImageData(d, 0, 0); return c;
+};
+// layers: a white canvas you draw ink on, then multiply onto the frame
+HD.layer = () => { const c = Pilot.canvas(W, H), g = c.getContext('2d'); g.lineJoin = 'round'; g.lineCap = 'round'; return { c, g }; };
+HD.clearWhite = (g, x = 0, y = 0, w = W, h = H) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.fillStyle = '#fff'; g.fillRect(x, y, w, h); g.restore(); };
+HD.dropout = (g, mask, a = 1, x = 0, y = 0, w = W, h = H) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = a; g.drawImage(mask, x, y, w, h, x, y, w, h); g.restore(); };
+HD.multiply = (ctx, c, x = 0, y = 0, w = W, h = H, a = 1) => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = a; ctx.drawImage(c, x, y, w, h, x, y, w, h); ctx.restore(); };
+
+// walk: distance along x with a slowing stop (speed 1 → 0 over the last `dec` fraction), from a lookup table
+HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for (let i = 1; i <= n; i++) { const u = i / n; s += 1 - ss(1 - dec, 1, u); tab.push(s); }
+  return t => { if (t <= 0) return x0 + (t / T) * n * (x1 - x0) / tab[n]; if (t >= T) return x1; const f = t / T * n, i = Math.floor(f), k = f - i; return x0 + (x1 - x0) * lerp(tab[i], tab[Math.min(n, i + 1)], k) / tab[n]; }; };
+
+/* lab-brushline — minimal black brush-pen line on white (ref 15).
+   Very few strokes, each a pressure ribbon with tapered ends and a dry tail; everything boils (3 drawings on 8 fps).
+   A bear trudges along the one long line with a big sack, stops, looks up as steam rises off a coffee cup ahead
+   (the warm spot-colour dab is the style's one accent), the sack slips off and thuds down, then a tiny wave. */
+const INK = '#1c1a19', PAPER = '#ffffff';
+const GROUND = HD.spline([[46, 1312], [300, 1290], [560, 1268], [800, 1246], [1036, 1226]], 3);
+const gy = x => { for (let i = 1; i < GROUND.length; i++) if (GROUND[i][0] >= x) { const a = GROUND[i - 1], b = GROUND[i]; return lerp(a[1], b[1], (x - a[0]) / (b[0] - a[0] || 1)); } return GROUND[GROUND.length - 1][1]; };
+const X0 = 300, X1 = 520, A = 30, CUPX = 800;
+const WZ = 1.3, WM = [WZ, 0, 0, WZ, 540 - 540 * WZ, 1290 - 1290 * WZ - 50];   // the world is drawn 1.3x about (540, 1290)
+const walkX = HD.walker(X0, X1, B.stop, .32);
+const bf = t => Math.floor(t * 8 + 1e-6) % 3;
+const TX = {};
+const BW = 10;   // outline brush width
+
+function br(g, pts, seed, f, o = {}) { HD.ink(g, HD.boil(HD.wob(pts, seed, o.wob ?? 1.6, 140), seed, f, o.boil ?? 1.5, 80), { w: BW, ts: 14, te: 22, mn: .25, press: .32, pw: 60, rough: .1, seed, col: INK, dry: .28, dryN: 2, ...o }); }
+function fillW(g, pts, seed, f) { HD.fillPts(g, HD.boil(pts, seed, f, 1.2, 80), PAPER); }
+
+// ---------------- static drawings: the line, the cup ----------------
+function cupPts(seed) {
+  const x = CUPX, y = gy(CUPX), k = 1.12, P = (a, b) => [x + a * k, y + b * k];
+  return {
+    body: HD.spline([P(-62, -122), P(-58, -60), P(-40, -12), P(0, 0), P(40, -12), P(58, -60), P(61, -124)], 3),
+    rim: HD.arc(x, y - 128 * k, 64 * k, 15 * k, Math.PI * .98, Math.PI * 3.02, 3),
+    coffee: HD.arc(x, y - 126 * k, 54 * k, 10.5 * k, 0, TAU, 3),
+    handle: HD.spline([P(58, -104), P(84, -110), P(98, -88), P(86, -58), P(52, -46)], 3),
+    handleIn: HD.spline([P(60, -88), P(76, -88), P(74, -70), P(56, -66)], 3),
+    fillBody: HD.spline([P(-62, -126), P(-58, -60), P(-40, -12), P(0, 0), P(40, -12), P(58, -60), P(62, -126), P(0, -140)], 4, true),
+  };
+}
+function drawStatic(g, f) {
+  HD.clearWhite(g); g.setTransform(...WM);
+  // the one long line (lifted once near the cup and restarted — two strokes overlapping like a real hand)
+  const a = GROUND.filter(p => p[0] < 700), b = GROUND.filter(p => p[0] > 660);
+  br(g, a, 11, f, { w: 12.5, ts: 18, te: 40, wob: 2.2, boil: 1.4 });
+  br(g, b, 12, f, { w: 12, ts: 30, te: 26, wob: 2, boil: 1.4 });
+  const C = cupPts();
+  fillW(g, C.fillBody, 21, f);
+  // coffee: a dark warm brown fill, brushed (not flat): two passes of slightly different shapes
+  const cof = HD.boil(C.coffee, 22, f, 1.2, 60);
+  HD.fillPts(g, cof, '#5b3326'); HD.fillPts(g, HD.wob(cof, 23, 2.5, 40).map(p => [p[0] + 2, p[1] + 1]), 'rgba(70,36,26,.55)');
+  br(g, C.body, 24, f, { w: 9.5 }); br(g, C.rim, 25, f, { w: 8.5, ts: 8, te: 30 }); br(g, C.handle, 26, f, { w: 9 }); br(g, C.handleIn, 27, f, { w: 6, ts: 6, te: 10 });
+}
+
+// ---------------- the bear ----------------
+function pose(t) {
+  const tw = Math.min(t, B.stop), x = walkX(HD.t12(tw)), ph = (x - X0) * Math.PI / (2 * A);
+  const moving = t < B.stop;
+  let lean = .2 + .035 * Math.sin(2 * ph), bob = moving ? 9 * Math.pow(Math.sin(ph), 2) : 0, head = .2, hip = 92, eye = 0, sackK = 0, arm = 0, wave = 0;
+  let dA = A * Math.sin(ph), dB = -dA, lA = moving ? 22 * Math.max(0, Math.cos(ph)) : 0, lB = moving ? 22 * Math.max(0, -Math.cos(ph)) : 0;
+  const q = HD.t12(t);
+  if (!moving) { const k = eo((q - B.stop) / .35); dA = lerp(A * Math.sin(ph), 10, k); dB = lerp(-A * Math.sin(ph), -16, k);
+    bob = 13 * Math.sin(Math.PI * clamp((q - B.stop) / .5)) * (1 - ss(3.1, 3.5, q)) + 6 * ss(B.stop, B.stop + .3, q); lean = lerp(lean, .27, k); }
+  const lk = eio((q - B.look) / .4);
+  head = lerp(.24, -.2, lk); lean = lerp(lean, .13, lk); eye = q >= B.look + .15 ? 1 : 0;
+  // the sack slips (4.0 → 4.25 on the back, then falls)
+  sackK = clamp((q - 4.0) / .25); arm = ss(3.95, 4.15, q);
+  const rel = eo((q - B.drop) / .5); lean = lerp(lean, -.02, rel); hip += 7 * rel; bob -= 7 * rel * 0 + 0; head = lerp(head, -.14, rel);
+  if (q >= B.drop) bob += 6 * Math.sin(Math.PI * clamp((q - B.drop) / .3)) * -1;   // a little spring up when it is off
+  wave = ss(4.8, 5.05, q) * (1 - ss(5.55, 5.75, q));
+  const br_ = q > B.drop + .3 ? Math.sin((q - B.drop) * 4.2) : 0;
+  return { x, ph, lean, bob: bob + br_ * 2, head, hip, eye, dA, dB, lA, lB, sackK, arm, wave, q };
+}
+function sackShape() {   // in body frame (origin hip, y up negative), behind the back
+  return {
+    out: HD.spline([[-62, -196], [-30, -170], [-22, -110], [-28, -40], [-58, 10], [-130, 22], [-196, 0], [-218, -70], [-206, -150], [-164, -196], [-118, -204]], 3, true),
+    neck: HD.spline([[-120, -206], [-104, -222], [-70, -214], [-62, -198]], 3),
+    tuftA: HD.spline([[-104, -222], [-122, -252], [-108, -262], [-92, -228]], 3),
+    tuftB: HD.spline([[-82, -222], [-74, -258], [-56, -250], [-68, -220]], 3),
+    fold1: HD.spline([[-150, -170], [-128, -120], [-134, -70]], 3),
+    fold2: HD.spline([[-190, -40], [-150, -20], [-112, -24]], 3),
+  };
+}
+const SACK = sackShape();
+function drawSack(g, M, f, rotK = 0) {
+  const P = pts => HD.xf(pts, M);
+  fillW(g, P(SACK.out), 41, f);
+  br(g, P(SACK.out), 42, f, { w: 10.5, ts: 10, te: 10 });
+  br(g, P(SACK.neck), 43, f, { w: 8 }); br(g, P(SACK.tuftA), 44, f, { w: 7 }); br(g, P(SACK.tuftB), 45, f, { w: 7 });
+  br(g, P(SACK.fold1), 46, f, { w: 6.5, ts: 12, te: 26 }); br(g, P(SACK.fold2), 47, f, { w: 6, ts: 12, te: 26 });
+}
+function drawBear(g, t, f) {
+  const p = pose(t), fx = p.x, Gy = gy(fx);
+  const Mb = HD.mul(HD.mat(fx, Gy - p.hip + p.bob, p.lean), HD.mat(0, 0, 0, 1, 1 + (p.q > B.drop + .3 ? .012 * Math.sin((p.q - B.drop) * 4.2) : 0)));
+  const P = pts => HD.xf(pts, Mb);
+  // sack: on the back, slipping, falling, landed
+  const sk = p.sackK, q = p.q;
+  let sackM = null, landed = false;
+  if (q < 4.25) sackM = HD.mul(Mb, HD.mat(-14 * sk, 48 * sk * sk, -.16 * sk));
+  else { // falls behind the bear and lands on the line at 4.4
+    const s0 = HD.mul(Mb, HD.mat(-14, 48, -.16)), k = clamp((q - 4.25) / .15), lx = fx - 60, ly = gy(fx - 170);
+    const land = HD.mat(lx, ly - 22, 0); landed = q >= B.drop;
+    const sq = landed ? 1 - .14 * Math.sin(Math.PI * clamp((q - B.drop) / .22)) : 1;
+    if (landed) sackM = HD.mul(HD.mat(lx, ly, 0), HD.mul(HD.mat(0, 0, 0, 2 - sq, sq), HD.mat(0, -22, -.03)));
+    else { const e = k * k; sackM = { a: lerp(s0.a, land.a, k), b: lerp(s0.b, land.b, k), c: lerp(s0.c, land.c, k), d: lerp(s0.d, land.d, k), e: lerp(s0.e, land.e, k), f: lerp(s0.f, land.f, e) }; }
+  }
+  // the sack is drawn first (behind the bear)
+  drawSack(g, sackM, f);
+  // legs (ground frame): stubby, the far one first
+  const hipW = (dx) => HD.pt(Mb, dx, -8);
+  const leg = (dx, lift, top, seed) => {
+    const fxl = fx + 6 + dx, fy = Gy - 6 - lift, tp = hipW(top);
+    const pts = HD.spline([[tp[0] - 22, tp[1]], [fxl - 24, fy - 30], [fxl - 22, fy - 2], [fxl + 4, fy + 6], [fxl + 30, fy], [fxl + 22, fy - 30], [tp[0] + 24, tp[1] - 4]], 3);
+    fillW(g, pts.concat([[tp[0], tp[1] - 30]]), seed, f); br(g, pts, seed, f, { w: 9.5, ts: 4, te: 4, mn: .6 });
+  };
+  leg(p.dB, p.lB, -6, 51); leg(p.dA, p.lA, 14, 52);
+  // body
+  const body = HD.spline([[-40, 6], [-62, -40], [-62, -110], [-34, -158], [18, -168], [56, -126], [66, -56], [52, 0], [8, 18]], 3, true);
+  fillW(g, P(body), 61, f);
+  br(g, P(HD.spline([[-28, 14], [-60, -36], [-62, -110], [-36, -156]], 3)), 62, f, { te: 30 });
+  br(g, P(HD.spline([[50, -132], [64, -60], [52, 0], [12, 16]], 3)), 63, f, { ts: 26 });
+  // strap over the shoulder (only while the sack is on)
+  if (q < 4.12) { const s = clamp((q - 4.0) / .12); br(g, P(HD.spline([[-50, -170], [0, -168 + 30 * s], [38, -128 + 20 * s], [56, -92 + 10 * s]], 3)), 64, f, { w: 7.5 }); }
+  // head (ears, head, snout), rotated about the neck
+  const Mh = HD.mul(Mb, HD.mul(HD.mat(16, -200, p.head), HD.mat(0, 0)));
+  const Hp = pts => HD.xf(pts, Mh);
+  for (const [ex, ey, s] of [[-46, -58, 71], [30, -76, 72]]) { const ear = HD.arc(ex, ey, 22, 21, Math.PI * .82, Math.PI * 2.2, 3); fillW(g, Hp(HD.arc(ex, ey, 22, 21, 0, TAU, 4)), s, f); br(g, Hp(ear), s, f, { w: 9 }); }
+  const headO = HD.arc(0, 0, 86, 74, Math.PI * .28, Math.PI * 2.08, 3);
+  fillW(g, Hp(HD.arc(0, 0, 86, 74, 0, TAU, 4)), 73, f); br(g, Hp(headO), 74, f, { w: 10.5, ts: 10, te: 30 });
+  const snF = HD.spline([[50, -20], [92, -24], [118, -6], [114, 22], [80, 34], [52, 28]], 3);
+  fillW(g, Hp(snF.concat([[30, 6]])), 75, f);
+  br(g, Hp(HD.spline([[56, -22], [92, -24], [118, -6], [114, 22], [82, 34], [58, 30]], 3)), 76, f, { w: 9.5, ts: 8, te: 18 });
+  const nose = Hp(HD.arc(112, -4, 11, 8.5, 0, TAU, 2)); HD.fillPts(g, HD.boil(nose, 77, f, .8, 30), INK);
+  br(g, Hp(HD.spline([[104, 18], [96, 22], [88, 20]], 2)), 78, f, { w: 5, ts: 4, te: 6 });
+  // eye: a tired dash while trudging, a dot once it looks up
+  if (p.eye) { const e = Hp(HD.arc(48, -20, 7, 7.5, 0, TAU, 2)); HD.fillPts(g, HD.boil(e, 79, f, .6, 20), INK); }
+  else br(g, Hp(HD.seg([36, -14], [56, -12], 2)), 79, f, { w: 6.5, ts: 4, te: 6, mn: .5 });
+  // front arm: grips the strap at the chest, lets go, then a tiny wave (forearm up, paw wiggling on twos)
+  // drawn as an outlined tube: an ink ribbon, then a paper-white ribbon inside it (the shoulder end fades into the body)
+  const sh = [26, -122];
+  let arm;
+  if (p.wave > 0) { const k = eo(p.wave), osc = Math.sin((HD.t12(t) - 4.9) * 13) * .28 * ss(.6, 1, p.wave);
+    const el = [sh[0] + lerp(30, 58, k), sh[1] + lerp(44, 26, k)], fa = lerp(1.9, .95, k) + osc;
+    arm = [[sh[0] - 6, sh[1] - 4], el, [el[0] + Math.sin(fa) * 62, el[1] - Math.cos(fa) * 62]]; }
+  else { const down = p.arm; arm = [[sh[0] - 6, sh[1] - 4], [lerp(48, 40, down), lerp(-104, -70, down)], [lerp(60, 44, down), lerp(-88, -40, down)]]; }
+  const ap = P(HD.boil(HD.spline(arm, 3), 81, f, 1, 60));
+  HD.ink(g, ap, { w: 40 + 2 * 9, ts: 34, te: 2, mn: .35, press: .04, rough: .04, seed: 81, col: INK });
+  HD.ink(g, ap, { w: 40, ts: 40, te: 2, mn: .1, press: .02, rough: 0, seed: 82, col: PAPER });
+  if (p.wave > .5) { // paw pads + two little motion ticks beside the paw
+    const tip = ap[ap.length - 1], tp = ap[ap.length - 6], ux = (tip[0] - tp[0]), uy = (tip[1] - tp[1]), ul = Math.hypot(ux, uy) || 1, dx = ux / ul, dy = uy / ul;
+    for (let i = -1; i <= 1; i++) { const cx = tip[0] - dx * 10 - dy * i * 9, cy = tip[1] - dy * 10 + dx * i * 9; br(g, HD.seg([cx - dx * 6, cy - dy * 6], [cx + dx * 4, cy + dy * 4], 2), 84 + i, f, { w: 4.5, ts: 3, te: 3, mn: .5 }); }
+    const side = Math.sin((HD.t12(t) - 4.9) * 13) > 0 ? 1 : -1;
+    for (const s2 of [-1, 1]) br(g, HD.seg([tip[0] + side * 34 + s2 * 5, tip[1] - 10 + s2 * 16], [tip[0] + side * 50 + s2 * 8, tip[1] - 16 + s2 * 22], 3), 87 + s2, f, { w: 5, ts: 4, te: 6 });
+  }
+  // impact ticks when the sack lands
+  if (q >= B.drop && q < B.drop + .34) { const lx = fx - 60, ly = gy(fx - 60);
+    for (const [ax, ay, bx, by] of [[-150, -40, -186, -66], [-162, 6, -204, -2], [96, -40, 130, -66], [106, 4, 148, -4]]) br(g, HD.seg([lx + ax, ly + ay], [lx + bx, ly + by], 3), 90 + ax, f, { w: 6, ts: 4, te: 10 }); }
+}
+
+// ---------------- steam + warm dab (the accent) ----------------
+function steam(g, t, f) {
+  const k = ss(B.look - .1, B.look + .5, t); if (k <= 0) return;
+  const x0 = CUPX, y0 = gy(CUPX) - 168;
+  for (let j = 0; j < 3; j++) {
+    const period = 1.5, ph = ((HD.t12(t) - B.look + j * .5) / period) % 1, base = x0 - 30 + j * 30;
+    const pts = []; for (let i = 0; i <= 40; i++) { const u = i / 40, y = y0 - 10 - u * 170 - ph * 60; pts.push([base + Math.sin(u * 5.2 + j * 2 + ph * 3) * (10 + 8 * u), y]); }
+    const a0 = Math.floor(lerp(0, 18, ph)), a1 = Math.floor(lerp(22, 41, Math.min(1, ph + .35)));
+    const seg = pts.slice(a0, a1); if (seg.length < 3) continue;
+    br(g, seg, 101 + j * 7, f, { w: 5.5 * k * (1 - .5 * ph), ts: 14, te: 24, dry: .3 });
+  }
+}
+function dab(ctx, t) {
+  const k = eo((HD.t12(t) - B.look) / .3); if (k <= 0) return;
+  const cx = CUPX + 4, cy = gy(CUPX) - 96, f = bf(t);
+  ctx.save(); ctx.setTransform(...WM); ctx.globalCompositeOperation = 'multiply';
+  for (let pass = 0; pass < 3; pass++) {   // a quick spot-colour dab: three loose passes, each a little off the last
+    const pts = []; for (let i = 0; i < 40; i++) { const a = i / 40 * TAU, r = (104 + 9 * Math.sin(a * 2 + pass * 2.1) + 16 * (noise(a * 1.7 + pass * 4, f * 2.3) - .5)) * (.55 + .45 * k); pts.push([cx + pass * 5 + Math.cos(a) * r * 1.08, cy - pass * 4 + Math.sin(a) * r]); }
+    HD.fillPts(ctx, HD.spline(pts, 6, true), ['rgba(252,222,164,.55)', 'rgba(250,206,140,.28)', 'rgba(253,232,190,.35)'][pass]);
+  }
+  ctx.restore();
+}
+// ---------------- frame ----------------
+let INKL;
+function draw(ctx, t) {
+  const f = bf(t), g = INKL.g;
+  ctx.drawImage(TX.paper, 0, 0);
+  dab(ctx, t);
+  g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(TX.stat[f], 0, 0);
+  g.setTransform(...WM); drawBear(g, t, f);
+  steam(g, t, f); g.setTransform(1, 0, 0, 1, 0, 0);
+  HD.dropout(g, TX.drop, .55);
+  HD.multiply(ctx, INKL.c);
+  // caption: hand-lettered rounded handwriting, ink-coloured, boiling with the drawing
+  ctx.save(); ctx.translate([0, 1, -1][f], [0, -1, 1][f]);
+  Story.captions(ctx, t, S.lines, { font: "'Hi Melody',cursive", weight: 400, size: 86, y: 410, color: '#22201e', shadow: 'rgba(0,0,0,0)', shadowBlur: 0 });
+  ctx.translate(1.2, .4);
+  Story.captions(ctx, t, S.lines, { font: "'Hi Melody',cursive", weight: 400, size: 86, y: 410, color: '#22201e', shadow: 'rgba(0,0,0,0)', shadowBlur: 0 });
+  ctx.restore();
+}
+async function init() {
+  const T = HD.tooth(5, 4, 1.6, 1500);
+  TX.paper = HD.paper(T, { base: [252, 251, 248], mott: 2.5, emb: 7, grain: 2.5, vig: .02 });
+  TX.drop = HD.toothMask(T, '#ffffff', 'valley', .24, .08, .8);
+  TX.stat = [0, 1, 2].map(f => { const L = HD.layer(); drawStatic(L.g, f); return L.c; });
+  INKL = HD.layer();
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 86px 'Hi Melody'"], init, draw });
+
+</script>
+</body>
+</html>
