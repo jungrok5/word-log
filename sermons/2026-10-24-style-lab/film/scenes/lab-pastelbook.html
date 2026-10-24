@@ -285,6 +285,8 @@ function drawBear(x, t) {
 const FX = {};
 const PLATE = /[?&]plate=1/.test(location.search);
 function draw(ctx, t) {
+  const PL = (location.search.match(/[?&]plate=(land|cloud\d)/) || [])[1];   // single layers, as masks for the key-art version
+  if (PL) { ctx.clearRect(0, 0, W, H); if (PL === 'land') ctx.drawImage(TX.land, 0, 0); else { const c = FX.clouds[+PL[5]]; ctx.drawImage(c.c, c.x - c.c.pd, c.y - c.c.pd); } return; }
   ctx.drawImage(TX.sky, 0, 0);
   for (const c of FX.clouds) ctx.drawImage(c.c, c.x - c.c.pd + t * c.v, c.y - c.c.pd);
   ctx.drawImage(TX.land, 0, 0);

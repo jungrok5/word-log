@@ -220,9 +220,20 @@ function ripples(ctx, x, y, t, period, n, rmax, a, seedT = 0) {
   for (let k = 0; k < n; k++) { const age = ((t + seedT + k * period / n) % period) / period, R = 6 + age * rmax;
     ctx.strokeStyle = `rgba(200,255,240,${a * (1 - age) * ss(0, .15, age)})`; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.ellipse(x, y, R, R * .22, 0, 0, TAU); ctx.stroke(); }
 }
+const PLATE = (location.search.match(/[?&]plate=(\w+)/) || [])[1] || '';   // ?plate=1: the painting without me (key-art repaint)
+const FIGONLY = /[?&]fig=1/.test(location.search);                         // ?fig=1: me alone, at 4x, on magenta
+function figOnly(ctx, t) {
+  ctx.fillStyle = '#ff00ff'; ctx.fillRect(0, 0, W, H);
+  const P = pose(t), Bp = bodyParts(t, P), sk = sackState(t, P, Bp), k = 4.4;
+  ctx.save(); ctx.setTransform(k, 0, 0, k, 470 - P.D * k, 1250); ctx.fillStyle = '#d8fff4'; ctx.strokeStyle = '#d8fff4';
+  const hand = drawBody(ctx, t, P, Bp); ctx.fillStyle = '#041114'; sackPath(ctx, sk); ctx.fill();
+  ctx.strokeStyle = '#06181b'; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(sk.x + 8, sk.y - 26); ctx.quadraticCurveTo(...Bp.at(3, 9), ...hand); ctx.stroke();
+  ctx.restore();
+}
 function draw(ctx, t) {
+  if (FIGONLY) return figOnly(ctx, t);
   ctx.drawImage(BG, 0, 0);
-  const lk = lightK(t);
+  const lk = PLATE ? 0 : lightK(t);
   // the far crowd: tiny figures, each flickering softly
   for (const q of TINY) { const b = .55 + .45 * breathe(t, q.ph, q.p), wk = lk * Math.exp(-Math.hypot(q.x - LIGHT.x, (q.y - LIGHT.y) * 1.5) / 160);
     ctx.globalAlpha = q.a * b; ctx.fillStyle = wk > .05 ? `rgb(${lerp(200, 255, wk) | 0},${lerp(255, 214, wk) | 0},${lerp(240, 160, wk) | 0})` : '#c8fff0';
@@ -245,6 +256,7 @@ function draw(ctx, t) {
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .28 + .12 * nb; ctx.drawImage(GLW, nx - 220, ny - 330, 440, 420); ctx.restore();
   ctx.fillStyle = '#dcfff6'; ctx.fill(spiritPath(ctx, nx, ny, nh, 0, -1)); ctx.fillStyle = 'rgba(240,255,252,.7)'; ctx.fillRect(nx - 44, ny - 1, 88, 3);
   ripples(ctx, nx, ny + 2, t, 3, 3, 170, .5, 1.1);
+  if (PLATE) { ctx.drawImage(FG, 0, 0); return; }
   // me
   const P = pose(t), Bp = bodyParts(t, P), sk = sackState(t, P, Bp), wx = X0, glowUp = ss(B.drop, B.drop + 1.2, t);
   const bodyCol = `rgb(${lerp(140, 222, glowUp) | 0},${lerp(214, 255, glowUp) | 0},${lerp(200, 246, glowUp) | 0})`;

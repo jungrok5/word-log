@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 01 안개 숲 (키 아트)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 01 key-art version — "the picture comes from an image model, the life comes from code".
+   Background: an image-model repaint of the code layout of lab-fogforest (?plate=1), registered back onto it (scale 1.00,
+   shift 0,0), then cut into three depth layers with the code's own geometry: the near frame (code plane 7, matted by
+   darkness), the ground the traveller walks on (below the code's ground line) and the rest (holes push-pull filled).
+   Traveller: two image-model drawings on #00FF00, keyed — walking under the pack (pose taken from the code figure, so
+   its feet and scale are known) and standing relieved with the pack lying beside him (cut apart as two components).
+   Code adds: the camera's parallax, drifting fog banks between the layers, the trudge (step bob and rock on twos),
+   the head lift (the hood region turned about the neck), the pack slipping off and landing (its own sprite), the dust,
+   the lantern lighting up and its warm rim on the figure, and the caption. Art files: scenes/art/lab-fogforest-*.webp */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const hx = Pilot.hex;
+const G0 = 1512, LANT = { x: 822, y: 1246 };          // ground line and lantern centre (code layout = painting)
+// drawing → scene: the walk drawing came from the code figure at 4.2 px/unit (crop + 1.129 resize), the scene draws it at 1.55
+const K = 1.55 / (4.2 * 768 / 680), AX = 350, AY = 926;   // scale, and the drawing pixel that sits on the model origin (feet)
+const X0 = 330, FS = 1.55, WALK = 112, V = WALK / (B.stop - .3);
+function distAt(t) { const a = B.stop - .6; if (t <= a) return V * t; const u = clamp((t - a) / .6); return V * a + V * .6 * (u - u * u / 2); }
+const t12 = t => Math.floor(t * 12 + 1e-6) / 12;       // the drawing moves on twos; camera and fog on ones
+const IMG = {};
+function load(name) { return new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(IMG[name] = im); im.onerror = no; im.src = 'art/lab-fogforest-' + name + '.webp'; }); }
+
+// ---------------- fog ----------------
+function fogTex(w, h, seed, sc, thr, col, shape = 'band') {
+  const c = Pilot.canvas(w, h), g = c.getContext('2d'), d = g.createImageData(w, h), [R, G, Bc] = hx(col), o = seed * 13.1;
+  for (let y = 0; y < h; y++) { const v = y / h, m = shape === 'band' ? Math.pow(Math.sin(Math.PI * v), 1.4) : Math.pow(v, .8);
+    for (let x = 0; x < w; x++) { const f = xx => Pilot.fbm(xx / sc + o, y / (sc * .55) + o, 5), n = ((w - x) * f(x) + x * f(x - w)) / w;
+      const a = clamp((n - thr) * 2.6) * m, i = (y * w + x) * 4; d.data[i] = R; d.data[i + 1] = G; d.data[i + 2] = Bc; d.data[i + 3] = a * 255; } }
+  g.putImageData(d, 0, 0); return c;
+}
+function bank(ctx, tex, y, h, speed, t, cam, depth, alpha) {
+  const tw = W * 1.6, off = ((t * speed + cam * depth) % tw + tw) % tw;
+  ctx.globalAlpha = alpha; ctx.drawImage(tex, -off, y, tw, h); ctx.drawImage(tex, tw - off, y, tw, h); ctx.globalAlpha = 1;
+}
+let WARM = null;
+function warmSprite() { const N = 256, c = Pilot.canvas(N, N), g = c.getContext('2d'), gr = g.createRadialGradient(N / 2, N / 2, 1, N / 2, N / 2, N / 2);
+  gr.addColorStop(0, 'rgba(255,220,160,1)'); gr.addColorStop(.16, 'rgba(250,180,104,.6)'); gr.addColorStop(.5, 'rgba(214,160,110,.18)'); gr.addColorStop(1, 'rgba(200,160,120,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, N, N); return c; }
+const warm = (ctx, x, y, R, a, mode = 'screen') => { if (a <= 0) return; ctx.save(); ctx.globalCompositeOperation = mode; ctx.globalAlpha = Math.min(1, a); ctx.drawImage(WARM, x - R, y - R, 2 * R, 2 * R); ctx.restore(); };
+
+// ---------------- the traveller ----------------
+let BODY = null, HOOD = null, FIG = null, RIM = null, RIMW = null;
+const HOODC = { x: 536, y: 338, rx: 84, ry: 88 }, PIVOT = [482, 402];
+function splitHood() {   // the hood (head) region of the walk drawing as its own piece, feathered; the body without it
+  const w = IMG.walk.width, h = IMG.walk.height, m = Pilot.canvas(w, h), g = m.getContext('2d');
+  const gr = g.createRadialGradient(HOODC.x, HOODC.y, 10, HOODC.x, HOODC.y, HOODC.rx); gr.addColorStop(0, '#000'); gr.addColorStop(.82, '#000'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.save(); g.translate(HOODC.x, HOODC.y); g.scale(1, HOODC.ry / HOODC.rx); g.translate(-HOODC.x, -HOODC.y); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.restore();
+  HOOD = Pilot.canvas(w, h); const hg = HOOD.getContext('2d'); hg.drawImage(IMG.walk, 0, 0); hg.globalCompositeOperation = 'destination-in'; hg.drawImage(m, 0, 0);
+  BODY = Pilot.canvas(w, h); const bg = BODY.getContext('2d'); bg.drawImage(IMG.walk, 0, 0); bg.globalCompositeOperation = 'destination-out'; bg.drawImage(m, 0, 0);
+}
+// where the pack sits on his back in the walk drawing, and where it lies in the stand drawing (drawing px)
+const PACK_ON = { x: 292, y: 470, a: -1.3 }, PACK_REST = { x: 204, y: 812, a: 0 }, PACK_PIV = [204, 812];
+function drawFigure(g, t) {   // into FIG (drawing space scaled by K); returns the pack's landing x for the dust
+  const tq = t12(t), D = distAt(tq), ph = D / 52, stopK = ss(B.stop - .3, B.stop + .1, tq);
+  const swap = tq >= B.drop - .3 ? 1 : 0;                         // a hard swap of drawings (as hand animation does)                 // walk drawing → stand drawing as the pack slips
+  const step = Math.abs(Math.sin(ph * Math.PI)), bob = (1 - stopK) * (6 * step - 3) + 9 * ss(B.stop, B.stop + .3, tq) * (1 - swap);
+  const rock = (1 - stopK) * Math.sin(ph * Math.PI * 2) * .018 + .03 * ss(B.stop, B.stop + .3, tq) * (1 - swap);
+  const lift = eio(clamp((tq - B.look) / .6)) * (1 - swap);
+  const breathe = Math.sin((tq - B.drop) * 2.6) * 4 * ss(B.drop + .3, B.drop + 1, tq);
+  const straighten = .1 * (1 - eo(clamp((tq - (B.drop - .3)) / .7)));   // he comes up out of the stoop
+  const ox = 150 + D * FS;   // model origin in FIG
+  g.save(); g.translate(ox, 330); g.scale(K, K);
+  if (swap < 1) { g.save(); g.globalAlpha = 1 - swap; g.translate(0, bob); g.rotate(rock); g.translate(-AX, -AY);
+    g.drawImage(BODY, 0, 0); g.translate(PIVOT[0], PIVOT[1]); g.rotate(-.24 * lift); g.translate(-PIVOT[0], -PIVOT[1]); g.drawImage(HOOD, 0, 0); g.restore(); }
+  if (swap > 0) { g.save(); g.globalAlpha = swap; g.translate(0, breathe * .3); g.rotate(straighten); g.translate(0, -breathe * .7); g.translate(-AX, -AY); g.drawImage(IMG.stand, 0, 0); g.restore();
+    // the pack: falls from his back (its own sprite), lands, squashes, settles
+    const u = clamp((tq - (B.drop - .3)) / .3), v = clamp((tq - B.drop) / .3);
+    let px = lerp(PACK_ON.x, PACK_REST.x, u), py = lerp(PACK_ON.y, PACK_REST.y, u * u), pa = lerp(PACK_ON.a * .6, -.16, eio(u)), sq = 0;
+    if (tq >= B.drop) { px = PACK_REST.x; py = PACK_REST.y - Math.sin(v * Math.PI) * 10 * (1 - v); pa = lerp(-.16, 0, eo(v)); sq = Math.max(0, 1 - (tq - B.drop) / .12); }
+    g.save(); g.translate(-AX, -AY); g.translate(px, py); g.rotate(pa); g.scale(1 + .08 * sq, 1 - .1 * sq); g.translate(-PACK_PIV[0], -PACK_PIV[1]);
+    g.drawImage(IMG.pack, 0, 0); g.restore(); }
+  g.restore();
+  return { D, packX: (PACK_REST.x - AX) * K };
+}
+
+// ---------------- frame ----------------
+const TX = {};
+const camAt = t => 18 * Math.sin(TAU * t / S.DUR);
+const lightK = t => ss(B.look - .3, B.look + .5, t) * (1 - .07 * (.5 + .5 * Math.sin(t * 17)) * (.5 + .5 * Math.sin(t * 6.3)));
+function layer(ctx, img, cam, depth, sc = 1) { const w = W * sc, h = H * sc; ctx.drawImage(img, (W - w) / 2 - cam * depth, (H - h) / 2, w, h); }
+function draw(ctx, t) {
+  const cam = camAt(t), lk = lightK(t);
+  layer(ctx, IMG.bg, cam, .25, 1.03);
+  const lx = (LANT.x - W / 2) * 1.03 + W / 2 - cam * .25, ly = (LANT.y - H / 2) * 1.03 + H / 2;
+  bank(ctx, TX.fogHi, 560, 520, 8, t, cam, .1, .22);
+  bank(ctx, TX.fogA, 1000, 440, 12, t, cam, .2, .3);
+  // the lantern lights: a core and its light scattered through the fog
+  if (lk > 0) { warm(ctx, lx, ly, 460, lk * .55); warm(ctx, lx, ly, 160, lk * .7);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = lk; const cg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 13);
+    cg.addColorStop(0, '#fff3d6'); cg.addColorStop(.5, 'rgba(255,206,130,.85)'); cg.addColorStop(1, 'rgba(255,170,90,0)'); ctx.fillStyle = cg; ctx.fillRect(lx - 13, ly - 13, 26, 26); ctx.restore(); }
+  bank(ctx, TX.fogB, 1160, 360, 20, t, cam, .45, .38);
+  bank(ctx, TX.fogA, 1280, 360, -14, t, cam, .65, .3);
+  warm(ctx, lx - 40, ly + 60, 720, lk * .12);
+  layer(ctx, IMG.ground, cam, 1);
+  // the traveller: drawn into a sprite, then a rim of fog light (and warm light from the lantern once it is lit)
+  const fc = FIG.getContext('2d'); fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, FIG.width, FIG.height); const fg = drawFigure(fc, t);
+  const rc = RIM.getContext('2d'); rc.save(); rc.clearRect(0, 0, RIM.width, RIM.height); rc.drawImage(FIG, 0, 0); rc.globalCompositeOperation = 'destination-out'; rc.drawImage(FIG, -2, 2.4);
+  rc.globalCompositeOperation = 'source-in'; rc.fillStyle = 'rgba(196,228,224,.22)'; rc.fillRect(0, 0, RIM.width, RIM.height); rc.restore();
+  if (lk > 0) { const wc = RIMW.getContext('2d'); wc.save(); wc.clearRect(0, 0, RIMW.width, RIMW.height); wc.drawImage(FIG, 0, 0); wc.globalCompositeOperation = 'destination-out'; wc.drawImage(FIG, -3, .5);
+    wc.globalCompositeOperation = 'source-in'; wc.fillStyle = `rgba(255,190,120,${.55 * lk})`; wc.fillRect(0, 0, RIMW.width, RIMW.height); wc.restore(); }
+  const fx = X0 - cam - 150, fy = G0 - 330;
+  ctx.drawImage(FIG, fx, fy);
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.drawImage(RIM, fx, fy); if (lk > 0) ctx.drawImage(RIMW, fx, fy); ctx.restore();
+  // dust and ground mist where the pack lands
+  if (t > B.drop) { const u = clamp((t - B.drop) / 1.4), px = X0 - cam + fg.D * FS + fg.packX, py = G0 - 8;
+    for (let i = 0; i < 5; i++) { const s = (i - 2) * .5, R = 26 + eo(u) * (74 + i * 10), cx = px + s * eo(u) * 120, cy = py - 6 - u * 18;
+      const gr = ctx.createRadialGradient(cx, cy, 2, cx, cy, R); gr.addColorStop(0, `rgba(200,222,218,${.3 * (1 - u)})`); gr.addColorStop(1, 'rgba(200,222,218,0)');
+      ctx.fillStyle = gr; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); } }
+  bank(ctx, TX.fogLow, G0 - 60, 140, 26, t, cam, 1, .42);
+  bank(ctx, TX.fogA, G0 + 40, 300, 34, t, cam, 1, .22);
+  layer(ctx, IMG.front, cam, 1.3, 1.05);
+  bank(ctx, TX.fogLow, 1720, 240, 44, t, cam, 1.3, .25);
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .22; ctx.fillStyle = TX.grain; ctx.fillRect(0, 0, W, H); ctx.restore();
+  Story.captions(ctx, t, S.lines, { font: "'Gowun Batang',serif", weight: 700, size: 66, color: '#eef6f4', y: 410, shadow: 'rgba(6,22,24,.9)', shadowBlur: 22 });
+}
+async function init() {
+  await Promise.all(['bg', 'ground', 'front', 'walk', 'stand', 'pack'].map(load));
+  splitHood();
+  FIG = Pilot.canvas(560, 400); RIM = Pilot.canvas(560, 400); RIMW = Pilot.canvas(560, 400);
+  TX.fogHi = fogTex(270, 130, 1, 60, .42, '#b6d6d4'); TX.fogA = fogTex(300, 110, 2, 46, .45, '#a6c6c6');
+  TX.fogB = fogTex(300, 110, 3, 40, .42, '#9cbebe'); TX.fogLow = fogTex(300, 70, 4, 34, .38, '#a0c2c2', 'low');
+  WARM = warmSprite();
+  const gc = Pilot.canvas(256, 256), gg = gc.getContext('2d'), d = gg.createImageData(256, 256), r = rng(91);
+  for (let i = 0; i < 65536; i++) { const v = 128 + (r() - .5) * 40; d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = v; d.data[i * 4 + 3] = 255; }
+  gg.putImageData(d, 0, 0); TX.grain = gg.createPattern(gc, 'repeat');
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 66px 'Gowun Batang'"], init, draw });
+</script>
+</body>
+</html>

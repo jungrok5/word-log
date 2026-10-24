@@ -22,7 +22,7 @@ const C = { fur: '#ffad2e', furS: '#e07a1c', furH: '#ffd77a', stripe: '#e0741a',
   goggle: '#9aa6bd', goggleS: '#6c7690', lens: '#5ec8ff', lensS: '#2b8fe0', band: '#2f7fe0', bandS: '#1f5cb0', scarf: '#ef3b36', scarfS: '#b8222a',
   boot: '#7a4526', bootS: '#552f1a', pack: '#23b89b', packS: '#148370', packH: '#7ff0d4', pocket: '#1d9e86', strap: '#8a5530', strapS: '#5f381e',
   roll: '#8b5cf6', rollS: '#6238c8', rollH: '#c4a8ff', buckle: '#ffd23a', pan: '#3a3a4a', panS: '#23232e', pot: '#c9d3e0', potS: '#8e9bb0',
-  road: '#a98a6c', roadS: '#8a6b52', roadTop: '#d8b48a', grass: '#46c24a', grassS: '#2e9a3c', grassH: '#8be86a', hill1: '#5b8fb8', hill2: '#3f6f9e', gold: '#ffd75e' };
+  road: '#a98a6c', roadS: '#8a6b52', roadTop: '#d8b48a', grass: '#46c24a', grassS: '#2e9a3c', grassH: '#8be86a', hill1: '#5d8f86', hill2: '#3f6f6a', gold: '#ffd75e' };
 
 // ---------------- motion ----------------
 const D = 330, WALK_END = B.walk[1], V0 = D / (WALK_END - .4);
@@ -98,8 +98,15 @@ function cloudSprite(cl, pal) {   // painted once: base, hard cel underside, lit
   x.restore(); x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(rim, 0, 0);
   return c;
 }
+function bolt(ctx, t) {   // a distant lightning strike in the storm, ~1.1 s
+  const u = t - 1.05; if (u < 0 || u > .32) return; const on = u < .06 || (u > .12 && u < .2);
+  if (!on) return; const r = rng(77), pts = [[260, 380]]; for (let i = 0; i < 9; i++) { const [x, y] = pts[pts.length - 1]; pts.push([x + (r() - .45) * 70, y + 70 + r() * 40]); }
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = 'rgba(200,215,255,.22)'; ctx.fillRect(0, 0, W, H);
+  ctx.lineJoin = 'miter'; ctx.strokeStyle = 'rgba(170,200,255,.6)'; ctx.lineWidth = 16; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.stroke(); ctx.restore();
+}
 function sky(ctx, t, warm) {
-  ctx.drawImage(SKY, 0, 0);
+  ctx.drawImage(SKY, 0, 0); bolt(ctx, t);
   if (warm > 0) { ctx.save(); ctx.globalAlpha = warm; ctx.drawImage(SKYW, 0, 0); ctx.restore(); }
   const part = ss(B.look - .1, B.look + 1.2, t);
   for (const cl of CLOUDS) {
@@ -115,12 +122,14 @@ function beam(ctx, t) {
   const ox = 930, oy = -80, shim = 1 + .05 * Math.sin(t * 7);
   ctx.save(); ctx.globalCompositeOperation = 'screen';
   // wide soft cone
-  const g = ctx.createLinearGradient(ox, oy, 760, 1500); g.addColorStop(0, `rgba(255,230,140,${.75 * k})`); g.addColorStop(1, `rgba(255,200,90,${.25 * k})`);
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(ox - 60, oy); ctx.lineTo(ox + 70, oy); ctx.lineTo(1180, 1540); ctx.lineTo(560 - 80 * (1 - k), 1540); ctx.fill();
+  const g = ctx.createLinearGradient(ox, oy, 760, 1500); g.addColorStop(0, `rgba(255,214,110,${.55 * k})`); g.addColorStop(1, `rgba(255,190,80,${.18 * k})`);
+  const cone = P2(q => { q.moveTo(ox - 60, oy); q.lineTo(ox + 70, oy); q.lineTo(1180, 1540); q.lineTo(600 - 80 * (1 - k), 1540); q.closePath(); });
+  ctx.fillStyle = g; ctx.fill(cone); ctx.save(); ctx.clip(cone);
   // god-ray stripes inside it, turning slowly
-  for (let i = 0; i < 6; i++) { const a = .05 + i * .06 + Math.sin(t * .8 + i) * .01, wd = .018 + (i % 2) * .012;
+  for (let i = 0; i < 7; i++) { const a = -.12 + i * .045 + Math.sin(t * .8 + i) * .01, wd = .012 + (i % 2) * .01;
     ctx.fillStyle = `rgba(255,248,200,${(.22 + .1 * (i % 3)) * k * shim})`; ctx.beginPath(); ctx.moveTo(ox, oy);
     ctx.lineTo(ox + Math.sin(-a - .32) * 2000, oy + Math.cos(-a - .32) * 2000); ctx.lineTo(ox + Math.sin(-a - wd - .32) * 2000, oy + Math.cos(-a - wd - .32) * 2000); ctx.fill(); }
+  ctx.restore();
   // pool of light on the road ahead
   const pg = ctx.createRadialGradient(860, 1520, 10, 860, 1520, 330); pg.addColorStop(0, `rgba(255,240,170,${.8 * k})`); pg.addColorStop(1, 'rgba(255,220,120,0)');
   ctx.fillStyle = pg; ctx.beginPath(); ctx.ellipse(860, 1520, 330, 90, 0, 0, TAU); ctx.fill();
@@ -144,7 +153,7 @@ function world(ctx, t, d, warm) {
   for (let i = -1; i < 12; i++) { const r = rng(300 + ((i + Math.floor(off2 / 110)) % 9 + 9) % 9), x = i * 110 - (off2 % 110), h = 90 + r() * 140;
     ctx.fillRect(x, 1240 - h, 86, h + 20); if (r() < .5) ctx.fillRect(x + 30, 1240 - h - 30, 16, 30); }
   // hills (two layers)
-  for (const [k, base, amp, col, colW, n] of [[.25, 1290, 50, C.hill1, '#e7a080', 2], [.5, 1360, 40, C.hill2, '#c97a70', 3]]) {
+  for (const [k, base, amp, col, colW, n] of [[.25, 1300, 70, C.hill1, '#d9a070', 2], [.5, 1370, 50, C.hill2, '#b07a5a', 3]]) {
     const p = D * k, o = d * k; ctx.fillStyle = hillC(col, colW); ctx.beginPath(); ctx.moveTo(0, H);
     for (let x = 0; x <= W; x += 10) ctx.lineTo(x, base - amp * (.6 + .4 * Math.sin(TAU * n * (x + o) / (p * 4)) * Math.sin(TAU * (x + o) / (p * 2) + 1)));
     ctx.lineTo(W, H); ctx.fill(); }
@@ -300,7 +309,9 @@ function speedRing(ctx, cx, cy, a, seed, r0 = 420) {   // anime emphasis lines f
 }
 
 // ---------------- frame ----------------
+const PLATE = /[?&]plate=1/.test(location.search);   // background layout only (for the key-art repaint)
 function draw(ctx, t) {
+  if (PLATE) { sky(ctx, 0, .45); world(ctx, 0, dist(WALK_END), .45); return; }
   const R = rig(t), cm = camAt(t), warm = ss(B.look - .05, B.look + 1.0, t);
   ctx.save();
   ctx.translate(540 + cm.sx, 1100 + cm.sy); ctx.scale(cm.z, cm.z); ctx.translate(-540, -1100);
@@ -319,7 +330,7 @@ function draw(ctx, t) {
   }
   if (!packOn) {
     const u = t - B.drop, sq = Math.exp(-u * 8) * Math.cos(u * 30);
-    ctx.save(); ctx.translate(FX - 190 + 165 * CS * .8, FY); ctx.scale(CS * (1 + .18 * sq), CS * (1 - .22 * sq)); ctx.rotate(-.06); ctx.translate(0, 80 * 1);
+    ctx.save(); ctx.translate(FX - 190 + 165 * CS * .8 + 50, FY); ctx.scale(CS * (1 + .18 * sq), CS * (1 - .22 * sq)); ctx.rotate(-.06); ctx.translate(0, 80 * 1);
     pack(ctx, t, { ph: 0, walking: 0 }, 1); ctx.restore();
   }
   // the cat (and the pack while it's still on its back)

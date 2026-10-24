@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 11 클로버 수채 (키 아트)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hi+Melody&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 11 key-art version. Background: an image-model watercolour + pencil repaint of lab-clover's code layout (?plate=1),
+   registered back (plate.py). The near clover leaves are lifted off the painting with the code's own leaf sprites as
+   masks (?plate=leafN): each sways about its stem foot (small, so the painted leaf beneath never shows), and the near
+   grass blades (?plate=fore) are a static front layer, so the hamster walks BETWEEN the leaves. Character: one keyed
+   model sheet (two waddling drawings with the basket, one sitting-up looking-up drawing, the basket alone). Code: the
+   waddle (drawings alternate per step, rock and bob), stop, sag, the look-up as a key swap (upright drawing + basket
+   layer + code strap), the basket slipping off and a flower tumbling out; the warm sunbeam (accent), light motes,
+   moving dappled light, a ladybug walking the big leaf's edge, paper grain, caption. */
+const S = window.SCRIPT, { clamp, lerp, ss, eo, eio, rng, noise } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const GY = 1500, X0 = 300, SC = .64, SUN = { x: 790, y: 1440 };
+const D = { walk1: [241, 513], walk2: [265, 505], stand: [183, 461], load: [180, 327] };
+// near leaves: crop origin on the painting, pivot (stem foot, from the code layout), sway
+const LEAVES = [[0, 1489, 60, 1940, .006], [158, 1584, 330, 1960, .008], [468, 1641, 600, 1980, .009], [726, 1464, 930, 1900, .002],
+  [0, 1252, -10, 1660, .01], [899, 1187, 1060, 1600, .01], [0, 1145, -30, 1400, .012], [951, 1108, 1090, 1330, .012], [665, 1622, 770, 1820, .012], [93, 1538, 200, 1760, .01]];
+const IMG = {};
+const loadImg = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => { const c = Pilot.canvas(i.naturalWidth, i.naturalHeight); c.getContext('2d').drawImage(i, 0, 0); ok(c); }; i.onerror = no; i.src = src; });
+
+const V = 50, T1 = 1.9, DEC = .7, STEP = .3;
+const walkX = t => { if (t < T1) return V * t; const u = Math.min(t - T1, DEC); return V * T1 + V * u - V * u * u / (2 * DEC); };
+const speed = t => t < T1 ? 1 : Math.max(0, 1 - (t - T1) / DEC);
+function pose(t) {
+  const sp = speed(t), k = Math.min(t, 2.5) / STEP, step = Math.floor(k), u = k - step;
+  return { X: walkX(t), sp, frame: step % 2 ? 'walk2' : 'walk1', bob: -Math.sin(Math.PI * u) * 6 * sp, rock: (step % 2 ? 1 : -1) * Math.sin(Math.PI * u) * .035 * sp,
+    sag: ss(2.6, 3.0, t) * (1 - ss(3.2, 3.3, t)), up: t >= 3.2, settle: t >= 3.2 ? 1 - Math.exp(-(t - 3.2) * 9) * Math.cos((t - 3.2) * 15) : 0,
+    breath: Math.sin((t - 4.4) * 3) * ss(4.7, 5.2, t) };
+}
+function basketPos(t, P) {
+  const back = { x: -108, y: -96, r: -.08 };
+  if (t < 3.95) return { ...back, y: back.y + (P.up ? (1 - P.settle) * 10 : 0) };
+  if (t < 4.15) { const u = eio((t - 3.95) / .2); return { x: back.x - 8 * u, y: back.y + 22 * u, r: back.r - .14 * u }; }
+  const s0 = { x: back.x - 8, y: back.y + 22, r: back.r - .14 }, end = { x: -205, y: 4, r: -.06 };
+  if (t < 4.4) { const u = (t - 4.15) / .25; return { x: lerp(s0.x, end.x, u), y: lerp(s0.y, end.y, u * u), r: lerp(s0.r, end.r, u) }; }
+  const k = t - 4.4; return { x: end.x, y: end.y - Math.abs(Math.sin(k * 18)) * 8 * Math.exp(-k * 9), r: end.r + Math.sin(k * 14) * .05 * Math.exp(-k * 6) };
+}
+function piece(x, name, sx, sy, rot = 0, kx = 1, ky = 1) { const [ax, ay] = D[name]; x.save(); x.translate(sx, sy); x.rotate(rot); x.scale(SC * kx, SC * ky); x.drawImage(IMG[name], -ax, -ay); x.restore(); }
+function drawBasket(x, b) { x.save(); x.translate(b.x, b.y); x.rotate(b.r); x.scale(SC * .9, SC * .9); x.drawImage(IMG.load, -D.load[0], -D.load[1]); x.restore(); }
+function drawHamster(x, t) {
+  const P = pose(t);
+  if (!P.up) { piece(x, P.frame, 0, P.bob + P.sag * 4, P.rock + P.sag * .03); return P; }
+  const b = basketPos(t, P), ky = (1 + .05 * (1 - P.settle)) * (1 + .012 * P.breath), kx = 1 - .03 * (1 - P.settle);
+  if (t < 4.15) drawBasket(x, b);
+  piece(x, 'stand', 0, 0, 0, kx, ky);
+  if (t < 4.15) { const sl = ss(3.9, 4.12, t); x.save(); x.lineCap = 'round';
+    for (const [col, w] of [['#6e4a30', 10], ['#94653f', 6]]) { x.strokeStyle = col; x.lineWidth = w; x.beginPath(); x.moveTo(b.x + 70 - sl * 10, b.y - 120 + sl * 20); x.quadraticCurveTo(-10, -200 * ky + sl * 20, 30 - sl * 10, -120 * ky + sl * 30); x.stroke(); }
+    x.restore(); }
+  if (t >= 4.15) drawBasket(x, b);
+  return P;
+}
+const FX = {}, FB = { w: 900, h: 560, ox: 520, oy: 500 };
+function draw(ctx, t) {
+  ctx.drawImage(IMG.bg, 0, 0, W, H);
+  const lit = ss(3.2, 3.9, t);
+  // dappled light drifting over the cloth and ground (the leaves above moving in a breeze)
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .55 + .25 * lit; ctx.drawImage(FX.dapple, -60 + Math.sin(t * .35) * 30, 1200 + Math.cos(t * .3) * 10); ctx.restore();
+  if (lit > 0) { ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = lit * (.9 + .1 * Math.sin(t * 1.7)); ctx.drawImage(FX.beam, 0, 0, W, H);
+    const sg = ctx.createRadialGradient(SUN.x, SUN.y, 10, SUN.x, SUN.y, 300); sg.addColorStop(0, `rgba(255,230,160,${lit})`); sg.addColorStop(.4, `rgba(255,226,150,${.35 * lit})`); sg.addColorStop(1, 'rgba(255,226,150,0)');
+    ctx.fillStyle = sg; ctx.translate(SUN.x, SUN.y); ctx.scale(1, .45); ctx.translate(-SUN.x, -SUN.y); ctx.fillRect(SUN.x - 300, SUN.y - 300, 600, 600); ctx.restore(); }
+  // hamster
+  const fb = FB.x; fb.setTransform(1, 0, 0, 1, 0, 0); fb.clearRect(0, 0, FB.w, FB.h); fb.translate(FB.ox, FB.oy);
+  const P = drawHamster(fb, t), hx = X0 + P.X;
+  ctx.save(); ctx.fillStyle = 'rgba(70,110,130,.2)'; ctx.beginPath(); ctx.ellipse(hx - 6, GY + 2, 96, 15, 0, 0, TAU); ctx.fill();
+  if (t >= 4.4) { ctx.beginPath(); ctx.ellipse(hx - 205, GY + 4, 86, 13, 0, 0, TAU); ctx.fill(); } ctx.restore();
+  if (lit > 0) { const rc = FB.rimx; rc.setTransform(1, 0, 0, 1, 0, 0); rc.globalCompositeOperation = 'source-over'; rc.clearRect(0, 0, FB.w, FB.h);   // warm light on the side facing the sun
+    rc.drawImage(FB.c, 0, 0); rc.globalCompositeOperation = 'destination-out'; rc.drawImage(FB.c, -4, 4); rc.globalCompositeOperation = 'source-in'; rc.fillStyle = `rgba(255,225,150,${.5 * lit})`; rc.fillRect(0, 0, FB.w, FB.h);
+    fb.setTransform(1, 0, 0, 1, 0, 0); fb.drawImage(FB.rim, 0, 0); }
+  ctx.drawImage(FB.c, hx - FB.ox, GY - FB.oy);
+  if (t > 4.4) { const k = clamp((t - 4.4) / .55), bx = hx - 205 + 40 + k * 80, by = GY - 190 + k * 180 - Math.sin(k * Math.PI) * 60;
+    ctx.save(); ctx.translate(bx, by); ctx.rotate(k * 2.6); ctx.drawImage(FX.flower, -30, -30, 60, 60); ctx.restore(); }
+  // light motes in the beam
+  if (lit > 0) for (const m of FX.motes) { const u = ((t * m.v + m.p) % 1), px = lerp(m.x0, SUN.x + m.dx, u) + Math.sin(t * 1.3 + m.p * 9) * 10, py = lerp(200, SUN.y - 40, u);
+    ctx.fillStyle = `rgba(255,244,205,${lit * m.a * Math.sin(Math.PI * u)})`; ctx.beginPath(); ctx.arc(px, py, m.s, 0, TAU); ctx.fill(); }
+  // near layers: static grass blades, then each painted leaf swaying about its stem
+  ctx.drawImage(IMG.fore, 0, 0);
+  LEAVES.forEach(([ox, oy, px, py, amp], i) => { const a = Math.sin(t * (.8 + i * .07) + i * 1.9) * amp;
+    ctx.save(); ctx.translate(px, py); ctx.rotate(a); ctx.translate(-px, -py); ctx.drawImage(IMG['leaf' + i], ox, oy); ctx.restore(); });
+  drawLadybug(ctx, t);
+  if (lit > 0) { ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = `rgba(255,214,150,${.22 * lit})`; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .3; ctx.drawImage(FX.paper, 0, 0); ctx.restore();
+  Story.captions(ctx, t, S.lines, { font: "'Hi Melody',sans-serif", weight: 400, size: 78, color: '#5f7f52', y: 410, shadow: 'rgba(250,252,244,.95)', shadowBlur: 18 });
+}
+function drawLadybug(ctx, t) {   // along the upper edge of the big front-right leaf's top leaflet
+  const ang = -2.7 + t * .16, x = 930 + Math.cos(ang) * 92, y = 1548 + Math.sin(ang) * 66, dir = Math.atan2(Math.cos(ang) * 66, -Math.sin(ang) * 92);
+  ctx.save(); ctx.translate(x, y); ctx.rotate(dir); ctx.scale(1.4, 1.4); ctx.strokeStyle = '#3a302c'; ctx.lineWidth = 2;
+  for (let i = -1; i <= 1; i++) for (const s of [-1, 1]) { const st = Math.sin(t * 14 + i * 2 + (s > 0 ? Math.PI : 0)) * 3; ctx.beginPath(); ctx.moveTo(i * 7, s * 8); ctx.lineTo(i * 7 + st, s * 16); ctx.stroke(); }
+  ctx.fillStyle = '#3a302c'; ctx.beginPath(); ctx.ellipse(16, 0, 8, 9, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#e2533f'; ctx.beginPath(); ctx.ellipse(-2, 0, 18, 15, 0, 0, TAU); ctx.fill(); ctx.strokeStyle = '#a63a2c'; ctx.lineWidth = 1.6; ctx.stroke(); ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-20, 0); ctx.stroke();
+  ctx.fillStyle = '#fff6ec'; for (const [dx, dy] of [[6, -7], [6, 7], [-6, -9], [-6, 9], [-14, -4], [-14, 4]]) { ctx.beginPath(); ctx.arc(dx, dy, 2.6, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = 'rgba(255,255,255,.6)'; ctx.beginPath(); ctx.ellipse(2, -6, 6, 3, -.3, 0, TAU); ctx.fill(); ctx.restore();
+}
+async function init() {
+  const names = ['bg', 'fore', 'walk1', 'walk2', 'stand', 'load', ...LEAVES.map((_, i) => 'leaf' + i)];
+  (await Promise.all(names.map(n => loadImg(`art/lab-clover-${n}.webp`)))).forEach((c, i) => IMG[names[i]] = c);
+  FB.c = Pilot.canvas(FB.w, FB.h); FB.x = FB.c.getContext('2d'); FB.rim = Pilot.canvas(FB.w, FB.h); FB.rimx = FB.rim.getContext('2d');
+  const r = rng(29);
+  FX.motes = []; for (let i = 0; i < 26; i++) FX.motes.push({ x0: 900 + r() * 300, dx: (r() - .5) * 300, v: .05 + r() * .08, p: r(), s: 2 + r() * 3, a: .5 + r() * .5 });
+  { const q = 4, c = Pilot.canvas(W / q, H / q), x = c.getContext('2d'); x.scale(1 / q, 1 / q);
+    for (let i = 0; i < 6; i++) { const x0 = 980 + i * 60, dx = (i - 2.5) * 70, w = 50 + r() * 70, a = .14 + r() * .12, g = x.createLinearGradient(x0, -100, SUN.x + dx, SUN.y);
+      g.addColorStop(0, `rgba(255,226,150,${a * 2.6})`); g.addColorStop(.7, `rgba(255,226,150,${a * 1.6})`); g.addColorStop(1, 'rgba(255,226,150,0)');
+      x.fillStyle = g; x.beginPath(); x.moveTo(x0 - w, -100); x.lineTo(x0 + w, -100); x.lineTo(SUN.x + dx + w * .5, SUN.y); x.lineTo(SUN.x + dx - w * .5, SUN.y); x.fill(); }
+    const c2 = Pilot.canvas(W / q, H / q), x2 = c2.getContext('2d'); x2.filter = 'blur(6px)'; x2.drawImage(c, 0, 0); FX.beam = c2; }
+  // dapple: soft light/dark blobs (quarter res, blurred), laid with soft-light
+  { const w = 300, h = 140, c = Pilot.canvas(w, h), x = c.getContext('2d'), d = x.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let i = 0; i < w; i++) { const n = noise(i / 18, y / 10) * .7 + noise(i / 7, y / 5 + 3) * .3, v = n > .55 ? 255 : 60, o = (y * w + i) * 4;
+      d.data[o] = d.data[o + 1] = v; d.data[o + 2] = v * .85; d.data[o + 3] = Math.abs(n - .5) > .08 ? 120 : 40; }
+    x.putImageData(d, 0, 0); const c2 = Pilot.canvas(1200, 560), x2 = c2.getContext('2d'); x2.filter = 'blur(10px)'; x2.drawImage(c, 0, 0, 1200, 560); FX.dapple = c2; }
+  // the tumbling flower: cut from the basket drawing (its top-left white clover head)
+  FX.flower = Pilot.canvas(90, 90); FX.flower.getContext('2d').drawImage(IMG.load, 120, 0, 90, 90, 0, 0, 90, 90);
+  FX.paper = Pilot.canvas(W, H); { const x = FX.paper.getContext('2d'), d = x.createImageData(W, H);
+    for (let y = 0; y < H; y++) for (let i = 0; i < W; i++) { const v = 128 + (noise(i / 3.5, y / 3.5) - .5) * 50, o = (y * W + i) * 4; d.data[o] = d.data[o + 1] = d.data[o + 2] = v; d.data[o + 3] = 255; } x.putImageData(d, 0, 0); }
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 78px 'Hi Melody'"], init, draw });
+</script>
+</body>
+</html>

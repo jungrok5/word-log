@@ -357,8 +357,11 @@ function bake(c, from, grain) {
   g.globalCompositeOperation = 'soft-light'; g.globalAlpha = .4; g.fillStyle = grain; g.fillRect(0, 0, c.width, c.height);
   g.globalAlpha = 1; g.globalCompositeOperation = 'destination-in'; g.drawImage(m, 0, 0); g.restore();
 }
+const PLATE = (location.search.match(/[?&]plate=(\w+)/) || [])[1] || '';   // ?plate=1: background only (for the key-art repaint)
+const FIGONLY = /[?&]fig=1/.test(location.search);                         // ?fig=1: the traveller alone on green
 function draw(ctx, t) {
-  const cam = camAt(t), lk = lightK(t);
+  if (FIGONLY) return figOnly(ctx, t);
+  const cam = PLATE ? 0 : camAt(t), lk = PLATE ? 0 : lightK(t);
   ctx.drawImage(TX.sky, 0, 0);
   const put = i => ctx.drawImage(PL[i].c, -M - cam * PL[i].depth, 0);
   const lx = LANT.x - cam * PL[2].depth - 16, ly = LANT.y - 6;
@@ -381,6 +384,7 @@ function draw(ctx, t) {
   put(4);
   warm(ctx, lx - 40, ly + 60, 700, lk * .12);
   put(5);
+  if (!PLATE) {
   // the traveller (drawn at FS into a sprite; rim of fog light from the clearing, warm on the face side once lit)
   const fc = FIG.getContext('2d'); fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, FIG.width, FIG.height);
   const OX = 150, OY = 330; fc.setTransform(FS, 0, 0, FS, OX, OY); const fg = figure(fc, t); fc.setTransform(1, 0, 0, 1, 0, 0);
@@ -398,11 +402,15 @@ function draw(ctx, t) {
     for (let i = 0; i < 5; i++) { const s = (i - 2) * .5, R = 24 + eo(u) * (70 + i * 10), cx = px + s * eo(u) * 110, cy = py - 6 - u * 16;
       const gr = ctx.createRadialGradient(cx, cy, 2, cx, cy, R); gr.addColorStop(0, `rgba(196,220,214,${.3 * (1 - u)})`); gr.addColorStop(1, 'rgba(196,220,214,0)');
       ctx.fillStyle = gr; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); } }
+  }
   bank(ctx, TX.fogLow, G0 - 70, 150, 26, t, cam, 1, .5); bank(ctx, TX.fogA, G0 + 10, 300, 34, t, cam, 1, .35);
   put(6);
   liveMoss(ctx, t, cam);
   bank(ctx, TX.fogLow, 1720, 240, 44, t, cam, 1.3, .3);
-  Story.captions(ctx, t, S.lines, { font: "'Gowun Batang',serif", weight: 700, size: 66, color: C.ink, y: 410, shadow: 'rgba(6,22,24,.9)', shadowBlur: 22 });
+  if (!PLATE) Story.captions(ctx, t, S.lines, { font: "'Gowun Batang',serif", weight: 700, size: 66, color: C.ink, y: 410, shadow: 'rgba(6,22,24,.9)', shadowBlur: 22 });
+}
+function figOnly(ctx, t) {   // the traveller at 4x on flat green (pose reference for the image model)
+  ctx.fillStyle = '#00ff00'; ctx.fillRect(0, 0, W, H); ctx.save(); ctx.setTransform(4.2, 0, 0, 4.2, 330 - pose(t).D * 4.2, 1380); figure(ctx, t); ctx.restore();
 }
 // a few long moss strands hanging from the overhanging limb, swaying in the moving air (drawn live)
 const LM = [];

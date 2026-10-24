@@ -240,6 +240,8 @@ function drawHamster(x, t) {
 const FX = {}, FB = { w: 1000, h: 640, ox: 560, oy: 560 };
 const PLATE = /[?&]plate=1/.test(location.search);
 function draw(ctx, t) {
+  { const m = location.search.match(/[?&]plate=leaf(\d+)/); if (m) { ctx.clearRect(0, 0, W, H); const l = FX.fore[+m[1]]; ctx.save(); ctx.translate(l.x, l.y); ctx.drawImage(l.c, -l.c.px, -l.c.py); ctx.restore(); return; } }
+  if (/[?&]plate=fore/.test(location.search)) { ctx.clearRect(0, 0, W, H); for (const l of FX.fore) { ctx.save(); ctx.translate(l.x, l.y); ctx.drawImage(l.c, -l.c.px, -l.c.py); ctx.restore(); } for (const b of FX.blades) blade(ctx, b.x, b.y, b.h, b.bend, b.w, b.c, C.bladeL); return; }   // mask for the key-art version
   ctx.drawImage(TX.sky, 0, 0);
   if (PLATE) { for (const f of FX.tall) { ctx.save(); ctx.translate(f.x, f.base); ctx.strokeStyle = C.stem; ctx.lineWidth = f.w; ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(f.bend, -f.h * .5, 0, -f.h); ctx.stroke(); ctx.drawImage(f.c, -f.c.width / 2, -f.h - f.c.height / 2); ctx.restore(); }
     ctx.drawImage(TX.back, 0, 0); for (const l of FX.fore) { ctx.save(); ctx.translate(l.x, l.y); ctx.drawImage(l.c, -l.c.px, -l.c.py); ctx.restore(); } for (const b of FX.blades) blade(ctx, b.x, b.y, b.h, b.bend, b.w, b.c, C.bladeL); return; }
