@@ -45,17 +45,17 @@
   },
   {
    "id": "m4",
-   "src": "cs-pas-grave",
+   "src": "cs-pas-grave-ache",
    "at": 21.2,
    "len": 9.3,
    "db": 4.9,
    "fin": 0.4,
    "fout": 1.5,
-   "note": "pas-grave take 1 of 4 from file 1.30 s (strings swell in at file 4.4 → 24.3) — levelled to v2 m4 (-23.3 dB RMS placed)",
+   "note": "pas-grave take 1 of 4 from file 1.30 s (strings swell in at file 4.4 → 24.3) — levelled to v2 m4 (-23.3 dB RMS placed) — \"-ache\" version (bin/ache.py: envelope capped ≈ +6 dB over the pre-swell level from ≈23.0, 3 kHz low-pass); db kept from the original",
    "prompt": "Aching warm acoustic theme in D minor turning to D major: a string section and soft piano with a harp, a cello melody rising, starting quiet and sorrowful, building steadily to a full warm resolved aching swell at the third second, then settling slowly and fading to quiet at the end, slow 60 bpm, solemn and tender, no drums, no music box, no vocals"
   }
  ],
- "note": "pastel family: warm acoustic score (nylon guitar/harp, strings, soft piano) on v2's cue points — tender-heavy, darkening at the gap, aching swell at the fill; dry close steps on a dirt path, v2 timber/lock weight, a low piano strike under the fall, meadow breeze bed.",
+ "note": "pastel family: warm acoustic score (nylon guitar/harp, strings, soft piano) on v2's cue points — tender-heavy, darkening at the gap, aching swell at the fill; dry close steps on a dirt path, v2 timber/lock weight, a low piano strike under the fall, meadow breeze bed. cross-styles v2 ending (owner): the pieces stay on the road and the gap stays OPEN — regret, not resolution. The three wooden locks became soft ghost tones as each slot of the dashed outline lights; the grave theme uses its \"-ache\" version (swell held ≈6 dB lower, darkened; same entry and timing); the rises are 3 dB softer (a glow).",
  "sfx": [
   {
    "id": "bed",
@@ -324,7 +324,7 @@
    "id": "fl",
    "src": "fall",
    "at": 19.56,
-   "len": 0.48,
+   "len": 0.72,
    "db": -8,
    "fin": 0.05,
    "fout": 0.12,
@@ -334,11 +334,11 @@
   {
    "id": "spl",
    "src": "cs-splash-brook",
-   "at": 19.91,
+   "at": 20.15,
    "len": 1.8,
-   "db": -4.699999999999999,
+   "db": -10.7,
    "fout": 0.8,
-   "note": "splash-brook take 3 of 4: onset (file 0.07) at 19.98 where the cross meets the water; replaces v2 crash",
+   "note": "splash-brook take 3 of 4: onset (file 0.07) at 20.22 where the cross meets the water (far below); replaces v2 crash",
    "prompt": "A wooden beam falling into a small shallow brook, one soft heavy water splash with a few drips after"
   },
   {
@@ -346,10 +346,10 @@
    "src": "rise",
    "at": 21.81,
    "len": 2.0,
-   "db": -10,
+   "db": -13,
    "fin": 0.1,
    "fout": 0.5,
-   "note": "take 4 of 4 pitched +2 (C→D); swell peak 1.09 s → on each lock",
+   "note": "take 4 of 4 pitched +2 (C→D); swell peak 1.09 s → on each lock — 3 dB softer: a glow, not a lock",
    "prompt": "A deep low resonant swell, a warm dark bass tone rising with a soft rumble and then fading, cinematic, no high frequencies"
   },
   {
@@ -357,46 +357,46 @@
    "src": "rise",
    "at": 22.51,
    "len": 2.0,
-   "db": -8,
+   "db": -11,
    "fin": 0.1,
-   "fout": 0.5
+   "fout": 0.5,
+   "note": "v2 rise — 3 dB softer: a glow, not a lock"
   },
   {
-   "id": "lk1",
-   "src": "lock",
-   "at": 22.85,
-   "len": 1.1,
-   "db": 5,
-   "fout": 0.3,
-   "note": "take 4 of 4 (peak 0.05 s → 22.9)",
-   "prompt": "A heavy block of wood sliding and locking firmly into place in a wooden joint, one deep resonant wooden knock, solid and final"
+   "id": "gt1",
+   "src": "cs-ghost",
+   "at": 22.558,
+   "len": 2.6,
+   "db": -14.9,
+   "fout": 1.0,
+   "note": "ghost take 3 of 4 (low D, soft bloom): peak (file 0.34) on the slot lighting at 22.9",
+   "prompt": "One soft muted low piano note D played gently with the felt damper, no hard attack, a warm resonant hum that swells slightly and slowly fades, quiet, sorrowful"
   },
   {
    "id": "rs3",
    "src": "rise",
    "at": 23.21,
    "len": 2.0,
-   "db": -6,
+   "db": -9,
    "fin": 0.1,
-   "fout": 0.6
+   "fout": 0.6,
+   "note": "v2 rise — 3 dB softer: a glow, not a lock"
   },
   {
-   "id": "lk2",
-   "src": "lock-b",
-   "at": 23.54,
-   "len": 1.1,
-   "db": 9,
-   "fout": 0.3,
-   "note": "take 1 of the lock node (peak 0.06 s → 23.6)"
+   "id": "gt2",
+   "src": "cs-ghost",
+   "at": 23.258,
+   "len": 2.6,
+   "db": -13.9,
+   "fout": 1.0
   },
   {
-   "id": "lk3",
-   "src": "lock-c",
-   "at": 24.19,
-   "len": 1.1,
-   "db": 1,
-   "fout": 0.4,
-   "note": "take 3 of the lock node (peak 0.11 s → 24.3, the last piece; with m4's swell)"
+   "id": "gt3",
+   "src": "cs-ghost",
+   "at": 23.958,
+   "len": 2.6,
+   "db": -12.9,
+   "fout": 1.0
   }
  ]
 }
