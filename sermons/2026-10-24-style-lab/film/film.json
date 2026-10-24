@@ -126,6 +126,21 @@
    "id": "lab-gamecartoon-art",
    "label": "17 모바일 게임 광고 카툰 (셀 셰이딩) — 키아트(이미지 모델 원화 + 코드 연출)",
    "dur": 6
+  },
+  {
+   "id": "lab-penink",
+   "label": "18 펜·잉크 동화 (만화 선화 + 수채, 나뭇잎 그림자)",
+   "dur": 6
+  },
+  {
+   "id": "lab-iyashikei",
+   "label": "19 이야시케이 (여름 툇마루, 플랫 셀 애니)",
+   "dur": 6
+  },
+  {
+   "id": "lab-neonanime",
+   "label": "20 네온 밤 애니 (형광 물감, 별밤)",
+   "dur": 6
   }
  ],
  "poster": 4.2,
