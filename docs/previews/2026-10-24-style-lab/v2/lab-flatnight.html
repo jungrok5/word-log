@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 04 플랫 벡터 밤숲</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 04 — flat vector night forest. Every surface is one flat fill of blue/indigo, no outlines, no gradients; depth is made
+   only by value steps between parallax layers. The traveller walks in place while the forest scrolls past (each layer is a
+   tile exactly as wide as its own scroll, so the last frame lines up with the first). The red lantern casts a hard-edged
+   disc that shows the forest in its "lit" palette; at 3.2 the cottage ahead lights its windows and a second disc blooms.
+   Eyes blink in the dark outside the light. One red accent (lantern + windows). */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const FONT = "'Noto Sans KR',sans-serif";
+// dark palette (night) and lit palette (inside the light discs) — same keys
+const DK = { sky: '#131c81', moonSky: '#131c81', trunk: '#151878', trunk2: '#14146f', hill: '#121a76', hill2: '#14146f',
+  rowA: '#17209a', rowAm: '#1a2ab4', rowAb: '#121777', rowB: '#152ec3', rowBm: '#1b5af4', rowBb: '#101c8e',
+  ground: '#14115f', bush: '#1826b4', bush2: '#131a7c', sprout: '#14146f', house: '#14146f', roof: '#101671', win: '#191a6e' };
+const LT = { sky: '#2939ff', moonSky: '#2939ff', trunk: '#2632ee', trunk2: '#2530e4', hill: '#2a34ea', hill2: '#2730dc',
+  rowA: '#2c3ff8', rowAm: '#3550ff', rowAb: '#2633e2', rowB: '#3249ff', rowBm: '#4f74ff', rowBb: '#2836e6',
+  ground: '#282ade', bush: '#2e44f5', bush2: '#2a37e8', sprout: '#2531d8', house: '#1c22c8', roof: '#171bb0', win: '#171bb0' };
+const FG = { dark: '#130a53', dark2: '#0c0642', mark: '#1c1676', ground: '#18146b', ground2: '#120d58', plant: '#0e0848', plant2: '#0a053a' };
+const RED = '#ff2d5a', RED2 = '#c8164a', PINK = '#ec99d4', FLAME = '#ffe6f2';
+const CLOAK = '#16136a', CLOAK2 = '#1e2aa6', CLOAKD = '#0f0c4e', SACK = '#5a24a8', SACK2 = '#7a3ccc', SACKD = '#3b137a', ROPE = '#2a0b63';
+
+// ---------------- motion ----------------
+const D = 320, WALK_END = B.walk[1], V0 = D / (WALK_END - .4);            // const speed, then decelerate over the last .8 s
+const dist = t => { const t1 = WALK_END - .8; if (t <= t1) return V0 * t; const u = clamp(t - t1, 0, .8); return V0 * t1 + V0 * (u - u * u / 1.6); };
+const FX = 330, FY = 1405, Z = 1.25, OY = -306, VW = W / Z;   // world drawn 1.25× (design coords), feet at screen y≈1450
+                                                  // the traveller's feet on screen (fixed)
+const LAYERS = [ // k: parallax factor; tile width = D*k so every layer comes back to frame 0 at the stop
+  { id: 'trunks', k: .375 }, { id: 'rowA', k: .5 }, { id: 'rowB', k: .75 }, { id: 'mid', k: 1 } ];
+const FGK = 3;
+
+// ---------------- shapes ----------------
+function leafShape(ctx, x, y, len, wid, ang) {   // a pointed leaf / leaf-slot
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang); ctx.beginPath(); ctx.moveTo(0, -len / 2);
+  ctx.quadraticCurveTo(wid, 0, 0, len / 2); ctx.quadraticCurveTo(-wid, 0, 0, -len / 2); ctx.fill(); ctx.restore();
+}
+// a teardrop: round end (circle c, r), pointed tip at (tx, ty)
+function drop(ctx, cx, cy, r, tx, ty, bulge = .32) {   // onion sides: curved from the tip to the tangent points
+  const a = Math.atan2(ty - cy, tx - cx), d = Math.hypot(tx - cx, ty - cy), be = Math.acos(clamp(r / d, -1, 1));
+  const p1 = [cx + r * Math.cos(a + be), cy + r * Math.sin(a + be)], p2 = [cx + r * Math.cos(a - be), cy + r * Math.sin(a - be)];
+  const ctl = (p, sgn) => { const mx = (p[0] + tx) / 2, my = (p[1] + ty) / 2, dx = p[0] - tx, dy = p[1] - ty, L = Math.hypot(dx, dy);
+    return [mx + sgn * -dy / L * L * bulge, my + sgn * dx / L * L * bulge]; };
+  const c1 = ctl(p1, -1), c2 = ctl(p2, 1);
+  ctx.moveTo(tx, ty); ctx.quadraticCurveTo(c1[0], c1[1], p1[0], p1[1]); ctx.arc(cx, cy, r, a + be, a - be + TAU);
+  ctx.quadraticCurveTo(c2[0], c2[1], tx, ty); ctx.closePath();
+}
+// a flat leafy crown (union of one pointed top and pairs of up-pointing side lobes), as in flat vector forests
+function crownTiers(cx, top, h, w, n) {
+  const T = [{ c: [cx, top + h * .34], r: w * .25, tip: [cx, top] }];
+  for (let i = 1; i < n; i++) { const f = i / (n - 1 || 1);
+    for (const s of [-1, 1]) T.push({ c: [cx + s * w * lerp(.25, .29, f), top + h * lerp(.53, .79, f)], r: w * lerp(.18, .21, f),
+      tip: [cx + s * w * lerp(.47, .53, f), top + h * lerp(.25, .50, f)], s, i }); }
+  return T;
+}
+function crown(ctx, cx, top, h, w, n, col) {
+  const T = crownTiers(cx, top, h, w, n);
+  ctx.fillStyle = col; ctx.beginPath();
+  for (const l of T) drop(ctx, l.c[0], l.c[1], l.r, l.tip[0], l.tip[1]);
+  ctx.ellipse(cx, top + h * .70, w * .2, h * .28, 0, 0, TAU);
+  ctx.fill('nonzero');
+  return T;
+}
+function leafyTree(ctx, cx, ground, h, w, n, c, seed) {   // c = { crown, mark, branch }
+  const r = rng(seed), ch = Math.min(h * .62, w * 1.55), top = ground - h;
+  const T = crown(ctx, cx, top, ch, w, n, c.crown);
+  // trunk: from the ground up into the top lobe (tapered, round top)
+  ctx.fillStyle = c.branch; const tw = w * .06;
+  ctx.beginPath(); ctx.moveTo(cx - tw, ground); ctx.lineTo(cx - tw * .5, top + ch * .30); ctx.arc(cx, top + ch * .30, tw * .5, Math.PI, 0); ctx.lineTo(cx + tw, ground); ctx.fill();
+  ctx.strokeStyle = c.branch; ctx.lineCap = 'round'; ctx.lineWidth = Math.max(4, w * .035);
+  // a smile branch across the lowest tier, a curl in the middle one
+  const yb = top + ch * .80;
+  ctx.beginPath(); ctx.moveTo(cx - w * .26, yb - ch * .07); ctx.quadraticCurveTo(cx, yb + ch * .09, cx + w * .26, yb - ch * .07); ctx.stroke();
+  if (n > 2) { const s = r() < .5 ? -1 : 1, ym = top + ch * .55;
+    ctx.beginPath(); ctx.moveTo(cx, ym + ch * .04); ctx.quadraticCurveTo(cx + s * w * .10, ym + ch * .03, cx + s * w * .12, ym - ch * .05); ctx.stroke(); }
+  ctx.fillStyle = c.mark;
+  for (const l of T) { if (!l.s || r() < .3) continue;
+    const a = Math.atan2(l.tip[1] - l.c[1], l.tip[0] - l.c[0]);
+    leafShape(ctx, lerp(l.c[0], l.tip[0], .3), lerp(l.c[1], l.tip[1], .3), w * .10, w * .04, a + Math.PI / 2); }
+  if (r() < .7) leafShape(ctx, cx + w * .1, top + ch * .38, w * .09, w * .036, .6);
+}
+function bareTrunk(ctx, x, w, col, seed, top = -20, ground = 1500) {   // background trunks with little branch stubs
+  const r = rng(seed); ctx.fillStyle = col; ctx.fillRect(x - w / 2, top, w, ground - top);
+  ctx.strokeStyle = col; ctx.lineWidth = w * .45; ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) { const y = 300 + r() * 800, s = r() < .5 ? -1 : 1, L = w * (1.2 + r() * 1.6);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + s * L * .9, y - L * .1, x + s * L, y - L * .8); ctx.stroke(); }
+}
+function bush(ctx, x, y, w, h, col) {   // a flat cloud-like bush lump
+  ctx.fillStyle = col; ctx.beginPath(); const n = 3;
+  ctx.moveTo(x - w / 2, y);
+  for (let i = 0; i < n; i++) { const a = x - w / 2 + w * i / n, b = a + w / n, hh = h * (i === 1 ? 1 : .72);
+    ctx.bezierCurveTo(a, y - hh * 1.2, b, y - hh * 1.2, b, y); }
+  ctx.closePath(); ctx.fill();
+}
+function sprout(ctx, x, y, s, col, sway = 0) {   // a little three-leaf plant
+  ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 4 * s; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x, y - 20 * s, x + sway * 10 * s, y - 34 * s); ctx.stroke();
+  leafShape(ctx, x + sway * 10 * s, y - 46 * s, 28 * s, 11 * s, sway * .2);
+  leafShape(ctx, x - 14 * s + sway * 4 * s, y - 24 * s, 26 * s, 10 * s, -1.0 + sway * .2);
+  leafShape(ctx, x + 14 * s + sway * 4 * s, y - 24 * s, 26 * s, 10 * s, 1.0 + sway * .2);
+}
+// periodic hill line across a tile of width p
+const hillY = (x, p, base, amps) => base + amps.reduce((s, [a, n, ph]) => s + a * Math.sin(TAU * n * x / p + ph), 0);
+function hill(ctx, p, base, amps, col, bottom = H) {
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-2, bottom);
+  for (let x = -2; x <= p + 2; x += 6) ctx.lineTo(x, hillY(x, p, base, amps)); ctx.lineTo(p + 2, bottom); ctx.fill();
+}
+
+// ---------------- tiles (prebuilt, dark + lit) ----------------
+const TILE = {};
+const EYES = [];   // eye pairs on the mid layer (tile coords), drawn live so they blink
+function drawLayer(ctx, id, p, C) {
+  // draw each object at x and x±p so the tile wraps seamlessly
+  const wrap = (x, f) => { for (const o of [-p, 0, p]) f(x + o); };
+  if (id === 'trunks') {
+    const r = rng(11);
+    wrap(30, x => bareTrunk(ctx, x, 26, C.trunk, 21)); wrap(88, x => bareTrunk(ctx, x, 14, C.trunk2, 22));
+    hill(ctx, p, 1185, [[16, 1, .4], [8, 2, 1.7]], C.hill);
+  }
+  if (id === 'rowA') {
+    const c = { crown: C.rowA, mark: C.rowAm, branch: C.rowAb };
+    wrap(80, x => leafyTree(ctx, x, 1230, 560, 210, 3, c, 31));
+  }
+  if (id === 'rowB') {
+    const c = { crown: C.rowB, mark: C.rowBm, branch: C.rowBb };
+    wrap(60, x => leafyTree(ctx, x, 1265, 820, 300, 4, c, 41));
+    wrap(190, x => { bush(ctx, x, 1262, 150, 46, C.bush2); });
+    hill(ctx, p, 1262, [[10, 1, 2.1], [5, 3, .3]], C.hill2);
+  }
+  if (id === 'mid') {
+    wrap(10, x => bareTrunk(ctx, x, 30, C.ground, 51, -20, 1330));
+    wrap(120, x => bush(ctx, x, 1335, 210, 62, C.bush));
+    wrap(255, x => bush(ctx, x, 1340, 130, 40, C.bush2));
+    hill(ctx, p, 1330, [[8, 1, .9], [4, 2, 2.4]], C.ground);
+    wrap(200, x => sprout(ctx, x, 1352, 1.1, C.sprout)); wrap(290, x => sprout(ctx, x, 1360, .8, C.sprout));
+  }
+}
+function buildTiles() {
+  for (const L of LAYERS) { const p = Math.round(D * L.k);
+    for (const [nm, C] of [['d', DK], ['l', LT]]) { const c = Pilot.canvas(Math.round(p * Z), H), x = c.getContext('2d'); x.setTransform(Z, 0, 0, Z, 0, OY); drawLayer(x, L.id, p, C); TILE[L.id + nm] = c; }
+    L.p = p; }
+  // eyes hiding in the mid bushes (tile coords)
+  EYES.push({ x: 92, y: 1306, s: 1.5, seed: 3 }, { x: 250, y: 1320, s: 1.2, seed: 7 });
+}
+function blit(ctx, id, nm, off) {   // repeat a layer tile across the screen at a scroll offset
+  const L = LAYERS.find(l => l.id === id), p = L.p * Z, c = TILE[id + nm]; off *= Z;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  let x0 = -((off % p) + p) % p; for (let x = x0; x < W; x += p) ctx.drawImage(c, Math.round(x * 4) / 4, 0); ctx.restore();
+}
+
+// ---------------- the cottage ahead ----------------
+const HOUSE_K = .15, HOUSE_X = 690, HOUSE_Y = 1190;   // screen x at the stop
+function house(ctx, x, C, lit) {
+  const y = HOUSE_Y; ctx.fillStyle = C.house;
+  ctx.fillRect(x - 70, y - 120, 140, 120);
+  ctx.fillStyle = C.roof; ctx.beginPath(); ctx.moveTo(x - 92, y - 112); ctx.lineTo(x, y - 205); ctx.lineTo(x + 92, y - 112); ctx.fill();
+  ctx.fillRect(x + 34, y - 200, 22, 60);
+  ctx.fillStyle = C.house; ctx.beginPath(); ctx.arc(x, y - 145, 16, 0, TAU); ctx.fill();
+  if (lit > 0) { ctx.fillStyle = '#3d4dff'; ctx.beginPath(); ctx.moveTo(x + 26, y); ctx.lineTo(x + 54, y); ctx.lineTo(x + 40, y + 70); ctx.lineTo(x - 30, y + 70); ctx.fill(); }   // door light on the path
+  const wc = lit > 0 ? RED : C.win;
+  ctx.fillStyle = wc; ctx.fillRect(x - 46, y - 88, 24, 30); ctx.fillRect(x - 16, y - 88, 24, 30);
+  ctx.fillStyle = lit > 0 ? '#ff7aa0' : C.win; ctx.fillRect(x + 26, y - 70, 28, 70);   // the door
+  if (lit > 0) { ctx.fillStyle = C.house; ctx.fillRect(x - 23, y - 88, 2, 30); }
+}
+
+// ---------------- the traveller ----------------
+function pose(t) {
+  const d = dist(t), L = 72, c = d / (2 * L);
+  const walking = 1 - ss(WALK_END - .25, WALK_END + .25, t);
+  const foot = ph => { const p = ((ph % 1) + 1) % 1; if (p < .5) return [L / 2 - p / .5 * L, 0];
+    const q = (p - .5) / .5; return [-L / 2 + eio(q) * L, -20 * Math.sin(Math.PI * q)]; };
+  let fa = foot(c), fb = foot(c + .5);
+  fa = [fa[0] * walking + 14 * (1 - walking), fa[1] * walking]; fb = [fb[0] * walking - 16 * (1 - walking), fb[1] * walking];
+  const step = Math.abs(Math.sin(Math.PI * 2 * c));   // 0 at mid-stance
+  const bob = (1 - step) * 9 * walking;                // body dips on each footfall
+  const sag = ss(B.stop, B.stop + .45, t) * (1 - ss(B.look, B.look + .5, t)) * 10;
+  const drop = B.drop, rel = ss(drop, drop + .25, t);
+  const relief = rel * (1 + .08 * Math.sin(clamp((t - drop) / .7) * Math.PI * 2) * (1 - ss(drop + .3, drop + 1, t)));
+  const lean = lerp(.20, .02, ss(B.look - .1, B.look + .5, t)) * (1 - rel * .6) + sag * .004 - .04 * relief + .03 * walking * Math.sin(TAU * c);
+  const head = lerp(-.30, .12, eo(clamp((t - B.look) / .55))) - (1 - walking) * 0 - sag * .01;
+  const breath = Math.sin(TAU * (t - B.drop) / 1.6) * 2.5 * ss(drop + .5, drop + 1, t);
+  return { fa, fb, bob: bob + sag - relief * 4 + breath, lean, head, walking, c };
+}
+function sackState(t, P) {   // where the load is: on the back (lagging bounce), slipping, landed
+  const drop = B.drop, slip = ss(drop - .45, drop, t);
+  const lag = Math.sin(TAU * P.c - .9) * 6 * P.walking;
+  if (t < drop) return { on: true, dx: -slip * 26, dy: lag + slip * slip * 70, rot: -.06 * slip - .04 * Math.sin(TAU * P.c) * P.walking, sx: 1, sy: 1 };
+  const u = t - drop, sq = Math.exp(-u * 7) * Math.cos(u * 26);   // landing: squash, then a damped wobble
+  return { on: false, dx: 0, dy: 0, rot: -.10 + .03 * sq, sx: 1 + .16 * sq, sy: 1 - .2 * sq, u };
+}
+function sackShape(ctx, w, h) {   // a lumpy bundle, origin at its base centre
+  ctx.beginPath(); ctx.moveTo(-w * .45, 0);
+  ctx.bezierCurveTo(-w * .62, -h * .3, -w * .58, -h * .82, -w * .32, -h * .95);
+  ctx.bezierCurveTo(-w * .12, -h * 1.06, w * .18, -h * 1.04, w * .36, -h * .9);
+  ctx.bezierCurveTo(w * .6, -h * .72, w * .58, -h * .25, w * .44, 0); ctx.closePath();
+}
+function drawSack(ctx, w, h) {
+  ctx.fillStyle = SACK; sackShape(ctx, w, h); ctx.fill();
+  ctx.save(); sackShape(ctx, w, h); ctx.clip();
+  ctx.fillStyle = SACKD; ctx.beginPath(); ctx.ellipse(-w * .1, h * .05, w * .7, h * .32, 0, 0, TAU); ctx.fill();   // flat shadow band
+  ctx.fillStyle = SACK2; ctx.beginPath(); ctx.ellipse(-w * .22, -h * .72, w * .2, h * .12, -.5, 0, TAU); ctx.fill();
+  // a patch
+  ctx.fillStyle = '#6b2fbb'; ctx.fillRect(w * .05, -h * .56, w * .22, h * .2);
+  ctx.restore();
+  // rope crossing (flat stripes)
+  ctx.strokeStyle = ROPE; ctx.lineWidth = 9; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-w * .55, -h * .55); ctx.quadraticCurveTo(0, -h * .40, w * .55, -h * .56); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-w * .05, -h * 1.0); ctx.quadraticCurveTo(w * .02, -h * .5, -w * .04, -h * .02); ctx.stroke();
+  // knot on top
+  ctx.fillStyle = SACKD; ctx.beginPath(); ctx.moveTo(-w * .12, -h * .96); ctx.lineTo(-w * .02, -h * 1.16); ctx.lineTo(w * .08, -h * .98); ctx.fill();
+}
+function lanternPos(t, P) {   // hand + lantern swing (pendulum driven by the steps, settling after the stop)
+  const sw = Math.sin(TAU * P.c * 1 + .6) * .16 * P.walking + Math.sin((t - WALK_END) * 5.2) * .10 * Math.exp(-Math.max(0, t - WALK_END) * 1.6) * (t > WALK_END ? 1 : 0)
+    + Math.sin(t * TAU / 2.9) * .035;
+  return sw;
+}
+function traveller(ctx, t, P, SK) {
+  ctx.save(); ctx.translate(FX, FY);
+  // feet (below the hem)
+  // legs: two-bone IK from the hips (under the cloak) to the feet; the knee bends forward
+  const hipY = -70 + P.bob;
+  for (const [f, hx, col] of [[P.fb, -10, '#0b0940'], [P.fa, 8, CLOAKD]]) {
+    const fx = f[0] + 4, fy = f[1] - 10, dx = fx - hx, dy = fy - hipY, d = Math.min(Math.hypot(dx, dy), 67.9), L1 = 36, L2 = 34;
+    const a = Math.atan2(dy, dx), k = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
+    const kx = hx + Math.cos(a - k) * L1, ky = hipY + Math.sin(a - k) * L1;
+    ctx.strokeStyle = col; ctx.lineWidth = 17; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(hx, hipY); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(fx + 8, fy + 3, 17, 9, 0, 0, TAU); ctx.fill(); }
+  ctx.translate(0, P.bob - 10);
+  ctx.transform(1, 0, -P.lean, 1, 0, 0);   // lean: skew the whole body forward over the hips
+  // the load on the back (behind the body)
+  if (SK.on) { ctx.save(); ctx.translate(-78 + SK.dx, -118 + SK.dy); ctx.rotate(SK.rot); drawSack(ctx, 170, 190); ctx.restore(); }
+  // cloak
+  ctx.fillStyle = CLOAK; ctx.beginPath();
+  ctx.moveTo(-60, -40); ctx.bezierCurveTo(-58, -110, -50, -175, -26, -212); ctx.lineTo(34, -214);
+  ctx.bezierCurveTo(52, -160, 62, -100, 72, -40); ctx.quadraticCurveTo(40, -30, 20, -44); ctx.quadraticCurveTo(-20, -26, -60, -40); ctx.fill();
+  // lit side panel of the cloak (toward the lantern)
+  ctx.fillStyle = CLOAK2; ctx.beginPath(); ctx.moveTo(30, -205); ctx.bezierCurveTo(46, -150, 56, -100, 66, -40); ctx.lineTo(48, -36); ctx.bezierCurveTo(40, -90, 30, -140, 18, -200); ctx.fill();
+  // strap over the shoulder to the chest
+  if (SK.on) { ctx.strokeStyle = SACK2; ctx.lineWidth = 10; ctx.lineCap = 'round';
+    const slip = ss(B.drop - .45, B.drop - .1, t);
+    ctx.beginPath(); ctx.moveTo(-54 + SK.dx, -150 + SK.dy * .6); ctx.quadraticCurveTo(-10, -232 + slip * 40, 26 - slip * 30, -150 + slip * 30); ctx.stroke(); }
+  // back arm gripping the strap (released at the drop)
+  const grip = 1 - ss(B.drop - .2, B.drop + .15, t);
+  ctx.strokeStyle = '#201c8c'; ctx.lineWidth = 28; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(4, -192); ctx.quadraticCurveTo(lerp(-10, -4, grip), -150, lerp(-6, 22, grip), lerp(-92, -146, grip)); ctx.stroke();
+  ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(lerp(-6, 22, grip), lerp(-90, -146, grip), 9, 0, TAU); ctx.fill();
+  // head in the hood (tilts down while trudging, lifts at the light)
+  ctx.save(); ctx.translate(6, -208); ctx.rotate(P.head);
+  ctx.fillStyle = CLOAK; ctx.beginPath();
+  ctx.moveTo(-40, 10); ctx.bezierCurveTo(-58, -40, -40, -98, 8, -100); ctx.bezierCurveTo(48, -100, 64, -60, 58, -20);
+  ctx.bezierCurveTo(56, 0, 40, 14, 20, 16); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = PINK; ctx.beginPath(); ctx.moveTo(16, -64); ctx.bezierCurveTo(44, -66, 54, -40, 50, -16); ctx.bezierCurveTo(46, -2, 30, 4, 18, 0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#2939ff'; ctx.beginPath(); ctx.moveTo(10, -70); ctx.bezierCurveTo(34, -78, 54, -62, 54, -38); ctx.bezierCurveTo(42, -52, 26, -50, 14, -40); ctx.closePath(); ctx.fill();   // fringe
+  ctx.fillStyle = CLOAKD; ctx.beginPath(); ctx.moveTo(-6, -92); ctx.bezierCurveTo(-30, -84, -40, -30, -30, 6); ctx.lineTo(-40, 10); ctx.bezierCurveTo(-58, -40, -40, -98, 8, -100); ctx.fill();  // hood back shade
+  // eye: a closed curve while trudging, opens when the head lifts
+  const open = ss(B.look + .1, B.look + .35, t);
+  ctx.strokeStyle = '#3b1366'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+  if (open < .5) { ctx.beginPath(); ctx.moveTo(34, -32); ctx.quadraticCurveTo(40, -27, 46, -31); ctx.stroke(); }
+  else { ctx.fillStyle = '#3b1366'; ctx.beginPath(); ctx.ellipse(41, -34, 3.6, 5.4, 0, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  // front arm holding the lantern out
+  const hx = 104, hy = -132;
+  ctx.strokeStyle = CLOAK; ctx.lineWidth = 30; ctx.beginPath(); ctx.moveTo(26, -190); ctx.quadraticCurveTo(70, -170, hx - 6, hy); ctx.stroke();
+  ctx.strokeStyle = CLOAK2; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(36, -200); ctx.quadraticCurveTo(76, -180, hx + 4, hy - 8); ctx.stroke();
+  ctx.fillStyle = PINK; ctx.beginPath(); ctx.arc(hx, hy, 10, 0, TAU); ctx.fill();
+  ctx.restore();
+  return { hx, hy };
+}
+function lantern(ctx, x, y, ang, t) {   // hanging lantern, pivot at the hand
+  ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+  ctx.strokeStyle = RED; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(0, 8, 11, Math.PI, 0); ctx.stroke();
+  ctx.translate(0, 18);
+  ctx.fillStyle = RED; ctx.fillRect(-16, 0, 32, 9); ctx.fillRect(-20, 58, 40, 10);
+  ctx.beginPath(); ctx.moveTo(-14, 9); ctx.lineTo(14, 9); ctx.lineTo(20, 58); ctx.lineTo(-20, 58); ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#ffd1e3'; ctx.beginPath(); ctx.moveTo(-9, 15); ctx.lineTo(9, 15); ctx.lineTo(13, 52); ctx.lineTo(-13, 52); ctx.fill();   // glass
+  // flame: flat teardrop, flickers on a few fixed shapes
+  const fl = Math.floor(t * 12) % 4, fw = [6, 7, 5.5, 6.5][fl], fh = [24, 21, 26, 22][fl];
+  ctx.fillStyle = RED; ctx.beginPath(); ctx.moveTo(0, 49 - fh); ctx.quadraticCurveTo(fw * 1.7, 42, 0, 49); ctx.quadraticCurveTo(-fw * 1.7, 42, 0, 49 - fh); ctx.fill();
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(0, 44, fw * .45, fh * .2, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = RED2; ctx.fillRect(-2.5, 15, 5, 37);
+  ctx.restore();
+}
+
+// ---------------- foreground ----------------
+function fgTree(ctx, x) {   // a big dark leafy tree passing in front
+  leafyTree(ctx, x, 1560, 1200, 470, 4, { crown: FG.dark, mark: FG.mark, branch: FG.dark2 }, 77);
+}
+function clump(ctx, x, y, s, col, sway, seed) {   // a clump of long flat leaves (drooping tips)
+  const r = rng(seed); ctx.fillStyle = col;
+  for (let i = 0; i < 5; i++) { const a = -Math.PI / 2 + (i - 2) * .42 + (r() - .5) * .2 + sway * .06, L = s * (90 + r() * 60);
+    const tx = x + Math.cos(a) * L, ty = y + Math.sin(a) * L, nx = -Math.sin(a), ny = Math.cos(a), wd = s * 20;
+    ctx.beginPath(); ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + Math.cos(a) * L * .5 + nx * wd, y + Math.sin(a) * L * .5 + ny * wd, tx + (i - 2) * s * 10, ty + s * 6);
+    ctx.quadraticCurveTo(x + Math.cos(a) * L * .5 - nx * wd, y + Math.sin(a) * L * .5 - ny * wd, x, y); ctx.fill(); }
+}
+function stump(ctx, x, y, col) {
+  ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x - 46, y); ctx.lineTo(x - 34, y - 70); ctx.lineTo(x - 12, y - 58); ctx.lineTo(x + 4, y - 84);
+  ctx.lineTo(x + 34, y - 66); ctx.lineTo(x + 46, y); ctx.fill();
+}
+function foreground(ctx, off, t) {
+  const p = Math.round(D * FGK);
+  const x0 = -((off % p) + p) % p;
+  for (let x = x0 - p; x < VW + p; x += p) fgTree(ctx, x + 60);
+  ctx.fillStyle = FG.ground; ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= VW; x += 8) ctx.lineTo(x, 1560 + 18 * Math.sin(TAU * (x + off) / p) + 9 * Math.sin(TAU * 3 * (x + off) / p + 1));
+  ctx.lineTo(VW, H); ctx.fill();
+  for (let x = x0 - p; x < VW + p; x += p) {
+    const sw = Math.sin(t * 1.7 + x * .01);
+    clump(ctx, x + 430, 1700, 1.3, FG.plant, sw, 5); sprout(ctx, x + 250, 1640, 1.8, FG.plant, -sw * .5);
+    stump(ctx, x + 690, 1640, FG.plant); clump(ctx, x + 760, 1660, .9, FG.plant, -sw, 8); sprout(ctx, x + 560, 1610, 1.3, FG.plant, sw * .5);
+  }
+  ctx.fillStyle = FG.ground2; ctx.beginPath(); ctx.moveTo(0, H);
+  for (let x = 0; x <= VW; x += 8) ctx.lineTo(x, 1735 + 14 * Math.sin(TAU * 2 * (x + off) / p + 2)); ctx.lineTo(VW, H); ctx.fill();
+  for (let x = x0 - p; x < VW + p; x += p) { const sw = Math.sin(t * 1.3 + x * .02); clump(ctx, x + 120, 1790, 1.6, FG.plant2, sw, 12); clump(ctx, x + 620, 1800, 1.2, FG.plant2, -sw, 14); }
+}
+
+// ---------------- frame ----------------
+function moon(ctx) {
+  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, VW, 900); ctx.arc(262, 400, 27, 0, TAU); ctx.clip('evenodd');
+  ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(246, 412, 29, 0, TAU); ctx.fill(); ctx.restore();
+}
+function eyes(ctx, t, off, discs) {
+  const L = LAYERS.find(l => l.id === 'mid'), p = L.p;
+  for (const e of EYES) { const r = rng(e.seed);
+    // blink schedule: closed for .12 s at a few fixed times + a slow look-around
+    const period = 1.7 + r() * .9, ph = r() * period, bt = ((t + ph) % period);
+    const closed = bt < .12 ? 1 - Math.abs(bt - .06) / .06 : 0;
+    const look = Math.round(Math.sin(t * .9 + e.seed) * 2);
+    for (let x = e.x - (((off % p) + p) % p); x < VW + p; x += p) { if (x < -40 || x > VW + 40) continue;
+      if (discs.some(d => d.r > 0 && Math.hypot(x - d.x, e.y - d.y) < d.r + 10)) continue;   // they hide from the light
+      ctx.fillStyle = '#ffffff';
+      for (const s of [-1, 1]) { const ex = x + s * 15 * e.s + look, h = 7 * e.s * (1 - closed) + 1;
+        ctx.beginPath(); ctx.moveTo(ex - 8 * e.s, e.y); ctx.quadraticCurveTo(ex, e.y - h * (s < 0 ? 1.4 : 1.4), ex + 8 * e.s, e.y + (s < 0 ? -3 : 3) * e.s * (1 - closed));
+        ctx.quadraticCurveTo(ex, e.y + h * .5, ex - 8 * e.s, e.y); ctx.fill(); } }
+  }
+}
+function draw(ctx, t) {
+  const d = dist(t), P = pose(t), SK = sackState(t, P);
+  const sw = lanternPos(t, P);
+  // lantern world position (hand in screen coords: apply the same lean skew)
+  const hand = { x: FX + 104 + P.lean * 132 - P.lean * 0, y: FY + P.bob - 10 - 132 };   // skew x' = x - lean*y
+  const lx = hand.x, ly = hand.y;
+  // light discs: the lantern's (bobbing with it), and the cottage's (blooms at the look)
+  const lamp = { x: lx + Math.sin(sw) * 26 - 10, y: ly + 10 + P.bob * .6, r: 300 + Math.sin(t * TAU / 1.9) * 3 };
+  const hx = HOUSE_X + (D - d) * HOUSE_K;
+  const on = t >= B.look ? (t < B.look + .07 || t >= B.look + .14 ? 1 : 0) : 0;   // windows: on, flick, on
+  const back = u => 1 + 2.70158 * Math.pow(u - 1, 3) + 1.70158 * Math.pow(u - 1, 2);
+  const glowR = t < B.look ? 0 : 330 * back(clamp((t - B.look) / .5)) + Math.sin(t * TAU / 2.3) * 4;
+  const hdisc = { x: hx, y: HOUSE_Y - 90, r: glowR };
+  const discs = [lamp, hdisc];
+
+  // dark world
+  ctx.fillStyle = DK.sky; ctx.fillRect(0, 0, W, H); ctx.setTransform(Z, 0, 0, Z, 0, OY);
+  blit(ctx, 'trunks', 'd', d * .375); moon(ctx);
+  house(ctx, hx, DK, 0);
+  blit(ctx, 'rowA', 'd', d * .5); blit(ctx, 'rowB', 'd', d * .75); blit(ctx, 'mid', 'd', d);
+  // lit world, inside the discs (hard-edged, flat)
+  ctx.save(); ctx.beginPath();
+  for (const c of discs) if (c.r > 1) { ctx.moveTo(c.x + c.r, c.y); ctx.arc(c.x, c.y, c.r, 0, TAU); }
+  ctx.clip();
+  ctx.fillStyle = LT.sky; ctx.fillRect(0, OY / -Z - 10, VW + 10, H);
+  blit(ctx, 'trunks', 'l', d * .375);
+  house(ctx, hx, LT, on);
+  blit(ctx, 'rowA', 'l', d * .5); blit(ctx, 'rowB', 'l', d * .75); blit(ctx, 'mid', 'l', d);
+  ctx.restore();
+  if (on) house(ctx, hx, LT, 1);   // the lit cottage draws over its own disc edge
+  eyes(ctx, t, d, discs);
+  // the load once it has landed (behind the traveller, on the ground)
+  if (!SK.on) { ctx.save(); ctx.translate(FX - 118, FY + 2); ctx.rotate(SK.rot); ctx.scale(SK.sx, SK.sy); drawSack(ctx, 170, 190); ctx.restore();
+    // a few leaves kicked up by the landing
+    const u = SK.u; if (u < 1.6) { const r = rng(9); ctx.fillStyle = LT.bush;
+      for (let i = 0; i < 6; i++) { const vx = (r() - .5) * 260, vy = -180 - r() * 160, k = clamp(u / 1.6);
+        const x = FX - 118 + vx * u, y = FY - 6 + vy * u + 300 * u * u; if (y > FY + 4) continue;
+        leafShape(ctx, x, y, 18, 7, u * 6 + i); } } }
+  traveller(ctx, t, P, SK);
+  lantern(ctx, lx, ly, sw, t);
+  foreground(ctx, d * FGK, t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  Story.captions(ctx, t, S.lines, { font: FONT, weight: 700, size: 62, color: '#dfe3ff', y: 410, shadow: 'rgba(10,6,60,.55)', shadowBlur: 12 });
+}
+
+async function init() { buildTiles(); }
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 62px 'Noto Sans KR'"], init, draw });
+</script>
+<script>window.POSTER_T = 4.2;</script>
+    <style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+    border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+    #pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+    border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}#pv-play[hidden]{display:none}</style>
+    <button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+    <script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+    if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+    </body>
+</html>
