@@ -128,7 +128,7 @@ HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for 
    A sheet ghost trudges along a night sidewalk with a burlap sack on its back, stops; a small friend by the tree clicks
    on a flashlight and the beam sweeps over to find it (the one accent); it looks up, the sack slumps off, and they stand
    in the little pool of light — the beam wavering, the grain softly flickering. */
-const X0 = 170, X1 = 452, A = 18;
+const X0 = 160, X1 = 420, A = 18;
 const walkX = HD.walker(X0, X1, B.stop, .3);
 const TX = {};
 const C = { black: [30, 28, 27], dark: [52, 49, 47], mid: [104, 99, 94], light: [158, 152, 145], chalk: [232, 227, 219], warm: [246, 228, 176] };
@@ -138,8 +138,8 @@ const ROWY = x => lerp(1352, 1300, x / 1080);   // sidewalk centre line (it clim
 // ---------------- graphite marks ----------------
 // a grainy fill: a smooth base plus pigment caught on the tooth (masks in black or chalk at 3 densities)
 function fillG(g, path, col, a, dens = 1, tone = 'black') {
-  g.save(); g.clip(path); g.fillStyle = rgba(col, a * .55); g.fill(path);
-  g.globalAlpha = a; g.drawImage(TX.mask[tone][dens], 0, 0); g.restore();
+  g.save(); g.clip(path); g.fillStyle = rgba(col, a * .8); g.fill(path);
+  g.globalAlpha = a * .6; g.drawImage(TX.mask[tone][dens], 0, 0); g.restore();
 }
 // pencil strokes: short ribbons whose colour is a grainy pattern; o: { w, col (pattern), a }
 function strokeG(g, pts, seed, pat, o = {}) { HD.ink(g, HD.wob(pts, seed, o.wob ?? 1.2, 60), { w: o.w ?? 2.6, ts: o.ts ?? 10, te: o.te ?? 16, mn: .25, press: .4, pw: 40, rough: .15, seed, col: pat }); }
@@ -198,8 +198,9 @@ function buildStreet(g) {
   const bed = P([[0, 1062], [1080, 1058], [1080, 1170], [0, 1210]]);
   fillG(g, bed, C.black, .95, 2);
   const rr = rng(17);
-  for (let i = 0; i < 520; i++) { const x = rr() * 1080, yb = lerp(1205, 1168, x / 1080) - rr() * 20, h = 30 + rr() * 90, bend = (rr() - .5) * 30;
-    strokeG(g, HD.spline([[x, yb], [x + bend * .4, yb - h * .5], [x + bend, yb - h]], 4), 200 + i, rr() > .7 ? PBm : PL, { w: 2 + rr() * 1.6, ts: 6, te: h * .6 }); }
+  const tuft = (x, yb, h, n, spread, seed, light) => { const q = rng(seed); for (let j = 0; j < n; j++) { const an = -Math.PI / 2 + (j / (n - 1) - .5) * spread + (q() - .5) * .2, hh = h * (.6 + .5 * q()), bend = (q() - .5) * .5 + (j / (n - 1) - .5) * .6;
+      const p1 = [x + Math.cos(an) * hh * .5, yb + Math.sin(an) * hh * .5], p2 = [x + Math.cos(an + bend) * hh, yb + Math.sin(an + bend) * hh]; strokeG(g, HD.spline([[x + (q() - .5) * 8, yb], p1, p2], 4), seed + j, q() < light ? PL : PBm, { w: 2.2 + q() * 1.8, ts: 6, te: hh * .6 }); } };
+  for (let i = 0; i < 48; i++) { const x = rr() * 1100 - 10, yb = lerp(1212, 1172, x / 1080) - rr() * 10; tuft(x, yb, 50 + rr() * 70, 8 + Math.floor(rr() * 6), 1.6, 200 + i * 20, .55); }
   for (let k = 0; k < 7; k++) { const cx = 60 + k * 160 + rr() * 60, cy = 1080 + rr() * 30, R = 70 + rr() * 40;   // bushes: scribbled loops
     for (let i = 0; i < 40; i++) { const a = rr() * TAU, d = R * Math.sqrt(rr()), x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d * .55; strokeG(g, HD.arc(x, y, 10 + rr() * 12, 8 + rr() * 8, rr() * TAU, rr() * TAU + 4, 3), 300 + k * 50 + i, rr() > .5 ? PB : PBm, { w: 2.4 }); } }
   for (let i = 0; i < 26; i++) { const x = rr() * 1080, y = 1090 + rr() * 90; g.fillStyle = rgba(C.chalk, .7); g.beginPath(); g.arc(x, y, 2.5 + rr() * 2.5, 0, TAU); g.fill(); strokeG(g, HD.seg([x, y + 4], [x + (rr() - .5) * 6, y + 30 + rr() * 30], 3), 400 + i, PL, { w: 1.8 }); }
@@ -220,8 +221,7 @@ function buildStreet(g) {
   // --- foreground bushes: black, with blades and little white heads
   const fg = HD.spline([[0, 1700], [120, 1660], [240, 1690], [360, 1640], [520, 1700], [660, 1680], [780, 1720], [1080, 1680], [1080, 1920], [0, 1920]], 6, true);
   fillG(g, HD.pathOf(fg), C.black, .97, 2);
-  for (let i = 0; i < 380; i++) { const x = rr() * 1080, yb = 1920, h = 140 + rr() * 220, bend = (rr() - .5) * 80;
-    strokeG(g, HD.spline([[x, yb], [x + bend * .3, yb - h * .5], [x + bend, yb - h]], 5), 600 + i, rr() > .55 ? PL : PBm, { w: 2 + rr() * 2, ts: 10, te: h * .5 }); }
+  for (let i = 0; i < 30; i++) { const x = rr() * 1100 - 10, yb = 1880 + rr() * 60; tuft(x, yb, 160 + rr() * 160, 10 + Math.floor(rr() * 8), 1.9, 600 + i * 30, .5); }
   for (let i = 0; i < 18; i++) { const x = 30 + rr() * 1020, y = 1640 + rr() * 140; strokeG(g, HD.seg([x, y + 6], [x + (rr() - .5) * 10, y + 90], 4), 1000 + i, PL, { w: 2 }); g.fillStyle = rgba(C.chalk, .75); g.beginPath(); g.arc(x, y, 5 + rr() * 4, 0, TAU); g.fill(); g.fillStyle = rgba(C.black, .5); g.beginPath(); g.arc(x, y, 2, 0, TAU); g.fill(); }
   // --- the tree: a heavy charcoal trunk in front, a big limb up and out to the left; lighter bark strokes
   const limb = (pts, w0, w1, seed) => HD.ribbon(HD.wob(HD.spline(pts, 6), seed, 9, 140), (u, sl, i2) => lerp(w0, w1, Math.pow(u, .7)) * (1 + .1 * (noise(sl / 30, seed) - .5) * 2));
@@ -241,7 +241,7 @@ function buildStreet(g) {
 
 // ---------------- the ghosts ----------------
 function ghostPts(s, sway, hemK) {   // a sheet ghost, origin at the hem centre, facing right; s = size
-  const hem = []; const n = 5; for (let i = 0; i <= n * 6; i++) { const u = i / (n * 6), x = lerp(-86, 86, u) * s, y = (-6 * Math.cos(u * n * TAU + sway * 2) - 4 + (u > .7 ? 4 * hemK : 0)) * s; hem.push([x + sway * 6 * s * (1 - u), y]); }
+  const hem = []; const n = 3; for (let i = 0; i <= n * 10; i++) { const u = i / (n * 10), x = lerp(-86, 86, u) * s, y = (-7 * Math.cos(u * n * TAU + sway * 1.6) - 5 + (u > .65 ? 5 * hemK : 0)) * s; hem.push([x + sway * 6 * s * (1 - u), y]); }
   const side = HD.spline([[86 * s, -4 * s], [74 * s, -90 * s], [64 * s, -170 * s], [44 * s, -226 * s], [0, -248 * s], [-46 * s, -228 * s], [-66 * s, -170 * s], [-76 * s, -90 * s], [-86 * s + sway * 6 * s, -4 * s]], 5);
   return hem.reverse().concat(side.slice(1, -1));   // closed when filled
 }
@@ -249,7 +249,7 @@ function drawGhost(ctx, M, s, t, o = {}) {
   const pts = HD.xf(HD.wob(ghostPts(s, o.sway || 0, o.hemK || 0), o.seed || 1, 1.6, 50), M), path = HD.pathOf(pts);
   // shadow side + white pencil body
   ctx.save(); ctx.clip(path);
-  const B0 = bb(pts); ctx.fillStyle = rgba(C.chalk, .9); ctx.fill(path); ctx.globalAlpha = .55; maskIn(ctx, TX.mask.black[0], B0); ctx.globalAlpha = 1;
+  const B0 = bb(pts); ctx.fillStyle = rgba([214, 209, 201], 1); ctx.fill(path); ctx.drawImage(o.tex, B0[0] - (o.texX || 0), B0[1] - (o.texY || 0)); ctx.globalAlpha = .3; maskIn(ctx, TX.mask.black[0], B0); ctx.globalAlpha = 1;
   const sh = HD.xf([[-120 * s, -260 * s], [-120 * s, 20 * s], [-20 * s, 20 * s], [-50 * s, -150 * s]], M);
   hatchLive(ctx, sh, M, s, o.seed || 1);
   if (o.lit > 0) { const c = HD.pt(M, 60 * s, -60 * s), lg = ctx.createRadialGradient(c[0], c[1], 10, c[0], c[1], 200 * s); lg.addColorStop(0, rgba(C.warm, .55 * o.lit)); lg.addColorStop(1, rgba(C.warm, 0)); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = lg; ctx.fillRect(c[0] - 220 * s, c[1] - 220 * s, 440 * s, 440 * s); ctx.globalCompositeOperation = 'source-over'; }
@@ -270,16 +270,18 @@ function hatchLive(ctx, shadePts, M, s, seed) {   // pencil shading on the ghost
 }
 function sackPts() { return HD.spline([[-20, -216], [4, -190], [6, -130], [-4, -72], [-40, -40], [-110, -40], [-160, -70], [-170, -140], [-148, -200], [-100, -230], [-56, -232]], 5, true); }
 function drawSack(ctx, M, seed) {
-  const pts = HD.xf(HD.wob(sackPts(), seed, 2, 40), M), path = HD.pathOf(pts);
-  ctx.save(); ctx.clip(path); ctx.fillStyle = rgba([118, 110, 101], .97); ctx.fill(path); ctx.globalAlpha = .5; maskIn(ctx, TX.mask.black[1], bb(pts)); ctx.globalAlpha = .4; maskIn(ctx, TX.mask.chalk[0], bb(pts)); ctx.globalAlpha = 1;
-  // burlap weave: crossing pencil strokes, darker underneath
-  const r = rng(seed); for (let i = 0; i < 22; i++) { const u = i / 21, a = HD.pt(M, -170 + u * 180, -230), b = HD.pt(M, -180 + u * 180, -36); HD.ink(ctx, [a, b], { w: 1.8, ts: 10, te: 10, mn: .3, press: .5, seed: seed + i, col: TX.patDark }); }
-  for (let i = 0; i < 14; i++) { const y = -220 + i * 13, a = HD.pt(M, -176, y), b = HD.pt(M, 10, y + 6); HD.ink(ctx, [a, b], { w: 1.6, ts: 10, te: 10, mn: .3, press: .5, seed: seed + 40 + i, col: TX.patLight }); }
-  const lo = HD.xf([[-180, -110], [20, -110], [20, -20], [-180, -20]], M); ctx.fillStyle = rgba(C.black, .35); ctx.fill(HD.pathOf(lo));
-  ctx.restore();
-  HD.ink(ctx, pts.concat([pts[0]]), { w: 3.2, ts: 2, te: 2, mn: 1, press: .5, pw: 30, rough: .2, seed: seed + 3, col: TX.patDark });
-  // the neck, tied
-  const nk = HD.xf(HD.spline([[-70, -232], [-56, -254], [-36, -250], [-30, -222]], 3), M); HD.ink(ctx, nk, { w: 4, ts: 3, te: 3, mn: .7, press: .3, seed: seed + 9, col: TX.patDark });
+  const pts = HD.xf(HD.wob(sackPts(), seed, 2.5, 40), M), path = HD.pathOf(pts), B0 = bb(pts);
+  ctx.save(); ctx.clip(path); ctx.fillStyle = rgba([124, 116, 106], 1); ctx.fill(path);
+  // moonlit top, dark belly (soft smudges), burlap weave in crossing pencil, white pencil on the top folds
+  const lo = HD.xf([[-200, -120], [40, -110], [40, 0], [-200, 0]], M); ctx.fillStyle = rgba(C.black, .4); ctx.fill(HD.pathOf(HD.wob(lo, seed + 1, 12, 60)));
+  for (let i = 0; i < 26; i++) { const u = i / 25, a = HD.pt(M, -176 + u * 190, -236), b = HD.pt(M, -186 + u * 190, -34); HD.ink(ctx, [a, b], { w: 2.2, ts: 10, te: 10, mn: .3, press: .5, seed: seed + i, col: TX.patDark }); }
+  for (let i = 0; i < 16; i++) { const y = -224 + i * 12, a = HD.pt(M, -178, y), b = HD.pt(M, 12, y + 6); HD.ink(ctx, [a, b], { w: 1.8, ts: 10, te: 10, mn: .3, press: .5, seed: seed + 40 + i, col: TX.patMid }); }
+  for (let i = 0; i < 10; i++) { const a = HD.pt(M, -150 + i * 14, -214 + (i % 3) * 6), b = HD.pt(M, -126 + i * 14, -176 + (i % 2) * 8); HD.ink(ctx, [a, b], { w: 3, ts: 8, te: 14, mn: .3, press: .5, seed: seed + 70 + i, col: TX.patLight }); }
+  ctx.globalAlpha = .4; maskIn(ctx, TX.mask.black[1], B0); ctx.restore();
+  HD.ink(ctx, HD.wob(pts.concat([pts[0]]), seed + 2, 1.2, 20), { w: 3.6, ts: 2, te: 2, mn: 1, press: .6, pw: 30, rough: .25, seed: seed + 3, col: TX.patDark });
+  for (const fl of [[[-120, -200], [-100, -150], [-110, -96]], [[-60, -60], [-20, -70]]]) HD.ink(ctx, HD.xf(HD.spline(fl, 4), M), { w: 2.6, ts: 8, te: 14, mn: .3, press: .5, seed: seed + 5, col: TX.patDark });
+  const nk = HD.xf(HD.spline([[-74, -232], [-60, -258], [-38, -254], [-30, -224]], 3), M); HD.ink(ctx, nk, { w: 4.4, ts: 3, te: 3, mn: .7, press: .3, seed: seed + 9, col: TX.patDark });
+  const tie = HD.xf(HD.spline([[-74, -236], [-52, -244], [-28, -232]], 3), M); HD.ink(ctx, tie, { w: 3.6, ts: 3, te: 3, mn: .7, press: .3, seed: seed + 10, col: TX.patLight });
 }
 function pose(t) {
   const q = HD.t12(t), moving = q < B.stop, x = walkX(Math.min(q, B.stop)), ph = (x - X0) * Math.PI / (2 * A);
@@ -291,9 +293,9 @@ function pose(t) {
   return { q, x, lean, bob: bob + br * 2, sway, look: lk > .5, hemK: moving ? Math.max(0, Math.cos(ph)) : 0, br };
 }
 // the beam: from the friend's flashlight to a pool on the walk; it sweeps over to the ghost and wavers
-const FR = { x: 700, s: .74 };
+const FR = { x: 742, s: .74 };
 function beamAim(t) { const q = HD.t12(t); const k = eio((q - B.look - .05) / .55); const wav = q > 3.9 ? 10 * Math.sin((q - 3.9) * 2.2) + 5 * Math.sin((q - 3.9) * 5.3) : 0;
-  const x = lerp(600, 470, k) + wav; return [x, ROWY(x) + 18]; }
+  const x = lerp(640, 440, k) + wav; return [x, ROWY(x) + 18]; }
 function drawBeam(ctx, t) {
   const q = HD.t12(t); if (q < B.look) return 0;
   const on = q < B.look + .09 ? .55 : 1, src = HD.pt(HD.mat(FR.x, ROWY(FR.x) - 4), -60 * FR.s, -118 * FR.s), aim = beamAim(t);
@@ -327,13 +329,13 @@ function drawGhosts(ctx, t) {
     else { const sq = 1 - .12 * Math.sin(Math.PI * clamp((q - B.drop) / .25)); Mx = HD.mul(HD.mat(gx - 70, ROWY(gx - 150) + 14, -.1), HD.mat(0, 0, 0, 2 - sq, sq)); } }
   drawSack(ctx, Mx, 50);
   if (q >= B.drop && q < B.drop + .4) { const k = (q - B.drop) / .4, w2 = 2 * (90 + 80 * k), h2 = 2 * (18 + 10 * k); ctx.save(); ctx.globalAlpha = .5 * (1 - k); ctx.drawImage(TX.puff, gx - 160 - w2 / 2, ROWY(gx - 160) - h2 / 2, w2, h2); ctx.restore(); }
-  drawGhost(ctx, M, s, t, { sway: p.sway, hemK: p.hemK, seed: 3, look: p.look, lit: litK });
+  drawGhost(ctx, M, s, t, { sway: p.sway, hemK: p.hemK, seed: 3, look: p.look, lit: litK, tex: TX.gtex });
   // the rope across the front (a fold of sheet holds it — an arm bump)
   if (q < 4.12) { const sl = clamp((q - 4.0) / .12); HD.ink(ctx, HD.xf(HD.spline([[-40, -220 + 30 * sl], [10, -200 + 20 * sl], [52, -140 + 20 * sl]], 4), M), { w: 3.6, ts: 3, te: 3, mn: .7, press: .3, seed: 61, col: TX.patDark }); }
   HD.ink(ctx, HD.xf(HD.spline(q < 4.05 ? [[30, -150], [58, -138], [62, -120]] : [[34, -120], [60, -110], [66, -96]], 3), M), { w: 2.6, ts: 3, te: 10, mn: .4, press: .3, seed: 62, col: TX.patMid });
   // the friend by the tree, holding the flashlight (arm bump forward)
   const FM = HD.mat(FR.x, ROWY(FR.x) - 4, -.04);
-  drawGhost(ctx, HD.mul(FM, HD.mat(0, 0, 0, -1, 1)), FR.s, t, { sway: Math.sin(q * 2) * .2, seed: 9, look: false, lit: 0 });
+  drawGhost(ctx, HD.mul(FM, HD.mat(0, 0, 0, -1, 1)), FR.s, t, { sway: Math.sin(q * 2) * .2, seed: 9, look: false, lit: 0, tex: TX.gtex, texX: 40 });
   const hand = HD.pt(FM, -60 * FR.s, -118 * FR.s);
   ctx.save(); ctx.translate(hand[0], hand[1]); ctx.rotate(Math.atan2(aim[1] - hand[1], aim[0] - hand[0]) + Math.PI);
   ctx.fillStyle = rgba(C.dark, .95); ctx.fillRect(-4, -9, 40, 18); ctx.fillStyle = rgba(C.mid, 1); ctx.fillRect(-10, -12, 10, 24); ctx.fillStyle = rgba(C.black, 1); ctx.fillRect(28, -10, 6, 20); ctx.restore();
@@ -355,15 +357,19 @@ function draw(ctx, t) {
   Story.captions(ctx, t, S.lines, { font: "'Gamja Flower',cursive", weight: 400, size: 78, y: 395, color: '#efe9df', shadow: 'rgba(10,9,8,.85)', shadowBlur: 16 });
 }
 async function init() {
-  const T = HD.tooth(13, 3.2, 1.3, 600);
-  TX.mask = { black: [HD.toothMask(T, '#1e1c1b', 'peak', .62, .2, .55), HD.toothMask(T, '#1e1c1b', 'peak', .5, .22, .8), HD.toothMask(T, '#1e1c1b', 'peak', .36, .26, 1)],
-    chalk: [HD.toothMask(T, '#e8e3db', 'peak', .62, .2, .45), HD.toothMask(T, '#e8e3db', 'peak', .5, .22, .7), HD.toothMask(T, '#e8e3db', 'peak', .38, .26, .9)] };
+  const T = HD.tooth(13, 5.5, 2.2, 0);
+  TX.mask = { black: [HD.toothMask(T, '#1e1c1b', 'peak', .6, .3, .35), HD.toothMask(T, '#1e1c1b', 'peak', .48, .34, .6), HD.toothMask(T, '#1e1c1b', 'peak', .32, .36, .9)],
+    chalk: [HD.toothMask(T, '#e8e3db', 'peak', .6, .3, .3), HD.toothMask(T, '#e8e3db', 'peak', .48, .34, .55), HD.toothMask(T, '#e8e3db', 'peak', .34, .36, .85)] };
   const c0 = Pilot.canvas(4, 4).getContext('2d');
   TX.patDark = c0.createPattern(TX.mask.black[2], 'no-repeat'); TX.patMid = c0.createPattern(HD.toothMask(T, '#8a847d', 'peak', .4, .3, .9), 'no-repeat'); TX.patLight = c0.createPattern(TX.mask.chalk[1], 'no-repeat');
   { const L = Pilot.canvas(W, H); buildStreet(L.getContext('2d')); TX.street = L; }
   { const c = Pilot.canvas(W, H), g = c.getContext('2d'), rg = g.createRadialGradient(540, 1000, 300, 540, 1000, 1200); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(10,9,8,.5)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); TX.vig = c; }
   { const c = Pilot.canvas(200, 40), g = c.getContext('2d'); g.filter = 'blur(6px)'; g.fillStyle = rgba(C.black, 1); g.beginPath(); g.ellipse(100, 20, 84, 11, 0, 0, TAU); g.fill(); TX.shad = c; }
   { const c = Pilot.canvas(200, 40), g = c.getContext('2d'); g.filter = 'blur(6px)'; g.fillStyle = rgba(C.light, 1); g.beginPath(); g.ellipse(100, 20, 84, 11, 0, 0, TAU); g.fill(); TX.puff = c; }
+  TX.gtex = (() => { const c = Pilot.canvas(300, 320), g = c.getContext('2d'), r = rng(77), pat = g.createPattern(TX.mask.chalk[2], 'repeat');
+    g.fillStyle = 'rgba(240,236,229,.55)'; g.fillRect(0, 0, 300, 320);
+    for (let i = 0; i < 260; i++) { const x = r() * 300, y = r() * 320, l = 20 + r() * 40, a = -1.1 + (r() - .5) * .3; HD.ink(g, [[x, y], [x + Math.cos(a) * l, y + Math.sin(a) * l]], { w: 2.4 + r() * 2, ts: 6, te: 10, mn: .3, press: .4, seed: i, col: `rgba(246,243,238,${.35 + r() * .4})` }); }
+    return c; })();
   TX.flick = [0, 1, 2].map(i => { const c = Pilot.speckle(540, 960, 60, 40 + i, .6); return c; });
 }
 Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 78px 'Gamja Flower'"], init, draw });
