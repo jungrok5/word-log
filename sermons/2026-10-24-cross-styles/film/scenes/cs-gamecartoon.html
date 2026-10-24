@@ -229,7 +229,7 @@ function drawCat(ctx, t, F) {
 function carryGeom(F, left) {   // cat-local
   const s = F.s, u0 = L * (1 - left);
   if (left > .7) { const J = [250, -372], g = [-100, -172]; return { J, a: -.52, far: CBX - Math.hypot(J[0] - g[0], J[1] - g[1]) * s, near: null }; }
-  const a = -1.5 - (F.lean || 0), d = [Math.cos(a), Math.sin(a)], Pn = [205, -185],   // stays upright in the world whatever my lean st = [Pn[0] - 25 * d[0], Pn[1] - 25 * d[1]], dl = (CBX - u0) / s;
+  const a = -1.5 - (F.lean || 0), d = [Math.cos(a), Math.sin(a)], Pn = [205, -185], /* stays upright in the world whatever my lean */ st = [Pn[0] - 25 * d[0], Pn[1] - 25 * d[1]], dl = (CBX - u0) / s;
   return { J: [st[0] + dl * d[0], st[1] + dl * d[1]], a, far: u0 + 4 * s, near: u0 + 30 * s };
 }
 function carryX(F, left = 1) { const g = carryGeom(F, left), M = catMatrix(F), up = 50 * (F.crouch || 0) + (F.bob || 0);
