@@ -130,7 +130,7 @@ HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for 
    in the little pool of light — the beam wavering, the grain softly flickering. */
 const X0 = 160, X1 = 420, A = 18;
 const walkX = HD.walker(X0, X1, B.stop, .3);
-const TX = {};
+const TX = {}, PLATE = /[?&]plate=1/.test(location.search);
 const C = { black: [30, 28, 27], dark: [52, 49, 47], mid: [104, 99, 94], light: [158, 152, 145], chalk: [232, 227, 219], warm: [246, 228, 176] };
 const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 const ROWY = x => lerp(1352, 1300, x / 1080);   // sidewalk centre line (it climbs a little to the right)
@@ -179,6 +179,7 @@ function buildStreet(g) {
   fillG(g, roofM, C.dark, .9, 2);
   for (let row = 0, y = 20; y < 450; y += 46, row++) { strokeG(g, HD.seg([470, y + 10], [1080, y - 8], 6), 70 + row, PL, { w: 2.4 }); for (let x = 470 + (row % 2) * 40; x < 1080; x += 80) strokeG(g, HD.seg([x, y - 4], [x, y + 38], 3), 80 + row * 30 + x, PL, { w: 2.2 }); }
   hatch(g, roofM, -1.3, 9, 50, PB, .45, 14, { bb: [470, 0, 610, 470] });
+  hatch(g, roofL, -.5, 14, 90, PLs, .55, 140, { bb: [0, 0, 470, 560], w: 3.4 }); hatch(g, roofM, -.35, 16, 80, PLs, .4, 141, { bb: [470, 0, 610, 470], w: 3 });
   strokeG(g, HD.seg([0, 545], [440, 522], 6), 90, PL, { w: 7 }); strokeG(g, HD.seg([440, 476], [1080, 446], 6), 91, PL, { w: 6 });
   // --- door (left) with steps, a window with a dim curtain, an arched window in the shingles
   const door = P([[50, 690], [190, 684], [192, 1040], [52, 1044]]);
@@ -215,6 +216,7 @@ function buildStreet(g) {
   const curb = P([[0, 1452], [1080, 1392], [1080, 1420], [0, 1484]]); fillG(g, curb, C.dark, .8, 1);
   const street = P([[0, 1484], [1080, 1420], [1080, 1920], [0, 1920]]); fillG(g, street, C.mid, .8, 1); fillG(g, street, C.dark, .35, 0);
   hatch(g, street, -.07, 9, 90, PBm, .6, 19, { bb: [0, 1410, 1080, 520] });
+  hatch(g, street, -.12, 13, 120, PLs, .5, 190, { bb: [0, 1410, 1080, 520], w: 3.4 });
   // a drain grate on the curb (a small detail the eye finds)
   const dg = P([[880, 1430], [960, 1424], [962, 1442], [882, 1448]]); fillG(g, dg, C.black, .9, 2);
   for (let i = 0; i < 6; i++) strokeG(g, HD.seg([888 + i * 12, 1430], [890 + i * 12, 1444], 2), 495 + i, PL, { w: 2 });
@@ -268,20 +270,21 @@ function hatchLive(ctx, shadePts, M, s, seed) {   // pencil shading on the ghost
     HD.ink(ctx, [a, b], { w: 2.2, ts: 6, te: 10, mn: .2, press: .4, seed: seed + i, col: TX.patMid }); }
   ctx.restore();
 }
-function sackPts() { return HD.spline([[-20, -216], [4, -190], [6, -130], [-4, -72], [-40, -40], [-110, -40], [-160, -70], [-170, -140], [-148, -200], [-100, -230], [-56, -232]], 5, true); }
+function sackPts() { return HD.spline([[-70, -206], [-40, -180], [-28, -120], [-40, -60], [-80, -34], [-140, -36], [-186, -70], [-196, -130], [-170, -184], [-126, -206], [-104, -214]], 5, true); }
 function drawSack(ctx, M, seed) {
   const pts = HD.xf(HD.wob(sackPts(), seed, 2.5, 40), M), path = HD.pathOf(pts), B0 = bb(pts);
   ctx.save(); ctx.clip(path); ctx.fillStyle = rgba([124, 116, 106], 1); ctx.fill(path);
   // moonlit top, dark belly (soft smudges), burlap weave in crossing pencil, white pencil on the top folds
-  const lo = HD.xf([[-200, -120], [40, -110], [40, 0], [-200, 0]], M); ctx.fillStyle = rgba(C.black, .4); ctx.fill(HD.pathOf(HD.wob(lo, seed + 1, 12, 60)));
-  for (let i = 0; i < 26; i++) { const u = i / 25, a = HD.pt(M, -176 + u * 190, -236), b = HD.pt(M, -186 + u * 190, -34); HD.ink(ctx, [a, b], { w: 2.2, ts: 10, te: 10, mn: .3, press: .5, seed: seed + i, col: TX.patDark }); }
-  for (let i = 0; i < 16; i++) { const y = -224 + i * 12, a = HD.pt(M, -178, y), b = HD.pt(M, 12, y + 6); HD.ink(ctx, [a, b], { w: 1.8, ts: 10, te: 10, mn: .3, press: .5, seed: seed + 40 + i, col: TX.patMid }); }
-  for (let i = 0; i < 10; i++) { const a = HD.pt(M, -150 + i * 14, -214 + (i % 3) * 6), b = HD.pt(M, -126 + i * 14, -176 + (i % 2) * 8); HD.ink(ctx, [a, b], { w: 3, ts: 8, te: 14, mn: .3, press: .5, seed: seed + 70 + i, col: TX.patLight }); }
+  const lo = HD.xf([[-220, -100], [0, -90], [0, 0], [-220, 0]], M); ctx.fillStyle = rgba(C.black, .4); ctx.fill(HD.pathOf(HD.wob(lo, seed + 1, 12, 60)));
+  for (let i = 0; i < 24; i++) { const u = i / 23, a = HD.pt(M, -196 + u * 170, -216), b = HD.pt(M, -206 + u * 170, -30); HD.ink(ctx, [a, b], { w: 2.2, ts: 10, te: 10, mn: .3, press: .5, seed: seed + i, col: TX.patDark }); }
+  for (let i = 0; i < 15; i++) { const y = -206 + i * 12, a = HD.pt(M, -200, y), b = HD.pt(M, -24, y + 6); HD.ink(ctx, [a, b], { w: 1.8, ts: 10, te: 10, mn: .3, press: .5, seed: seed + 40 + i, col: TX.patMid }); }
+  for (let i = 0; i < 9; i++) { const a = HD.pt(M, -176 + i * 14, -190 + (i % 3) * 6), b = HD.pt(M, -152 + i * 14, -150 + (i % 2) * 8); HD.ink(ctx, [a, b], { w: 3, ts: 8, te: 14, mn: .3, press: .5, seed: seed + 70 + i, col: TX.patLight }); }
   ctx.globalAlpha = .4; maskIn(ctx, TX.mask.black[1], B0); ctx.restore();
   HD.ink(ctx, HD.wob(pts.concat([pts[0]]), seed + 2, 1.2, 20), { w: 3.6, ts: 2, te: 2, mn: 1, press: .6, pw: 30, rough: .25, seed: seed + 3, col: TX.patDark });
-  for (const fl of [[[-120, -200], [-100, -150], [-110, -96]], [[-60, -60], [-20, -70]]]) HD.ink(ctx, HD.xf(HD.spline(fl, 4), M), { w: 2.6, ts: 8, te: 14, mn: .3, press: .5, seed: seed + 5, col: TX.patDark });
-  const nk = HD.xf(HD.spline([[-74, -232], [-60, -258], [-38, -254], [-30, -224]], 3), M); HD.ink(ctx, nk, { w: 4.4, ts: 3, te: 3, mn: .7, press: .3, seed: seed + 9, col: TX.patDark });
-  const tie = HD.xf(HD.spline([[-74, -236], [-52, -244], [-28, -232]], 3), M); HD.ink(ctx, tie, { w: 3.6, ts: 3, te: 3, mn: .7, press: .3, seed: seed + 10, col: TX.patLight });
+  for (const fl of [[[-130, -190], [-112, -140], [-124, -86]], [[-90, -56], [-50, -64]]]) HD.ink(ctx, HD.xf(HD.spline(fl, 4), M), { w: 2.6, ts: 8, te: 14, mn: .3, press: .5, seed: seed + 5, col: TX.patDark });
+  // the gathered neck and two flared cloth ears, tied with a light cord
+  for (const ear of [[[-104, -212], [-124, -250], [-110, -262], [-92, -226]], [[-78, -208], [-66, -248], [-48, -244], [-66, -206]]]) { const e = HD.xf(HD.spline(ear, 3), M); ctx.fillStyle = rgba([124, 116, 106], 1); ctx.fill(HD.pathOf(e)); HD.ink(ctx, e, { w: 3.2, ts: 3, te: 3, mn: .7, press: .3, seed: seed + 9, col: TX.patDark }); }
+  const tie = HD.xf(HD.spline([[-108, -214], [-86, -222], [-64, -210]], 3), M); HD.ink(ctx, tie, { w: 4, ts: 3, te: 3, mn: .7, press: .3, seed: seed + 10, col: TX.patLight });
 }
 function pose(t) {
   const q = HD.t12(t), moving = q < B.stop, x = walkX(Math.min(q, B.stop)), ph = (x - X0) * Math.PI / (2 * A);
@@ -299,7 +302,7 @@ function beamAim(t) { const q = HD.t12(t); const k = eio((q - B.look - .05) / .5
 function drawBeam(ctx, t) {
   const q = HD.t12(t); if (q < B.look) return 0;
   const on = q < B.look + .09 ? .55 : 1, src = HD.pt(HD.mat(FR.x, ROWY(FR.x) - 4), -60 * FR.s, -118 * FR.s), aim = beamAim(t);
-  const rx = 150, ry = 40, dx = aim[0] - src[0], dy = aim[1] - src[1];
+  const rx = 175, ry = 46, dx = aim[0] - src[0], dy = aim[1] - src[1];
   const cone = [src, [aim[0] + rx * .2, aim[1] - ry], [aim[0] - rx, aim[1] - ry * .3], [aim[0] - rx * .9, aim[1] + ry * .8], [aim[0] + rx * .1, aim[1] + ry]];
   ctx.save();
   // the cone: warm, grainy, brighter near the lamp and the pool
@@ -346,11 +349,13 @@ function drawGhosts(ctx, t) {
 function draw(ctx, t) {
   const q = HD.t12(t), gf = Math.floor(t * 8 + 1e-6) % 3;
   ctx.drawImage(TX.street, 0, 0);
+  if (PLATE) { ctx.drawImage(TX.vig, 0, 0); return; }   // ?plate=1: the bare street, for the image model to repaint
   // the night: everything a touch darker before the light, lifting a little once it is on
   drawBeam(ctx, t);
   drawGhosts(ctx, t);
   // the beam's light falls on the ghosts too: a warm haze over the pool area (screen, soft)
-  if (q >= B.look) { const aim = beamAim(t), on = q < B.look + .09 ? .5 : 1; ctx.save(); ctx.globalCompositeOperation = 'soft-light'; const lg = ctx.createRadialGradient(aim[0], aim[1] - 60, 20, aim[0], aim[1] - 60, 300); lg.addColorStop(0, rgba(C.warm, .5 * on)); lg.addColorStop(1, rgba(C.warm, 0)); ctx.fillStyle = lg; ctx.fillRect(aim[0] - 320, aim[1] - 380, 640, 640); ctx.restore(); }
+  if (q >= B.look) { const aim = beamAim(t), on = q < B.look + .09 ? .5 : 1; ctx.save(); ctx.globalCompositeOperation = 'soft-light'; const lg = ctx.createRadialGradient(aim[0], aim[1] - 60, 20, aim[0], aim[1] - 60, 300); lg.addColorStop(0, rgba(C.warm, .75 * on)); lg.addColorStop(1, rgba(C.warm, 0)); ctx.fillStyle = lg; ctx.fillRect(aim[0] - 320, aim[1] - 380, 640, 640);
+    ctx.globalCompositeOperation = 'screen'; const l2 = ctx.createRadialGradient(aim[0], aim[1], 10, aim[0], aim[1], 220); l2.addColorStop(0, rgba([120, 100, 60], .5 * on)); l2.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = l2; ctx.fillRect(aim[0] - 240, aim[1] - 240, 480, 480); ctx.restore(); }
   // vignette + the soft grain flicker (three grain drawings on 8 fps, very light)
   ctx.drawImage(TX.vig, 0, 0);
   ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .22; ctx.drawImage(TX.flick[gf], 0, 0, W, H); ctx.restore();
@@ -363,7 +368,7 @@ async function init() {
   const c0 = Pilot.canvas(4, 4).getContext('2d');
   TX.patDark = c0.createPattern(TX.mask.black[2], 'no-repeat'); TX.patMid = c0.createPattern(HD.toothMask(T, '#8a847d', 'peak', .4, .3, .9), 'no-repeat'); TX.patLight = c0.createPattern(TX.mask.chalk[1], 'no-repeat');
   { const L = Pilot.canvas(W, H); buildStreet(L.getContext('2d')); TX.street = L; }
-  { const c = Pilot.canvas(W, H), g = c.getContext('2d'), rg = g.createRadialGradient(540, 1000, 300, 540, 1000, 1200); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(10,9,8,.5)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); TX.vig = c; }
+  { const c = Pilot.canvas(W, H), g = c.getContext('2d'), rg = g.createRadialGradient(540, 1000, 300, 540, 1000, 1200); rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(10,9,8,.38)'); g.fillStyle = rg; g.fillRect(0, 0, W, H); TX.vig = c; }
   { const c = Pilot.canvas(200, 40), g = c.getContext('2d'); g.filter = 'blur(6px)'; g.fillStyle = rgba(C.black, 1); g.beginPath(); g.ellipse(100, 20, 84, 11, 0, 0, TAU); g.fill(); TX.shad = c; }
   { const c = Pilot.canvas(200, 40), g = c.getContext('2d'); g.filter = 'blur(6px)'; g.fillStyle = rgba(C.light, 1); g.beginPath(); g.ellipse(100, 20, 84, 11, 0, 0, TAU); g.fill(); TX.puff = c; }
   TX.gtex = (() => { const c = Pilot.canvas(300, 320), g = c.getContext('2d'), r = rng(77), pat = g.createPattern(TX.mask.chalk[2], 'repeat');

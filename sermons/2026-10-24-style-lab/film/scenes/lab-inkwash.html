@@ -132,7 +132,7 @@ HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for 
 const VP = [530, 1000], FLOOR = 1250, X0 = 190, X1 = 440, A = 20, FY = 1478;
 const walkX = HD.walker(X0, X1, B.stop, .3);
 const bf = t => Math.floor(t * 8 + 1e-6) % 3;
-const TX = {};
+const TX = {}, PLATE = /[?&]plate=1/.test(location.search);
 const INK = '#161413';
 const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
@@ -385,6 +385,7 @@ function draw(ctx, t) {
   const f = bf(t), g = INKL.g;
   ctx.drawImage(TX.paper, 0, 0);
   HD.multiply(ctx, TX.washes);
+  if (PLATE) { HD.multiply(ctx, TX.lines[0]); return; }   // ?plate=1: the bare room, for the image model to repaint
   drawBloom(ctx, t);
   HD.multiply(ctx, TX.lines[f]);
   HD.clearWhite(g, 0, 1100, W, 600);

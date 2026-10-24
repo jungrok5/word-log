@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 17 게임 광고 카툰 (키 아트)</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 17 (key art) — "the picture comes from an image model, the life comes from code".
+   Art (scenes/art/lab-gamecartoon-art-*.webp, GPT Image 2.5 via ElevenLabs, keyed from #00FF00):
+     plate  — a repaint of lab-gamecartoon's own code layout (?plate=1), registered back 1:1 (scale 1.01, shift 0,0)
+     body   — the base drawing (cat under the giant pack), with its two boots cut out as separate parts (bootB, bootF)
+     pack   — the pack alone, drawn COMPLETE as a puppet layer of the same base (so it can fall off with no hole)
+     free   — an edit of the base: pack gone, standing tall, looking up in delight
+   Code: the walk (boots step on twos with lift, body bob/squash/weight shift), the stop and sag, the anticipation crouch and
+   the pop into the second drawing, the pack slipping with a smear and landing with a THUD (squash, shake, dust, cracks,
+   impact star), the storm grade → golden beam, rim light on the drawings, sparkles, lightning, speed lines, caption. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, rng } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const FONT = "'Jua',sans-serif", INK = '#24152e';
+// sprite crop boxes in the 768×1024 drawing space (from the keyed drawings)
+const BOX = { bootB: [247, 872, 402, 974], bootF: [418, 880, 559, 967], body: [30, 24, 738, 880], pack: [30, 24, 662, 849], free: [86, 132, 706, 942] };
+const FOOT = [403, 973];              // sole centre of the base drawing
+const FREE_DY = 31, PACK_ON_FREE = [-40, 10];
+const K = 1.05, FY = 1545, X0 = 385, X1 = 520;
+const IMG = {}, RIM = {};
+
+// ---------------- motion ----------------
+const WALK_END = B.walk[1], SWAP = B.look + .1;
+const walkD = t => { const t1 = WALK_END - .7, T = WALK_END, u = clamp(t, 0, T); const d = u <= t1 ? u : t1 + (u - t1) - (u - t1) * (u - t1) / (2 * (T - t1)); return d / (t1 + (T - t1) / 2); };
+const spring = (u, f = 2.4, z = 5) => u <= 0 ? 0 : Math.exp(-z * u) * Math.cos(TAU * f * u);
+function rig(t) {
+  const k = walkD(t), x = lerp(X0, X1, k), d = (X1 - X0) * k, L = 40, c = d / (2 * L), walking = 1 - ss(WALK_END - .15, WALK_END + .1, t);
+  const step8 = Math.floor(c * 8) / 8;                       // the boots move on twos (8 poses per stride)
+  const foot = ph => { const p = ((ph % 1) + 1) % 1; if (p < .5) return [L / 2 - p / .5 * L, 0]; const q = (p - .5) / .5; return [-L / 2 + (q * q * (3 - 2 * q)) * L, -24 * Math.sin(Math.PI * q)]; };
+  let fb = foot(step8), ff = foot(step8 + .5);
+  fb = [fb[0] * walking, fb[1] * walking]; ff = [ff[0] * walking, ff[1] * walking];
+  const fall = Math.pow(Math.abs(Math.cos(c * TAU)), 6) * walking;
+  let sx = 1 + .035 * fall, sy = 1 - .05 * fall, bob = 10 * fall, rot = .025 * Math.sin(c * TAU) * walking;
+  const sag = ss(B.stop, B.stop + .3, t) * (1 - ss(SWAP - .3, SWAP - .15, t));
+  const crouch = ss(SWAP - .22, SWAP - .02, t) * (t < SWAP ? 1 : 0);
+  sy *= 1 - .05 * sag - .09 * crouch; sx *= 1 + .03 * sag + .06 * crouch; bob += 8 * sag + 12 * crouch;
+  if (t >= SWAP) { const s = spring(t - SWAP); sy *= 1 + .12 * s; sx *= 1 - .07 * s; }   // pop into the new drawing with overshoot
+  const strain = ss(B.drop - .5, B.drop - .1, t) * (1 - ss(B.drop - .1, B.drop, t)); sy *= 1 - .04 * strain; sx *= 1 + .03 * strain;
+  let hop = 0; if (t >= B.drop) { const u = t - B.drop; if (u < .36) { const q = u / .36; hop = -80 * 4 * q * (1 - q); sy *= 1 + .1 * Math.sin(Math.PI * q); sx *= 1 - .05 * Math.sin(Math.PI * q); }
+    else { const s = spring(u - .36, 2.6, 7); sy *= 1 - .1 * s; sx *= 1 + .07 * s; } }
+  const breathe = ss(B.drop + .9, B.drop + 1.2, t) * Math.sin((t - B.drop) * TAU / 1.4) * .012; sy *= 1 + breathe;
+  return { x, c, walking, fb, ff, sx, sy, bob, rot, hop };
+}
+function camAt(t) {
+  const z = 1 + .04 * ss(B.look, B.look + .9, t) * (1 - ss(5.0, 5.95, t));
+  let sx = 0, sy = 0; if (t > B.drop) { const u = t - B.drop, a = 26 * Math.exp(-u * 7); sx = a * Math.sin(u * 63); sy = a * Math.cos(u * 51) * 1.2; }
+  return { z, sx, sy };
+}
+
+// ---------------- drawing the puppet ----------------
+function spr(ctx, name, dx = 0, dy = 0, rimA = 0) {   // draw a sprite at its place in the drawing space (origin = sole centre)
+  const b = BOX[name], x = b[0] - FOOT[0] + dx, y = b[1] - FOOT[1] + dy;
+  ctx.drawImage(IMG[name], x, y);
+  if (rimA > 0) { ctx.save(); ctx.globalAlpha = rimA; ctx.globalCompositeOperation = 'screen'; ctx.drawImage(RIM[name], x, y); ctx.restore(); }
+}
+function rimOf(img, d = 7) {   // gold light on the edges that face the beam (upper right): alpha minus alpha shifted toward it
+  const c = Pilot.canvas(img.width, img.height), x = c.getContext('2d');
+  x.drawImage(img, 0, 0); x.globalCompositeOperation = 'destination-out'; x.drawImage(img, -d, d);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = '#ffd86a'; x.fillRect(0, 0, c.width, c.height);
+  const o = Pilot.canvas(img.width, img.height), ox = o.getContext('2d'); ox.filter = 'blur(1.5px)'; ox.drawImage(c, 0, 0); return o;
+}
+function packState(t) {   // where the pack is, in the drawing space (relative to the cat's soles), and how it's squashed
+  const onFree = t >= SWAP, base = onFree ? PACK_ON_FREE : [0, 0];
+  if (t < B.drop - .45) return { on: true, dx: base[0], dy: base[1], rot: 0, sx: 1, sy: 1 };
+  if (t < B.drop) { const u = ss(B.drop - .45, B.drop, t), v = u * u;
+    return { on: true, dx: base[0] - 100 * v, dy: base[1] + 114 * v, rot: -.12 * v, sx: 1 - .04 * v, sy: 1 + .08 * v, smear: v > .35 ? v : 0 }; }
+  const u = t - B.drop, s = spring(u, 2.8, 7.5);
+  return { on: false, dx: -140, dy: 124, rot: -.03 * s, sx: 1 + .14 * s, sy: 1 - .18 * s };
+}
+
+// ---------------- effects (shared craft with the code-only version) ----------------
+const P2 = f => { const p = new Path2D(); f(p); return p; };
+function star(ctx, x, y, s, col) { if (s < .5) return; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(x, y - s * 2);
+  ctx.quadraticCurveTo(x, y, x + s * 2, y); ctx.quadraticCurveTo(x, y, x, y + s * 2); ctx.quadraticCurveTo(x, y, x - s * 2, y); ctx.quadraticCurveTo(x, y, x, y - s * 2); ctx.fill(); }
+function dustPuff(ctx, x, y, s, a) {
+  if (a <= 0 || s <= 0) return; ctx.save(); ctx.globalAlpha = a;
+  const p = P2(q => { for (const [dx, dy, r] of [[0, 0, 40], [-38, 10, 30], [36, 8, 32], [-14, -26, 28], [20, -22, 26]]) { q.moveTo(x + dx * s + r * s, y + dy * s); q.arc(x + dx * s, y + dy * s, r * s, 0, TAU); } });
+  ctx.lineJoin = 'round'; ctx.strokeStyle = INK; ctx.lineWidth = 10; ctx.stroke(p); ctx.fillStyle = '#f3e6d2'; ctx.fill(p);
+  ctx.save(); ctx.clip(p); ctx.fillStyle = '#d2bc9e'; ctx.fillRect(x - 200, y - 200, 400, 400); ctx.translate(10, -14); ctx.fillStyle = '#f3e6d2'; ctx.fill(p); ctx.restore();
+  ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.ellipse(x - 10 * s, y - 34 * s, 14 * s, 6 * s, -.3, 0, TAU); ctx.fill(); ctx.restore();
+}
+function speedRing(ctx, cx, cy, a, seed, r0 = 420) {
+  if (a <= .01) return; const r = rng(seed); ctx.save(); ctx.fillStyle = `rgba(255,255,255,${.85 * a})`;
+  for (let i = 0; i < 46; i++) { const ang = r() * TAU, w = .006 + r() * .012, rin = r0 + r() * 260;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(ang) * rin, cy + Math.sin(ang) * rin); ctx.lineTo(cx + Math.cos(ang - w) * 2200, cy + Math.sin(ang - w) * 2200); ctx.lineTo(cx + Math.cos(ang + w) * 2200, cy + Math.sin(ang + w) * 2200); ctx.fill(); }
+  ctx.restore();
+}
+function bolt(ctx, t) {   // a distant lightning strike in the storm
+  const u = t - 1.05; if (u < 0 || u > .32) return; if (!(u < .06 || (u > .12 && u < .2))) return;
+  const r = rng(77), pts = [[230, 300]]; for (let i = 0; i < 10; i++) { const [x, y] = pts[pts.length - 1]; pts.push([x + (r() - .45) * 70, y + 60 + r() * 40]); }
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = 'rgba(200,215,255,.2)'; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(170,200,255,.6)'; ctx.lineWidth = 16; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 5; ctx.stroke(); ctx.restore();
+}
+function beam(ctx, t) {
+  const k = ss(B.look - .05, B.look + .35, t); if (k <= 0) return;
+  const ox = 930, oy = -80, shim = 1 + .05 * Math.sin(t * 7);
+  ctx.save(); ctx.globalCompositeOperation = 'screen';
+  const g = ctx.createLinearGradient(ox, oy, 760, 1500); g.addColorStop(0, `rgba(255,214,110,${.5 * k})`); g.addColorStop(1, `rgba(255,190,80,${.16 * k})`);
+  const cone = P2(q => { q.moveTo(ox - 60, oy); q.lineTo(ox + 70, oy); q.lineTo(1180, 1600); q.lineTo(640 - 80 * (1 - k), 1600); q.closePath(); });
+  ctx.fillStyle = g; ctx.fill(cone); ctx.save(); ctx.clip(cone);
+  for (let i = 0; i < 7; i++) { const a = -.12 + i * .045 + Math.sin(t * .8 + i) * .01, wd = .012 + (i % 2) * .01;
+    ctx.fillStyle = `rgba(255,248,200,${(.2 + .1 * (i % 3)) * k * shim})`; ctx.beginPath(); ctx.moveTo(ox, oy);
+    ctx.lineTo(ox + Math.sin(-a - .32) * 2000, oy + Math.cos(-a - .32) * 2000); ctx.lineTo(ox + Math.sin(-a - wd - .32) * 2000, oy + Math.cos(-a - wd - .32) * 2000); ctx.fill(); }
+  ctx.restore();
+  const pg = ctx.createRadialGradient(880, 1580, 10, 880, 1580, 340); pg.addColorStop(0, `rgba(255,240,170,${.75 * k})`); pg.addColorStop(1, 'rgba(255,220,120,0)');
+  ctx.fillStyle = pg; ctx.beginPath(); ctx.ellipse(880, 1580, 340, 90, 0, 0, TAU); ctx.fill();
+  const fl = Math.exp(-Math.max(0, t - B.look) * 3.2) * ss(B.look - .05, B.look + .05, t);
+  if (fl > .01) { const bg = ctx.createRadialGradient(870, 150, 0, 870, 150, 900); bg.addColorStop(0, `rgba(255,250,215,${.85 * fl})`); bg.addColorStop(1, 'rgba(255,240,180,0)'); ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H); }
+  ctx.restore();
+  for (let i = 0; i < 16; i++) { const r = rng(90 + i), per = 2 + r() * 2, u = ((t - B.look + r() * per) % per) / per;
+    const y = lerp(100, 1500, u), x = lerp(900, lerp(640, 1120, r()), u) + Math.sin(t * 2 + i) * 20, s = (6 + r() * 10) * Math.sin(Math.PI * u) * k;
+    star(ctx, x, y, s, `rgba(255,255,235,${.9 * k})`); }
+}
+function caption(ctx, t) {   // chunky game-title caption: drop shadow, thick ink ring, cream fill, pop-in
+  const a = S.lines[0][0], pop = t < a ? 0 : 1 + .25 * Math.exp(-(t - a) * 8) * Math.sin((t - a) * 22) * (t - a < .6 ? 1 : 0);
+  ctx.save(); if (pop !== 1 && pop > 0) { ctx.translate(540, 440); ctx.scale(pop, pop); ctx.translate(-540, -440); }
+  const o = { font: FONT, weight: 400, size: 84, y: 400, shadow: 'rgba(0,0,0,0)', shadowBlur: 1, fadeIn: .12 };
+  ctx.save(); ctx.translate(0, 12); Story.captions(ctx, t, S.lines, { ...o, color: 'rgba(36,21,46,.55)' }); ctx.restore();
+  for (let i = 0; i < 16; i++) { const an = i / 16 * TAU; ctx.save(); ctx.translate(Math.cos(an) * 8, Math.sin(an) * 8); Story.captions(ctx, t, S.lines, { ...o, color: INK }); ctx.restore(); }
+  Story.captions(ctx, t, S.lines, { ...o, color: '#fff6dc' });
+  ctx.restore();
+}
+
+// ---------------- frame ----------------
+let STORM, VIG;
+function draw(ctx, t) {
+  const R = rig(t), cm = camAt(t), warm = ss(B.look - .05, B.look + 1.0, t), P = packState(t);
+  ctx.save();
+  ctx.translate(540 + cm.sx, 1150 + cm.sy); ctx.scale(cm.z, cm.z); ctx.translate(-540, -1150);
+  // the painted plate: storm grade → its own golden afternoon as the beam breaks
+  ctx.drawImage(IMG.plate, 0, 0);
+  if (warm < 1) { ctx.save(); ctx.globalAlpha = 1 - warm; ctx.drawImage(STORM, 0, 0); ctx.restore(); }
+  bolt(ctx, t);
+  beam(ctx, t);
+  // contact shadow + cracks
+  ctx.fillStyle = 'rgba(40,20,40,.28)'; ctx.beginPath(); ctx.ellipse(R.x + 10, FY + 4, 150 * (1 - Math.min(.5, Math.abs(R.hop) / 160)), 22, 0, 0, TAU); ctx.fill();
+  const landX = R.x, PCX = landX + (-57 - 140) * K;   // where the pack lands (its centre), relative to where the cat stopped
+  if (t >= B.drop) { const k = eo(clamp((t - B.drop) / .12)), cx = PCX; ctx.strokeStyle = INK; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    for (const [a, l] of [[-.2, 120], [.1, 90], [3.0, 110], [3.4, 80], [2.7, 60]]) { ctx.beginPath(); ctx.moveTo(cx, FY + 8); ctx.lineTo(cx + Math.cos(a) * l * k, FY + 8 + Math.abs(Math.sin(a)) * 30 * k + 4); ctx.lineTo(cx + Math.cos(a) * l * k * 1.3, FY + 14 + Math.abs(Math.sin(a)) * 40 * k); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(40,20,40,.3)'; ctx.beginPath(); ctx.ellipse(cx, FY + 6, 230, 26, 0, 0, TAU); ctx.fill(); }
+  const rimA = warm * .85;
+  // the pack once it's down (it stays where it landed)
+  if (!P.on) { ctx.save(); ctx.translate(landX + P.dx * K, FY); ctx.scale(K * P.sx, K * P.sy); ctx.translate(0, P.dy); ctx.rotate(P.rot); spr(ctx, 'pack', 0, 0, rimA); ctx.restore(); }
+  // the cat
+  ctx.save(); ctx.translate(R.x, FY + R.bob + R.hop); ctx.scale(K * R.sx, K * R.sy); ctx.rotate(R.rot);
+  if (t < SWAP) {   // the base drawing: body (with the pack painted on) + boots stepping on twos
+    spr(ctx, 'bootB', R.fb[0], R.fb[1], rimA); spr(ctx, 'bootF', R.ff[0], R.ff[1], rimA);
+    spr(ctx, 'body', 0, 0, rimA);
+  } else {          // the second drawing + the pack as its own layer behind it
+    if (P.on) { ctx.save(); ctx.translate(P.dx, P.dy); ctx.rotate(P.rot); ctx.scale(P.sx, P.sy);
+      if (P.smear) { ctx.save(); ctx.globalAlpha = .3 * P.smear; spr(ctx, 'pack', 0, -60 * P.smear); spr(ctx, 'pack', 0, -120 * P.smear); ctx.restore(); }
+      spr(ctx, 'pack', 0, 0, rimA); ctx.restore(); }
+    spr(ctx, 'free', 0, FREE_DY, rimA);
+  }
+  ctx.restore();
+  // impact: dust both ways, star burst
+  if (t >= B.drop) { const u = t - B.drop, cx = PCX;
+    for (const [dx, dir, s0] of [[-80, -1, 1.3], [80, 1, 1.1], [-200, -1, .9], [190, 1, .8], [0, 0, 1.5]]) {
+      const k = eo(clamp(u / .45)), a = 1 - ss(.5, 1.2, u);
+      dustPuff(ctx, cx + dx + dir * 160 * k, FY + 10 - 30 * k - (dir === 0 ? 40 * k : 0), s0 * (.4 + .9 * k), a); }
+    if (u < .25) { ctx.save(); ctx.globalAlpha = 1 - u / .25; star(ctx, cx, FY - 140, 60 * (1 + u * 4), '#fff7c8'); ctx.restore(); }
+  }
+  ctx.restore();
+  speedRing(ctx, 760, 900, (ss(SWAP - .02, SWAP + .05, t) * (1 - ss(SWAP + .1, SWAP + .45, t))) * .9, 11, 520);
+  speedRing(ctx, R.x - 220, FY - 120, (t >= B.drop ? 1 - ss(B.drop + .05, B.drop + .35, t) : 0) * .8, 12, 380);
+  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .3 * warm; ctx.fillStyle = '#ffb040'; ctx.fillRect(0, 0, W, H); ctx.restore();
+  ctx.drawImage(VIG, 0, 0);
+  caption(ctx, t);
+}
+const load = src => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+async function init() {
+  for (const n of ['plate', 'body', 'bootB', 'bootF', 'pack', 'free']) IMG[n] = await load(`art/lab-gamecartoon-art-${n}.webp`);
+  for (const n of ['body', 'bootB', 'bootF', 'pack', 'free']) RIM[n] = rimOf(IMG[n]);
+  // the storm grade of the painting: desaturated, darker, cooler
+  STORM = Pilot.canvas(W, H); const s = STORM.getContext('2d'); s.filter = 'saturate(.4) brightness(.7) contrast(1.06)'; s.drawImage(IMG.plate, 0, 0, W, H); s.filter = 'none';
+  s.globalCompositeOperation = 'multiply'; const g = s.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#5a6a9c'); g.addColorStop(.6, '#8a94b8'); g.addColorStop(1, '#a8b0c8'); s.fillStyle = g; s.fillRect(0, 0, W, H);
+  VIG = Pilot.canvas(W, H); const v = VIG.getContext('2d'), vg = v.createRadialGradient(540, 1000, 500, 540, 1000, 1250);
+  vg.addColorStop(0, 'rgba(20,10,30,0)'); vg.addColorStop(1, 'rgba(20,10,30,.42)'); v.fillStyle = vg; v.fillRect(0, 0, W, H);
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 84px 'Jua'"], init, draw });
+</script>
+</body>
+</html>
