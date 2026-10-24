@@ -166,7 +166,7 @@ function drawCat(ctx, F) {
   ink(ctx, TORSO.map(q => TF(q[0], q[1])), { fill: P.c1 });
   if (F.strap) {   // the strap that holds the cross on the back, over the near shoulder
     const s = F.strap === 'hold' ? [TF(-34, 72), TF(-6, 86), TF(20, 78), TF(28, 52), TF(22, 24)] : [TF(-34, 72), TF(-6, 86), TF(20, 78), TF(30, 50), TF(30, 22), TF(18, 4)];
-    ink(ctx, s, { closed: false, lw: 6, col: C.ink }); ink(ctx, s, { closed: false, lw: 2.6, col: C.white });
+    ink(ctx, s, { closed: false, lw: 9, col: C.ink }); ink(ctx, s, { closed: false, lw: 4.6, col: '#f7f1df' });
   }
   ctx.fillStyle = P.c1; ctx.strokeStyle = C.ink; ctx.lineWidth = 1.8 * LW;
   for (const v of [24, 48]) { const q = TF(30, v); ctx.beginPath(); ctx.arc(q[0], q[1], 3.6 * CS, 0, TAU); ctx.fill(); ctx.stroke(); }
