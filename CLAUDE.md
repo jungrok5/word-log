@@ -73,11 +73,16 @@
       컷 직후 화면이 튀지 않게) + `<id>-cover.jpg`(커버). `out/`은 git에 넣지 않음.
 6. **업로드**(유튜브 API 도구 준비됨 — 구글 감사 통과 전까지는 사용자가 직접): upload.md 문구로. 48시간·7일 뒤 `tools/metrics.template.md`를
    `sermons/<폴더>/metrics.md`로 채우고, 확인된 교훈을 LEARNINGS.md에.
+   - **올리기 도구 `tools/publish/`** — `README.md` 순서대로, 관리자 PC의 로컬 세션 + Claude in Chrome(클라우드는 PC 브라우저를 못 움직임):
+     `plan.mjs sermons/<폴더> --scene <id>`(점검 — ✍️ 초안·"(질문)" 같은 빈자리·MP4 없음이면 거부) →
+     `serve.mjs`(127.0.0.1:8766, upload.md → `/plan.json`) → 스튜디오(`studio-*.js`)·비즈니스 도구(`meta-reels.js`)·
+     스레드(`threads-reels.js`)에 도우미를 붙여 넣어 업로드·예약, 틱톡은 손으로. 고른 장면 하나를 모든 플랫폼에.
+     기록은 `sermons/<폴더>/posted.json`(`posted.mjs`, 커밋). 공개·예약·고정 댓글은 관리자가 그 영상에 "예"한 뒤에만.
    - 인스타: `-upload.mp4`(H.264)를 올리고 앱 설정의 **"최고 화질로 업로드"**를 켠다(안드로이드는 기본 꺼짐).
      커버의 얼굴·제목은 가운데 3:4(y 240–1680) 안에 — 프로필 격자는 그만큼만 보인다.
-   - 유튜브 API: `node tools/youtube.mjs` — `whoami`(토큰이 @word-log인지), `upload sermons/<폴더> [--publish-at ISO] [--dry]`
-     (`-upload.mp4` + upload.md의 유튜브 제목·설명·해시태그 → 비공개 또는 예약, 결과는 `sermons/<폴더>/youtube.json`),
-     `comment`(고정 댓글 문구를 게시 — 고정은 앱에서), `stats`(조회수·평균 시청 비율 → metrics.md).
+   - 유튜브 API: `node tools/youtube.mjs` — `whoami`(토큰이 @word-log인지), `upload sermons/<폴더> [--scene <id>] [--publish-at ISO] [--dry]`
+     (`-upload.mp4` + upload.md의 유튜브 제목·설명·해시태그 → 비공개 또는 예약, 결과는 `sermons/<폴더>/youtube.json` + `posted.json`),
+     `comment`(고정 댓글 문구를 게시 — 고정은 앱에서), `stats`(조회수·평균 시청 비율 → metrics.md; id는 youtube.json 또는 posted.json).
      - one-scroll-bible과 **같은 구글 클라우드 프로젝트·OAuth 클라이언트**("one-scroll-bible tools")를 쓴다 → 감사 한 번으로
        두 채널 모두(one-scroll-bible `motion/youtube/API-AUDIT.md`). 동의 화면은 이미 프로덕션 게시라 토큰이 7일 뒤 만료되지 않는다.
      - 감사 통과 전에는 API로 올린 영상이 **비공개·잠김**(주인도 공개 못 함) → 그때까지 업로드는 손으로, `whoami`·`stats`만 쓴다.

@@ -13,14 +13,17 @@
 //   node tools/youtube.mjs whoami                       → the channel the token acts as (must be @word-log)
 //   node tools/youtube.mjs upload sermons/<folder> [--scene <id>] [--publish-at 2026-11-01T10:00:00Z] [--dry]
 //        film/out/<scene>-upload.mp4 + the YouTube section of upload.md (title, description, hashtags → tags),
-//        Korean, not made for kids, private (or scheduled with --publish-at) → sermons/<folder>/youtube.json
+//        Korean, not made for kids, private (or scheduled with --publish-at) → sermons/<folder>/youtube.json + posted.json
+//        (--scene is required when film.json has several scenes; ✍️ drafts / "(질문)" in upload.md are refused)
 //   node tools/youtube.mjs comment sermons/<folder> [--dry]   → post upload.md's 고정 댓글 (pin it in the app: no API)
 //   node tools/youtube.mjs stats sermons/<folder>|<videoId> → views, avg % viewed, avg seconds, likes, shares (Analytics)
+//        (the id comes from youtube.json, or posted.json when the Short was uploaded in Studio — tools/publish/README.md)
 //
 // Until Google's API audit passes (one-scroll-bible motion/youtube/API-AUDIT.md), YouTube locks every API upload as
 // private and even the owner cannot make it public — keep uploading by hand until then; whoami/stats work already.
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { readUpload, pickScene, postedOf, recordPosted } from './publish/sheet.mjs';   // the same upload.md parser as the browser path
 
 const CHANNEL = 'UCrzEUsnUGuptKGVs-z2j1Ig';   // @word-log
 const env = process.env, RT = env.YT_REFRESH_TOKEN_WORDLOG || env.YT_REFRESH_TOKEN;
@@ -47,28 +50,23 @@ async function guard() {
   if (c?.id !== CHANNEL) { console.error(`this token acts as ${c ? c.snippet.title + ' ' + c.id : 'no channel'}, not @word-log — refusing`); process.exit(1); }
 }
 
-// upload.md (tools/upload-meta.py) → the YouTube fields; the ✍️ lines must have been finished ("✍️ → **…**")
+// upload.md (tools/upload-meta.py) → the YouTube fields; refuses ✍️ drafts and placeholders like "(질문)" (tools/publish/sheet.mjs)
 function sheet(folder) {
-  const f = join(folder, 'upload.md'); if (!existsSync(f)) throw new Error(`no ${f} — run python3 tools/upload-meta.py ${folder}`);
-  const md = readFileSync(f, 'utf8').replace(/\r/g, ''), yt = (md.split(/^## 유튜브 쇼츠\s*$/m)[1] || '').split(/^## /m)[0];
-  const title = (yt.match(/^- 제목[^\n]*?→\s*\*\*(.+?)\*\*/m) || [])[1];
-  if (!title) throw new Error('upload.md: the title is still a draft — write it as "- 제목 ✍️ → **제목**"');
-  const desc = (yt.match(/^- 설명:\s*\n([\s\S]*?)(?=^- 고정 댓글)/m) || [])[1]?.trim();
-  if (!desc) throw new Error('upload.md: no "- 설명:" block in the YouTube section');
-  const pin = yt.match(/^- 고정 댓글[^\n]*?→\s*\*\*(.+?)\*\*\s*(?:·\s*(.+))?$/m);
-  const tags = [...new Set((desc.match(/#[^\s#]+/g) || []).map(t => t.slice(1)))];
-  if (title.length > 100) throw new Error(`title is ${title.length} characters (YouTube allows 100)`);
-  return { title, description: desc, tags, comment: pin ? [pin[1], pin[2]].filter(Boolean).join('\n') : null };
+  const u = readUpload(folder);
+  if (u.problems.youtube.length) throw new Error('upload.md not ready for YouTube:\n  ' + [...new Set(u.problems.youtube)].join('\n  '));
+  return { ...u.youtube, comment: u.youtube.comment?.want || null };
 }
 function film(folder, scene) {
-  const cfg = JSON.parse(readFileSync(join(folder, 'film', 'film.json'), 'utf8')), sid = scene || cfg.scenes[0].id;
+  const { sid } = pickScene(folder, scene);   // several scenes → --scene required; then fixed by posted.json
   const mp4 = join(folder, 'film', 'out', `${sid}-upload.mp4`);
-  if (!existsSync(mp4)) throw new Error(`no ${mp4} — run python3 tools/export.py ${folder}${scene ? ' --scene ' + scene : ''}`);
+  if (!existsSync(mp4)) throw new Error(`no ${mp4} — run python3 tools/export.py ${folder} --scene ${sid}`);
   return { sid, mp4 };
 }
 const record = (folder, add) => { const f = join(folder, 'youtube.json'), o = existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : {};
   writeFileSync(f, JSON.stringify({ ...o, ...add }, null, 2) + '\n'); };
-const videoId = a => existsSync(join(a, 'youtube.json')) ? JSON.parse(readFileSync(join(a, 'youtube.json'), 'utf8')).id : a;
+// youtube.json (API uploads), else posted.json (Studio uploads, tools/publish), else the argument itself
+const videoId = a => existsSync(join(a, 'youtube.json')) ? JSON.parse(readFileSync(join(a, 'youtube.json'), 'utf8')).id
+  : existsSync(join(a, 'posted.json')) && postedOf(a).youtube?.id ? postedOf(a).youtube.id : a;
 
 const [cmd, ...rest] = process.argv.slice(2), opt = k => { const i = rest.indexOf(k); return i >= 0 ? rest[i + 1] : undefined; };
 const dry = rest.includes('--dry'), folder = rest.find(a => !a.startsWith('--') && a !== opt('--scene') && a !== opt('--publish-at'));
@@ -90,17 +88,19 @@ try {
     if (!init._location) throw new Error('no upload URL returned');
     const v = await api(init._location, { method: 'PUT', headers: { 'Content-Type': 'video/mp4' }, body: readFileSync(mp4) });
     record(resolve(folder), { id: v.id, url: `https://youtube.com/shorts/${v.id}`, scene: sid, title: s.title, uploaded: new Date().toISOString(), status: v.status?.privacyStatus, publishAt: v.status?.publishAt });
+    recordPosted(resolve(folder), 'youtube', { id: v.id, status: v.status?.publishAt ? 'scheduled' : v.status?.privacyStatus, at: v.status?.publishAt, via: 'api' }, { scene: sid });
     console.log(`uploaded → https://youtube.com/shorts/${v.id} (${v.status?.privacyStatus}) — recorded in ${folder}/youtube.json`);
   } else if (cmd === 'comment') {
     if (!folder) throw new Error('usage: node tools/youtube.mjs comment sermons/<folder> [--dry]');
     const s = sheet(resolve(folder)), id = videoId(resolve(folder));
     if (!s.comment) throw new Error('upload.md: the pinned comment is still a draft — "- 고정 댓글 ✍️ → **질문** · 링크"');
-    if (!id || id === resolve(folder)) throw new Error('no youtube.json — upload first');
+    if (!id || id === resolve(folder)) throw new Error('no video id in youtube.json or posted.json — upload first');
     console.log(`${id}:\n${s.comment}`); if (dry) process.exit(0);
     await guard();
     const c = await api('commentThreads?part=snippet', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ snippet: { channelId: CHANNEL, videoId: id, topLevelComment: { snippet: { textOriginal: s.comment } } } }) });
     record(resolve(folder), { comment: c.id });
+    recordPosted(resolve(folder), 'youtube', { comment: 'posted (pin it by hand)' });
     console.log(`posted comment ${c.id} — pin it in YouTube Studio or the app (the API cannot pin)`);
   } else if (cmd === 'stats') {
     if (!folder) throw new Error('usage: node tools/youtube.mjs stats sermons/<folder>|<videoId>');

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Draft the upload text for each platform from the film's source and script → sermons/<folder>/upload.md.
 The end card on screen stays short; credits, the full verse, the link and the CTA live here. Claude refines the hook
-title and the pinned question by hand before uploading (the draft marks them ✍️).
+title and the pinned question by hand before uploading (the draft marks them ✍️ — finished = "✍️ → **…**";
+tools/publish refuses to upload while a ✍️ draft or a placeholder like "(질문)" is left).
   python3 tools/upload-meta.py sermons/<folder>"""
 import json, os, subprocess, sys
 folder = sys.argv[1].rstrip('/'); film = os.path.join(folder, 'film'); here = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +53,12 @@ md = f"""# 업로드 문구 — {src.get('title', '')}
   {ht}
 - 파일: film/out/<장면>-upload.mp4 (tools/export.py, H.264) · 앱 설정에서 \"최고 화질로 업로드\" 켜기
 - 커버: film/out/<장면>-cover.jpg — 얼굴·제목이 가운데 3:4(y 240–1680) 안에 있는지 확인(프로필 격자는 그만큼만 보임)
+
+## 스레드
+- 글 (링크가 눌림 · 주제 태그는 하나): {hook}
+  {verse_block.splitlines()[0] if verse_block else ''}
+  {credit}{chr(10) + '  ' + link if link else ''}
+  {'#' + tags[0].replace(' ', '') if tags else ''}
 
 ## 틱톡
 - 캡션: {hook} {ht}
