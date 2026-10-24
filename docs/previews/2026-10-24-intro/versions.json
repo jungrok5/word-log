@@ -1,0 +1,17 @@
+[
+ {
+  "v": 1,
+  "date": "2026-10-24",
+  "note": "채널 소개 「word-log 교실」 7장면 30초 — 캐릭터 춤만 영상 모델(Kling 3 Pro) 테스트, 나머지 코드",
+  "scenes": [
+   {
+    "id": "intro-class",
+    "label": "word-log 교실 · 채널 소개 (영상 모델 캐릭터 테스트)",
+    "dur": 30,
+    "cuts": [],
+    "poster": true
+   }
+  ],
+  "stamp": "20261024131356"
+ }
+]

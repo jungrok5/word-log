@@ -1,0 +1,261 @@
+{
+ "duration": 30,
+ "music": [
+  {
+   "id": "m1",
+   "at": 0,
+   "len": 30,
+   "db": -8,
+   "fin": 0.02,
+   "fout": 0.2,
+   "prompt": "Upbeat J-pop synth-pop / future bass instrumental at exactly 128 BPM in 4/4, bright and cheerful. Punchy four-on-the-floor kick from the very first beat, crisp claps on 2 and 4, plucky staccato synth arpeggios, glossy supersaw chords, playful chiptune bleeps. The arrangement changes colour every two bars like a medley: bright intro, a big drop at bar 3, a lighter sparkly section, a bouncy keyboard-click groove, a dreamy airy break with soft pads, a fast energetic build, then a triumphant final chorus that ends cleanly on the downbeat so it can loop. No vocals."
+  }
+ ],
+ "sfx": [
+  {
+   "id": "tok",
+   "at": 1.85,
+   "len": 0.6,
+   "db": -6,
+   "prompt": "Cute bright cartoon pop, a single bubbly 'tok' blip"
+  },
+  {
+   "id": "whoosh",
+   "at": 3.25,
+   "len": 0.6,
+   "db": -8,
+   "prompt": "Fast airy whoosh rising, short"
+  },
+  {
+   "id": "hit1",
+   "src": "hit",
+   "at": 3.75,
+   "len": 0.7,
+   "db": -6,
+   "prompt": "Punchy short impact: deep kick drum with a bright white noise burst"
+  },
+  {
+   "id": "hanjang",
+   "src": "bigpop",
+   "at": 6.54,
+   "len": 1.0,
+   "db": -6,
+   "prompt": "Big cartoon pop with a sparkly shimmer tail"
+  },
+  {
+   "id": "hit2",
+   "src": "hit",
+   "at": 7.5,
+   "len": 0.7,
+   "db": -7
+  },
+  {
+   "id": "pencil",
+   "at": 7.6,
+   "len": 3.0,
+   "db": -10,
+   "fout": 0.4,
+   "prompt": "Pencil sketching quickly on paper, scratchy drawing strokes"
+  },
+  {
+   "id": "swipe",
+   "at": 10.95,
+   "len": 0.5,
+   "db": -9,
+   "prompt": "Short paper swipe swoosh"
+  },
+  {
+   "id": "click0",
+   "src": "click",
+   "at": 11.74,
+   "len": 0.35,
+   "db": -4,
+   "prompt": "Single mechanical keyboard key press, clicky switch, crisp and close"
+  },
+  {
+   "id": "pop0",
+   "src": "pop",
+   "at": 11.81,
+   "len": 0.4,
+   "db": -8,
+   "prompt": "Small bubbly cartoon pop, bright and short"
+  },
+  {
+   "id": "click1",
+   "src": "click",
+   "at": 12.49,
+   "len": 0.35,
+   "db": -4
+  },
+  {
+   "id": "pop1",
+   "src": "pop",
+   "at": 12.56,
+   "len": 0.4,
+   "db": -8
+  },
+  {
+   "id": "click2",
+   "src": "click",
+   "at": 13.24,
+   "len": 0.35,
+   "db": -4
+  },
+  {
+   "id": "pop2",
+   "src": "pop",
+   "at": 13.31,
+   "len": 0.4,
+   "db": -8
+  },
+  {
+   "id": "click3",
+   "src": "click",
+   "at": 14.157,
+   "len": 0.35,
+   "db": -4
+  },
+  {
+   "id": "pop3",
+   "src": "pop",
+   "at": 14.227,
+   "len": 0.4,
+   "db": -8
+  },
+  {
+   "id": "click4",
+   "src": "click",
+   "at": 16.073,
+   "len": 0.35,
+   "db": -4
+  },
+  {
+   "id": "pop4",
+   "src": "pop",
+   "at": 16.143,
+   "len": 0.4,
+   "db": -8
+  },
+  {
+   "id": "click5",
+   "src": "click",
+   "at": 16.573,
+   "len": 0.35,
+   "db": -4
+  },
+  {
+   "id": "pop5",
+   "src": "pop",
+   "at": 16.643,
+   "len": 0.4,
+   "db": -8
+  },
+  {
+   "id": "clickb0",
+   "src": "click",
+   "at": 16.99,
+   "len": 0.35,
+   "db": -9
+  },
+  {
+   "id": "chime",
+   "at": 17.32,
+   "len": 1.2,
+   "db": -7,
+   "prompt": "Bright magical chime sparkle, short and happy"
+  },
+  {
+   "id": "clickb1",
+   "src": "click",
+   "at": 17.49,
+   "len": 0.35,
+   "db": -9
+  },
+  {
+   "id": "clickb2",
+   "src": "click",
+   "at": 17.907,
+   "len": 0.35,
+   "db": -9
+  },
+  {
+   "id": "clickb3",
+   "src": "click",
+   "at": 17.99,
+   "len": 0.35,
+   "db": -9
+  },
+  {
+   "id": "bubble",
+   "at": 18.48,
+   "len": 0.6,
+   "db": -6,
+   "prompt": "Round wet bubble pop, cartoon"
+  },
+  {
+   "id": "clickb4",
+   "src": "click",
+   "at": 18.49,
+   "len": 0.35,
+   "db": -9
+  },
+  {
+   "id": "type0",
+   "src": "type",
+   "at": 19.21,
+   "len": 0.35,
+   "db": -8,
+   "prompt": "Soft digital typing blip, neon sign buzz click"
+  },
+  {
+   "id": "type1",
+   "src": "type",
+   "at": 19.68,
+   "len": 0.35,
+   "db": -8
+  },
+  {
+   "id": "type2",
+   "src": "type",
+   "at": 20.15,
+   "len": 0.35,
+   "db": -8
+  },
+  {
+   "id": "heart",
+   "at": 21.5,
+   "len": 0.9,
+   "db": -5,
+   "prompt": "Two deep cartoon heartbeat thumps, ba-dum"
+  },
+  {
+   "id": "stomp",
+   "at": 23.42,
+   "len": 0.8,
+   "db": -5,
+   "prompt": "Heavy cartoon stomp boom with a ground thud"
+  },
+  {
+   "id": "hit3",
+   "src": "hit",
+   "at": 24.375,
+   "len": 0.7,
+   "db": -7
+  },
+  {
+   "id": "sparkle",
+   "at": 25.28,
+   "len": 1.2,
+   "db": -8,
+   "prompt": "Glittering sparkle shimmer swirl"
+  },
+  {
+   "id": "pull",
+   "at": 27.9,
+   "len": 1.6,
+   "db": -10,
+   "prompt": "Long smooth reverse whoosh pulling back into the distance"
+  }
+ ],
+ "ducks": []
+}

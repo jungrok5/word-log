@@ -1,10 +1,15 @@
 {
- "title": "word-log 채널 소개 — 키보드 위의 말씀",
+ "title": "word-log 교실 — 채널 소개 (7장면 30초)",
  "source": "ko",
  "scenes": [
-  { "id": "intro-keyboard", "label": "채널 소개 · 키보드 위의 말씀 (영상 모델 캐릭터 테스트)", "dur": 13 }
+  {
+   "id": "intro-class",
+   "label": "word-log 교실 · 채널 소개 (영상 모델 캐릭터 테스트)",
+   "dur": 30,
+   "audio": "scenes/intro-class.wav"
+  }
  ],
- "poster": 8.4,
+ "poster": 15.9,
  "fonts": {
   "local": {
    "Noto Sans KR": "NotoSansKR[wght].ttf",
