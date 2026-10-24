@@ -195,7 +195,7 @@ function drawCatRefl(ctx, F, Xs) {
   const al = (F.alpha ?? 1) * .95; if (al <= 0) return;
   ctx.save(); ctx.globalAlpha *= al; ctx.translate(0, 2 * F.gy + 6); ctx.scale(1, -1);
   const Fr = frameOf(F), { TF, HF } = Fr;
-  ctx.save(); ctx.globalAlpha *= .55; for (const X of Xs) if (X) drawCross(ctx, X.X, null, { refl: X.me ? C.reflW : C.refl2 }); ctx.restore();
+  ctx.save(); ctx.globalAlpha *= .38; for (const X of Xs) if (X) drawCross(ctx, X.X, null, { refl: X.me ? C.reflW : C.refl2 }); ctx.restore();
   ink(ctx, tube([TF(-6, 2), TF(-6, -34)], [24 * CS, 22 * CS]), { fill: C.refl2, lw: 0 });
   ink(ctx, [[-40, 0], [-44, 50], [-36, 84], [30, 86], [44, 52], [40, 0]].map(q => TF(q[0], q[1])), { fill: C.refl, lw: 3, part: [.5, 1.0] });
   ink(ctx, blobPts(Fr.hc[0], Fr.hc[1], 56 * CS, 46 * CS, 2, 14), { fill: C.refl2, lw: 3, part: [.45, .95] });
@@ -249,7 +249,7 @@ function buildTimeline() {
   // cut 1: its own lying place; cuts 2 and 3: the cross stays down, I scoot along it
   CUTS[0].xl = CUTS[0].cutX - CUTS[0].u1; CUTS[1].xl = CUTS[1].cutX - CUTS[1].u1; CUTS[2].xl = CUTS[1].xl; CUTS[2].cutX = CUTS[2].xl + CUTS[2].u1;
   CUTS[2].mx = CUTS[2].cutX + HIPOFF;
-  const OFF = [[-22, 6, -.05], [-50, 22, .06], [-14, 40, -.08]];
+  const OFF = [[-22, 6, -.05], [-78, 16, .07], [12, 46, -.09]];
   PIECES = CUTS.map((c, k) => ({ c, x: c.xl + OFF[k][0], y: FY - LIE + OFF[k][1], a: OFF[k][2], u0: c.u0, u1: c.u1 }));
   SAWLIE = { x: CUTS[2].cutX + 40, y: FY - LIE + 30 };
   GX = E + G + 360;
@@ -395,18 +395,18 @@ function fallX(t) {
 }
 
 // ---------------- the others: lay it across → walk over → pull it back from the far side → shoulder it → into the light ----------------
-const PIL = [{ x0: 230, ph: .1 }, { x0: 110, ph: .55 }, { x0: -250, ph: .8 }], PULL = 230;
+const PIL = [{ x0: 260, ph: .1 }, { x0: 140, ph: .55 }, { x0: -250, ph: .8 }], PULL = 230;
 function pilX(j, t) {
-  const P = PIL[j], T = B.bridges[j], xa = E - 560 - 180 * j, x9 = P.x0 + 34 * 9;
-  if (t <= 9) return P.x0 + 34 * t;
-  if (t <= 12) return lerp(x9, xa, (t - 9) / 3);
-  return lerp(xa, E - REST - HIPOFF + 50, clamp((t - 12) / (T - .35 - 12)));
+  const P = PIL[j], T = B.bridges[j], x46 = P.x0 + 34 * 4.6, xb = x46 + 15 * (11.4 - 4.6);   // they plod on while I race ahead (and stay out of sight)
+  if (t <= 4.6) return P.x0 + 34 * t;
+  if (t <= 11.4) return x46 + 15 * (t - 4.6);
+  const k = clamp((t - 11.4) / (T - .35 - 11.4)); return lerp(xb, E - REST - HIPOFF + 50, k * k * (1.6 - .6 * k));   // then they come on, steadily, to the edge
 }
 function pilState(j, t) {
   const tp = t12(t), P = PIL[j], T = B.bridges[j], yb = BY - LIE, top = yb - PWL / 2 - 2;
   const back = (F) => { F.pal = PILPAL; F.strap = 'hold'; F.back = Fr => drawCross(ctxNow, backCarry(Fr, F.gy, 0), GREY); F.Xback = true; return F; };
   const carry = (tt, x, stride = 70) => back(walkSpec(x, BY, 1, P.ph + x / stride, stride, { lean: .26, head: .32, bob: 3, face: tt < 12 ? 'strain' : 'calm' }));
-  if (t < T - .35) { const x = pilX(j, tp), F = carry(tp, x, x > E - 900 && tp > 9 ? 110 : 70); return { F, Xb: true }; }
+  if (t < T - .35) { const x = pilX(j, tp), F = carry(tp, x, tp > 11.4 ? 130 : 70); return { F, Xb: true }; }
   const XB = lying(E - REST, yb);
   const LAY = { ...crouchSpec(E - REST - HIPOFF + 50, BY, 1, { lean: .78, head: .3, crouch: 16 }), pal: PILPAL };
   LAY.hands = [xpt(XB, 56), xpt(XB, 18)];
@@ -435,8 +435,8 @@ const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y:
 let BACKCAM = null;
 function camAt(t) {
   let c = { x: meX(t) + 170 * ss(4.3, 5.4, t) + 110, y: 1010, z: .9 };
-  c = mixCam({ x: meX(t) + 50, y: FY - 317, z: 1.45 }, c, eio((t - 1.2) / 1.4));        // the hook: close on me, the saw in my paw; widening by ~2.6
-  const at = cc => ({ x: cc.cutX + 70, y: FY - 140, z: 1.32 });
+  c = mixCam({ x: meX(t) + 50, y: 905, z: 1.35 }, c, eio((t - 1.2) / 1.4));        // the hook: close on me, the saw in my paw; widening by ~2.6
+  const at = cc => ({ x: cc.cutX + 70, y: 940, z: 1.22 });
   c = mixCam(c, at(CUTS[0]), Pilot.win(t, CUTS[0].s - .05, CUTS[0].up1 + .25, .32, .35));
   c = mixCam(c, mixCam(at(CUTS[1]), at(CUTS[2]), eio((t - 9.9) / .55)), Pilot.win(t, CUTS[1].s - .1, CUTS[2].up1 + .2, .3, .4));
   if (t < 12.4) c.x = Math.min(c.x, E - 540 / c.z - 20 + 1500 * ss(11.5, 12.4, t) * ss(11.5, 12.4, t));   // the gap stays out of frame until I reach it
@@ -555,7 +555,8 @@ function drawDoor(ctx, t, behind) {
   ctx.save(); ctx.translate(0, 2 * gy + 6); ctx.scale(1, -1); ctx.globalAlpha = .7; ink(ctx, outer, { fill: C.refl2, lw: 3, part: [.55, 1] }); ink(ctx, inn, { fill: '#e8dcc0', lw: 0 }); ctx.restore();
 }
 function guide(ctx, t, k, al, full) {   // the dashed outline of my whole cross across the gap
-  const X = lying(E - REST, FY - LIE), pts = crossLocal(0, L, 1).map(([u, v]) => xpt(X, u, v)), x1 = E - REST - 6 + (L + 12) * k;
+  const X = lying(E - REST, FY - LIE), sh = L * S.left[3];   // while mine hangs short: only the missing length of post, from its tip to the far lip
+  const pts = (full ? crossLocal(0, L, 1) : [[sh, -PWL / 2], [L, -PWL / 2], [L, PWL / 2], [sh, PWL / 2]]).map(([u, v]) => xpt(X, u, v)), x1 = E - REST - 6 + (L + 12) * k;
   ctx.save(); ctx.globalAlpha *= al; ctx.beginPath(); ctx.rect(E - REST - 12, FY - 300, x1 - (E - REST - 12), 600); ctx.clip();
   ctx.fillStyle = 'rgba(241,195,90,.16)'; ctx.fill(pathOf(pts));
   const glow = full ? ss(24.1, 24.4, t) * (1 - .5 * ss(24.7, 25.6, t)) : 0;

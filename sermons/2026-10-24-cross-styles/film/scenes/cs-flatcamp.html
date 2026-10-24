@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>잘라 낸 건 다리였다 · 05 플랫 기하 캠프파이어</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 잘라 낸 건 다리였다 — 05 flat geometric pixel diorama (from lab-flatcamp).
+   The world is painted on a coarse pixel grid with whole-pixel rects and scanline polygons only (no anti-aliasing), blown
+   up nearest-neighbour at an integer scale per shot (13× close-up … 6× wide — the camera CUTS between pixel scales and pans in
+   whole pixels, like a pixel game). The dark blobby frame of the lab is always there: we watch the forest through it.
+   Characters (the lab's little hooded wanderers) are posed on twos (8 drawings a second); falling and flying things on 12s.
+   The blue night is the whole palette — the warm accent is MY CROSS (campfire-orange wood); the others' crosses are cold
+   blue-grey wood. The style's light is the lab's campfire grammar: a palette swap inside a pixel circle with a dithered rim
+   (the forest near the light turns green/lilac). The gate across the chasm burns like a campfire; when I look back, the pieces
+   I cut catch like embers — each with its own pixel circle of light — and fly into the dashed outline over the gap. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const FONT = "'Do Hyeon',sans-serif";
+const U = 8;   // design units per world pixel (the choreography is written in design units, drawn on the pixel grid)
+const N = { bg: '#29358a', tD: '#232b70', tL: '#2d3d9c', shaft: '#4a64c4', canA: '#3b3d7c', canAs: '#34366f', canB: '#2c466c', canBs: '#263d5f',
+  pine: '#33388a', pineS: '#2b3078', bush: '#2b3f94', bushS: '#25357f', gTop: '#3a4fb0', ground: '#2a3a92', groundD: '#222a6a', stem: '#20234f', mush: '#5a64a8',
+  chasm: '#1d2366', chasm2: '#171b50', deep: '#0d0f2e', gate: '#3a4296', gateS: '#30377e', door: '#f08424' };
+const LP = { bg: '#2f3d92', tD: '#2a3479', tL: '#3a4caa', shaft: '#5a78d0', canA: '#6b5a9c', canAs: '#584a8a', canB: '#4a8c6b', canBs: '#3d7a5e',
+  pine: '#5050a8', pineS: '#434394', bush: '#5a9c84', bushS: '#4a8a74', gTop: '#8ac48a', ground: '#73a97b', groundD: '#3a6363', stem: '#4a3434', mush: '#e8d8b8',
+  chasm: '#3a6a66', chasm2: '#2c5652', deep: '#163234', gate: '#8a7ab8', gateS: '#6b5a9c', door: '#f8b830' };
+const FRAME = '#24273d', FRAME2 = '#2b2f4a';
+// figures: me (the lab's wanderer) and the others (same kind, quieter: greyer cloaks, cold faces)
+const ME = { N: { H: '#7482c4', h: '#56619e', F: '#f2dcb8', f: '#cfae88', E: '#262036', C: '#5d6bb0', c: '#465290', A: '#6a78bc', a: '#f2dcb8', leg: '#24243e', leg2: '#2c2c4a' },
+             L: { H: '#8a90cc', h: '#6a6aa8', F: '#f8e4c0', f: '#dcbc94', E: '#262036', C: '#7078b8', c: '#585e9c', A: '#7c84c0', a: '#f8e4c0', leg: '#2e2c48', leg2: '#36344f' } };
+const PI = { N: { H: '#4e5894', h: '#3e4680', F: '#a89cac', f: '#8a7e94', E: '#1a1830', C: '#424c8a', c: '#343c74', A: '#4a5492', a: '#a89cac', leg: '#1c1c34', leg2: '#22223c' },
+             L: { H: '#6a6ca8', h: '#56588e', F: '#c8bcc0', f: '#a89ca8', E: '#1a1830', C: '#5a5e9c', c: '#484a8a', A: '#62669e', a: '#c8bcc0', leg: '#2a2a46', leg2: '#30304e' } };
+const WOOD = { a: '#d8782c', b: '#94461e', c: '#f4a850' }, EMBER = { a: '#f8b830', b: '#d8782c', c: '#fff0a0' };   // my cross; the pieces when they catch
+const PXW = { N: { a: '#4a5288', b: '#363c6c', c: '#5e68a0' }, L: { a: '#6a5a8c', b: '#4e4270', c: '#8a78a8' } };   // the others' crosses: cold wood
+const SAW = { N: { bl: '#9aa4d0', bl2: '#6e78a8', h: '#2a2440', h2: '#1a1630' }, L: { bl: '#c8d0e8', bl2: '#98a0c0', h: '#3a3050', h2: '#241e38' } };
+const RED = WOOD.a;   // (sawdust colour, used by the shared timeline)
+
+const L = 520, PW = 40, CBX = L - 78, CBW = 36, CBH = 86, CBHL = 40;   // cross: post length, width; crossbar (from foot), thickness, half-length upright / lying
+const FY = 1300, BY = 1252, RT = 1212;
+const REST = 26, G = L - 2 * REST;
+const HIPH = 124, LEG1 = 74, LEG2 = 70, ARM1 = 70, ARM2 = 68;
+const frac = x => x - Math.floor(x);
+const backEase = u => 1 + 2.70158 * Math.pow(u - 1, 3) + 1.70158 * Math.pow(u - 1, 2);
+const step8 = t => Math.floor(t * 8 + 1e-6) / 8, step12 = t => Math.floor(t * 12 + 1e-6) / 12;
+
+// ---------------- pixel primitives (whole-pixel rects only) ----------------
+const R = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
+function pxCircle(c, cx, cy, r, col) { cx = Math.round(cx); cy = Math.round(cy); r = Math.round(r); c.fillStyle = col; for (let dy = -r; dy <= r; dy++) { const h = Math.floor(Math.sqrt(r * r - dy * dy) + .5); c.fillRect(cx - h, cy + dy, 2 * h + 1, 1); } }
+function pxRR(c, x, y, w, h, r, col) {
+  x = Math.round(x); y = Math.round(y); c.fillStyle = col; for (let j = 0; j < h; j++) { let inset = 0;
+    const dy = j < r ? r - j - .5 : j >= h - r ? j - (h - r) + .5 : 0; if (dy > 0) inset = Math.round(r - Math.sqrt(Math.max(0, r * r - dy * dy)));
+    c.fillRect(x + inset, y + j, w - 2 * inset, 1); } }
+function capsule(c, x, y, w, h, col, sh) {
+  pxRR(c, x, y, w, h, Math.floor(w / 2), col);
+  if (sh) { c.save(); c.beginPath(); c.rect(Math.round(x), y, Math.floor(w * .3), h); c.clip(); pxRR(c, x, y, w, h, Math.floor(w / 2), sh); c.restore(); }
+}
+function pine(c, cx, top, h, w, col, sh) {
+  cx = Math.round(cx); for (let j = 0; j < h; j++) { const tier = Math.floor(j / (h / 3)), f = (j - tier * h / 3) / (h / 3), hw = Math.round((w / 2) * (.35 + .22 * tier + .4 * f));
+    R(c, cx - hw, top + j, 2 * hw + 1, 1, col); if (sh) R(c, cx - hw, top + j, Math.max(1, Math.round(hw * .5)), 1, sh); }
+}
+function pxLine(c, x0, y0, x1, y1, th, col) {
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1); c.fillStyle = col;
+  for (let i = 0; i <= n; i++) { const x = Math.round(lerp(x0, x1, i / n)), y = Math.round(lerp(y0, y1, i / n)); c.fillRect(x - (th >> 1), y - (th >> 1), th, th); }
+}
+function pxPoly(c, pts, col) {   // scanline fill, whole pixels (sampled at pixel centres)
+  let y0 = Infinity, y1 = -Infinity; for (const p of pts) { if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+  c.fillStyle = col; const n = pts.length;
+  for (let j = Math.floor(y0); j <= Math.ceil(y1); j++) { const yc = j + .5, xs = [];
+    for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; if ((a[1] <= yc) !== (b[1] <= yc)) xs.push(a[0] + (yc - a[1]) / (b[1] - a[1]) * (b[0] - a[0])); }
+    xs.sort((p, q) => p - q);
+    for (let k = 0; k + 1 < xs.length; k += 2) { const xa = Math.round(xs[k]), xb = Math.round(xs[k + 1]); if (xb > xa) c.fillRect(xa, j, xb - xa, 1); } }
+}
+function pathB() {   // a tiny path sampler: bezier/quad → polyline
+  const pts = []; let cur = null;
+  return { pts, m(p) { cur = p; pts.push(p); return this; }, l(p) { cur = p; pts.push(p); return this; },
+    b(c1, c2, p, n = 6) { const a = cur; for (let i = 1; i <= n; i++) { const u = i / n, v = 1 - u; pts.push([v * v * v * a[0] + 3 * v * v * u * c1[0] + 3 * v * u * u * c2[0] + u * u * u * p[0], v * v * v * a[1] + 3 * v * v * u * c1[1] + 3 * v * u * u * c2[1] + u * u * u * p[1]]); } cur = p; return this; },
+    q(c1, p, n = 5) { const a = cur; for (let i = 1; i <= n; i++) { const u = i / n, v = 1 - u; pts.push([v * v * a[0] + 2 * v * u * c1[0] + u * u * p[0], v * v * a[1] + 2 * v * u * c1[1] + u * u * p[1]]); } cur = p; return this; } };
+}
+function sprite(rows, pal) { const h = rows.length, w = rows[0].length, c = Pilot.canvas(w, h), x = c.getContext('2d');
+  rows.forEach((r, j) => { for (let i = 0; i < w; i++) { const k = r[i]; if (k !== '.' && pal[k]) { x.fillStyle = pal[k]; x.fillRect(i, j, 1, 1); } } });
+  return c; }
+const GHOST = [
+  ['....gggg....', '..gggggggg..', '.gggggggggg.', '.ggeeggeegg.', '.ggeeggeegg.', 'gggggggggggg', 'gggggggggggg', 'ggggggegggg.', 'gggggggggggg', 'gggggggggggg', 'gg.ggg.ggg.g', 'g...g...g...'],
+  ['....gggg....', '..gggggggg..', '.gggggggggg.', '.ggeeggeegg.', '.ggeeggeegg.', 'gggggggggggg', 'gggggggggggg', 'ggggggegggg.', 'gggggggggggg', 'gggggggggggg', 'g.ggg.ggg.gg', '...g...g...g'] ];
+const SPR = {};
+
+// ---------------- the camera: shots at whole-pixel scales, hard cuts between them, pans in whole pixels ----------------
+let V = { K: 8, OX: 0, OY: 0 };                     // current view: pixel scale, buffer origin (world pixels)
+const bx = x => x / U - V.OX, by = y => y / U - V.OY, B2 = p => [p[0] / U - V.OX, p[1] / U - V.OY];
+// spec: { s, f (+1 faces right), gy, hip:[x,y], ang, feet:[far, near], hands:[far, near], hand:[type far, type near], tilt, eye, sway, farFront, alpha }
+function ik(a, t, l1, l2, pick) {
+  let dx = t[0] - a[0], dy = t[1] - a[1], d = Math.hypot(dx, dy) || 1e-6; const dd = clamp(d, Math.abs(l1 - l2) + .5, l1 + l2 - .5);
+  const tx = a[0] + dx / d * dd, ty = a[1] + dy / d * dd, an = Math.atan2(ty - a[1], tx - a[0]), b = Math.acos(clamp((l1 * l1 + dd * dd - l2 * l2) / (2 * l1 * dd), -1, 1));
+  const j1 = [a[0] + Math.cos(an + b) * l1, a[1] + Math.sin(an + b) * l1], j2 = [a[0] + Math.cos(an - b) * l1, a[1] + Math.sin(an - b) * l1];
+  return [pick(j1, j2), [tx, ty]];
+}
+function frame(F) {
+  const up = [Math.sin(F.ang), -Math.cos(F.ang)], fw = [F.f * Math.cos(F.ang), F.f * Math.sin(F.ang)], s = F.s;
+  return { up, fw, P: (a, b) => [F.hip[0] + fw[0] * a * s + up[0] * b * s, F.hip[1] + fw[1] * a * s + up[1] * b * s] };
+}
+const shoulderOf = F => frame(F).P(2, 118);
+// ---------------- timeline: my path (integrated once), the cuts ----------------
+const SME = 1.04, SPI = .95;
+const DT = 1 / 240, NT = Math.ceil((S.DUR + 1) / DT) + 2, MEX = new Float32Array(NT), MEP = new Float32Array(NT);
+function vMe(t) {
+  if (t < 3.2) return 44 * (1 + .6 * Math.sin(t * TAU / 1.15 - 1));        // staggering
+  if (t < 4.6) return 0;
+  if (t < 5.0) return 390 * eio((t - 4.6) / .4);                            // lighter: big quick strides
+  if (t < 8.3) return 390;
+  if (t < 8.6) return lerp(390, 150, (t - 8.3) / .3);
+  if (t < 9.0) return 150 * (1 - ss(8.6, 9.0, t));
+  if (t < 10.0) return 0;
+  if (t < 10.4) return 450 * Math.sin(Math.PI * (t - 10) / .4);
+  if (t < 11.35) return 0;
+  if (t < 12.0) return 640 * Math.sin(Math.PI * (t - 11.35) / .65);
+  return 0;
+}
+const strideMe = t => t < 4.6 ? 112 : t < 8.8 ? 262 : 170;
+const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
+const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
+const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
+const FILL = [[22.2, 23.3], [22.65, 23.7], [23.1, 24.1]];
+const FLECKS = [];
+let SAWLIE = null, E = 1600, GX = 0;
+function buildTimeline() {
+  let x = 0, p = 0;
+  for (let i = 0; i < NT; i++) { const t = i * DT; MEX[i] = x; MEP[i] = p; const v = vMe(t); x += v * DT; p += v / strideMe(t) * DT; }
+  E = meX(12) + 52; GX = E + G + 300;
+  CUTS.forEach((c, k) => {
+    c.k = k; c.mx = meX(c.s); c.cutX = c.mx - 142 * SME; c.u0 = L * (1 - S.left[k]); c.u1 = L * (1 - S.left[k + 1]); c.baseX = c.cutX - c.u1; c.y = FY + 26;
+    const r = rng(100 + k);
+    for (let n = 0; n < 16; n++) FLECKS.push({ t0: n < 11 ? lerp(c.saw0, c.drop, n / 11) : c.drop + r() * .05, x: c.cutX + (r() - .5) * 8, y: c.y - PW / 2,
+      vx: (r() - .5) * (n < 11 ? 180 : 320), vy: -(80 + r() * (n < 11 ? 160 : 260)), land: FY + 18 + r() * 44, r0: r() * TAU, vr: (r() - .5) * 20, sz: 4 + r() * 5, col: RED });
+  });
+  const c3 = CUTS[2]; SAWLIE = { grip: [c3.cutX + 150, FY + 52], ang: Math.PI + .05 };
+}
+function pieceAt(c, t) {
+  const sh = 18 * eo((t - c.drop) / .25), y0 = c.y, cu = (c.u0 + c.u1) / 2;
+  let cx = c.baseX + cu - sh, cy = y0, a = -.05 * eo((t - c.drop) / .25);
+  const [f0, f1] = FILL[c.k];
+  if (t > B.back + .3 && t <= f0) cy -= 22 * ss(B.back + .3, B.back + .9 + c.k * .1, t) + 5 * Math.sin((t - B.back) * 4 + c.k);   // they lift a little, waiting
+  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34, cy0 = cy - 22;
+    cx = lerp(cx, tx, e); cy = lerp(cy0, ty, e) - (c.k ? 190 : 280) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .55 * (1 - u); }
+  return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, cx, cy };
+}
+
+// ---------------- poses ----------------
+function walkSpec(x, gy, s, f, ph, stride, lean, lift = 22) {
+  const feet = [0, 1].map(i => { const p = frac(ph + i * .5); let off, up = 0;
+    if (p < .58) off = stride * (.29 - p); else { const u = (p - .58) / .42; off = -.29 * stride + .58 * stride * eio(u); up = lift * Math.sin(Math.PI * u); }
+    return [x + f * off * s, gy - up * s]; });
+  const hipH = (HIPH - 6 * Math.abs(Math.sin(TAU * ph))) * s;
+  return { s, f, gy, hip: [x, gy - hipH], ang: f * lean, feet, hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: -f * 8 * Math.sin(TAU * ph), ph };
+}
+function standSpec(x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - (HIPH + 1) * s], ang: f * lean, feet: [[x - f * 16 * s, gy], [x + f * 20 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: 0 }; }
+function hangHands(F, swing = 0) { const fr = frame(F), sh = fr.P(4, 114); return [[sh[0] - F.f * (10 + swing) * F.s, sh[1] + 116 * F.s], [sh[0] - F.f * (10 - swing) * F.s, sh[1] + 116 * F.s]]; }
+function mixSpec(A, Bs, k) {
+  if (k <= 0) return A; if (k >= 1) return Bs;
+  const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = hangHands(A), hB = hangHands(Bs);
+  const pick = k < .5 ? A : Bs;
+  return { ...pick, s: lerp(A.s, Bs.s, k), gy: lerp(A.gy, Bs.gy, k), hip: l2(A.hip, Bs.hip), ang: lerp(A.ang, Bs.ang, k), feet: [l2(A.feet[0], Bs.feet[0]), l2(A.feet[1], Bs.feet[1])],
+    hands: [0, 1].map(i => l2(A.hands[i] || hA[i], Bs.hands[i] || hB[i])), hand: pick.hand.slice(), tilt: lerp(A.tilt || 0, Bs.tilt || 0, k), sway: lerp(A.sway || 0, Bs.sway || 0, k) };
+}
+function carryCross(F, left, a0) {
+  const fr = frame(F), sh = shoulderOf(F), T = [sh[0] + fr.up[0] * 14 * F.s, sh[1] + fr.up[1] * 14 * F.s];
+  const a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
+  const contact = CBX - 128;   // the crossing rides just ahead of the shoulder; the post trails behind (the classic carry)
+  return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
+}
+const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
+function gripCarry(F, X) { F.hands = [cpt(X, CBX, 58), cpt(X, X.contact - 48)]; F.hand = ['fist', 'fist']; F.farOver = true; return F; }
+const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
+function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
+
+// ---------------- the saw ----------------
+const CUT_ANG = Math.PI - .6, hangAng = f => Math.atan2(.95, .3 * f);
+function sawGeo(grip, ang) { const d = [Math.cos(ang), Math.sin(ang)]; let up = [-d[1], d[0]]; if (up[1] > 0 || (up[1] === 0 && up[0] > 0)) up = [-up[0], -up[1]];
+  return { d, up, heel: [grip[0] - up[0] * 14 + d[0] * 20, grip[1] - up[1] * 14 + d[1] * 20] }; }
+function sawState(c, t) {
+  const kp = clamp((t - c.saw0) / (c.drop - .06 - c.saw0)), saw = t >= c.saw0 - .05 && t < c.drop + .02;
+  const osc = saw ? 26 * Math.sin(TAU * 3.4 * (t - c.saw0)) : 0, g0 = sawGeo([0, 0], CUT_ANG), d = g0.d, up = g0.up;
+  const K = [c.cutX, c.y - PW / 2 + kp * PW * .92], heel = [K[0] - d[0] * (96 - osc), K[1] - d[1] * (96 - osc)];
+  return { kp, grip: [heel[0] + up[0] * 14 - d[0] * 20, heel[1] + up[1] * 14 - d[1] * 20], K };
+}
+function sawSpec(c, t) {
+  const f = -1, mx = c.mx, s = SME, st = sawState(c, t);
+  return { s, f, gy: FY, hip: [mx, FY - 44 * s], ang: f * .62, feet: [[mx + 66 * s, FY], [mx - 44 * s, FY]], hands: [st.grip, [c.cutX + 44 * s, c.y - PW / 2 - 3]],
+    hand: ['fist', 'flat'], tilt: .35, eye: 'calm', sway: 0, farFront: true };
+}
+const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (18 + sw) * F.s, sh[1] + 110 * F.s]; };
+const rIdx = F => F.f > 0 ? 1 : 0, lIdx = F => F.f > 0 ? 0 : 1;
+
+function poseMe(t) {
+  const tp = t, dx = 0, left = leftAt(t);
+  const walk = (tt, xx) => {
+    const x = xx ?? meX(tt) + dx, ph = meP(tt);
+    if (tt < 3.2) { const F = walkSpec(x, FY, SME, 1, ph, 112, .3 + .1 * Math.sin(tt * TAU / 1.15), 16); F.eye = 'strain'; F.tilt = .14; F.hip[1] += 6 * Math.max(0, Math.sin(tt * TAU / 1.15 + 2)); return [F, -.6 + .07 * Math.sin(tt * TAU / 1.15 + .6)]; }
+    if (tt < 8.8) { const k = ss(4.6, 5.2, tt); const F = walkSpec(x, FY, SME, 1, ph, lerp(112, 262, k), lerp(.16, .32, k), lerp(20, 58, k)); F.hip[1] += 8 * k; F.sway *= 1 + 1.5 * k; return [F, -.62]; }
+    const F = walkSpec(x, FY, SME, 1, ph, 170, .16, 34); return [F, -.6];
+  };
+  const sawHeld = t < CUTS[2].drop;
+  // at the edge I hold what is left of my cross upright beside me: it reaches only to my shoulder
+  const holdUp = (F, lf) => { const u0 = L * (1 - lf), X = { x: F.hip[0] + 64 * F.s, y: FY - 2 + u0, a: -Math.PI / 2, u0, lie: false };
+    F.hands = [hangHands(F)[0], cpt(X, u0 + 118)]; F.hand = ['fist', 'fist']; F.farOver = false; return [F, X]; };
+  const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, lf < 1 ? -.4 : a0); gripCarry(F, X);   // lighter: carried flatter (a tilted short cross must never read as an X)
+    if (held) { F.hands[1] = hangGrip(F, F.ph != null ? 18 * Math.sin(TAU * F.ph) : 0); }
+    return [F, X]; };
+  for (const c of CUTS) {
+    if (t >= c.s && t < c.up1) {
+      const lf0 = S.left[c.k], lf1 = S.left[c.k + 1], [W0, a0] = walk(c.s, c.mx), [W1, a1] = walk(c.up1, c.mx), last = c.k === 2;
+      const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = last ? holdUp(W1, lf1) : carried(W1, a1, lf1, true);
+      const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
+      if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k);
+        F.hands[rIdx(F)] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)];
+        F.hands[lIdx(F)] = [lerp(WA.hands[0][0], SP.hands[1][0], k), lerp(WA.hands[0][1], SP.hands[1][1], k)];
+        F.hand = F.f > 0 ? ['fist', 'fist'] : ['fist', 'flat'];
+        return { F, X: mixX(XA, XL, k), c, saw: { grip: F.hands[rIdx(F)], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
+      if (t < c.drop) { const st = sawState(c, t); return { F: sawSpec(c, t), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
+      const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k);
+      const rT = WB.hands[1], lT = WB.hands[0];
+      F.hands[rIdx(F)] = [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)]; F.hands[lIdx(F)] = [lerp(SP.hands[1][0], lT[0], k), lerp(SP.hands[1][1], lT[1], k)];
+      F.hand = F.f > 0 ? ['fist', 'fist'] : ['fist', 'flat'];
+      const saw = last ? null : { grip: F.hands[rIdx(F)], ang: lerp(CUT_ANG, hangAng(1), k) };
+      return { F, X: mixX(XL, XB, k), c, saw };
+    }
+  }
+  if (t < 12) { const [F, a] = walk(tp); const [G2, X] = sawHeld ? carried(F, a, left, true) : holdUp(F, left); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
+  if (t < 18.4) { const [F0] = walk(12, E - 52), k = eio((tp - 12) / .3);
+    const bx = -150 * eio((tp - 12.9) / .7) + 150 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
+    const STx = mv > 0 ? mixSpec(standSpec(E - 52 + bx, FY, SME, 1, .08), walkSpec(E - 52 + bx, FY, SME, 1, (E + bx) / 150, 150, .1, 24), mv) : standSpec(E - 52 + bx, FY, SME, 1, .08);
+    const F = mixSpec(F0, STx, k);
+    F.ang += .16 * Math.sin(Math.PI * clamp((tp - 12) / .5)) * (tp < 12.5 ? -1 : 0); F.eye = tp < 13.2 ? 'shock' : 'calm';
+    const [G2, X] = holdUp(F, left); return { F: G2, X }; }
+  const XLay = { x: E - REST - L * (1 - left), y: FY + 34, a: 0, u0: L * (1 - left), lie: true };
+  const LAY = { ...standSpec(E - 52, FY, SME, 1), hip: [E - 66, FY - 98 * SME], ang: .82, feet: [[E - 104, FY], [E - 30, FY]], tilt: .2 };
+  LAY.hands = [cpt(XLay, L * (1 - left) + 64), cpt(XLay, L * (1 - left) + 22)]; LAY.hand = ['flat', 'flat'];
+  const REACH = { ...LAY, hip: [E - 72, FY - 112 * SME], ang: .5, hands: [[E - 170, FY - 100], [E + 70, FY - 10]], hand: ['fist', 'open'], eye: 'shock', tilt: .4 };
+  if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = holdUp(ST, left), k = eio((tp - 18.4) / .4);
+      const F = mixSpec(STc[0], LAY, k); F.hand = k > .5 ? ['flat', 'flat'] : ['fist', 'fist']; return { F, X: mixX(STc[1], XLay, eio((t - 18.4) / .26)), lay: true }; }
+    return { F: LAY, X: XLay, lay: true }; }
+  if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; F.eye = 'shock'; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }
+  const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: -.05, eye: 'calm' }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .3, eye: 'calm' };
+  if (t < 23.0) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
+  return { F: mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), X: null };
+}
+function fallX(t) {
+  if (t < B.tip) return null;
+  const left = S.left[3], u0 = L * (1 - left), pv = [E, FY + 34 + PW / 2];
+  const X0 = { x: E - REST - u0, y: FY + 34, a: 0, u0, lie: true };
+  if (t < B.fall) return rotAbout(X0, pv, .5 * Math.pow((t - B.tip) / (B.fall - B.tip), 2));
+  const X1 = rotAbout(X0, pv, .5), u = t - B.fall, cu = (u0 + L) / 2, c0 = cpt(X1, cu);
+  const cx = c0[0] + 90 * u, cy = c0[1] + 160 * u + 1500 * u * u, a = X1.a + .9 * u + .4 * u * u;
+  return { ...X1, x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, alpha: 1 - ss(B.fall + .7, B.fall + 1.05, t), clip: true, cx, cy };
+}
+
+// ---------------- the others ----------------
+const PIL = [{ x0: -470, ph: .3 }, { x0: -230, ph: .75 }, { x0: 190, ph: .1 }, { x0: 430, ph: .55 }];
+const BRIDGE_Y = [BY - 6, BY + 4, BY + 14], PULL = 210;
+function pilState(i, t) {
+  const tp = t, P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY;
+  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 300 - 130 * j, xc = E - 46;
+    if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, clamp((tt - 12) / (T - .35 - 12))); };
+  const carry = (tt, x, gy = BY, stride = 118, lean = .27) => { const F = walkSpec(x, gy, SPI, 1, P.ph + x / (stride * SPI), stride, lean, 18); F.tilt = .1; F.eye = 'closed'; const X = carryCross(F, 1, -.5); gripCarry(F, X); return [F, X]; };
+  if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
+  if (t < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
+  const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
+  const LAY = { ...standSpec(E - 46, BY, SPI, 1), hip: [E - 54, BY - 102 * SPI], ang: .7, feet: [[E - 92, BY], [E - 22, BY]], tilt: .2 };
+  LAY.hands = [cpt(XB, 66), cpt(XB, 24)]; LAY.hand = ['flat', 'flat'];
+  if (t < T) { const [F0, X0] = carry(T - .35, E - 46), k = eio((tp - T + .35) / .35); return { F: mixSpec(F0, LAY, k), X: mixX(X0, XB, k) }; }
+  const xs0 = E - 24, xs1 = E + G + 70;
+  if (t < T + .3) { const F = mixSpec(LAY, standSpec(xs0, yb - PW / 2, SPI, 1, .1), eio((tp - T) / .25)); return { F, B: XB }; }
+  if (t < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 4 ? yb - PW / 2 : BY;
+    const F = walkSpec(x, gy, SPI, 1, P.ph + x / (170 * SPI), 170, .12, 30); F.tilt = -.05; F.hands = hangHands(F, 26 * Math.sin(TAU * (P.ph + x / (170 * SPI)))); return { F, B: XB }; }
+  const pv = [E + G, yb + PW / 2], pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, [pv[0], pv[1]], -.1 * k);
+  const xpAt = k => xs1 + 10 + PULL * k;
+  const PULLS = k => { const X = pullX(k), x = xpAt(k); const F = { ...standSpec(x, BY, SPI, -1), hip: [x + 10, BY - 98 * SPI], ang: -.6, feet: [[x + 30, BY], [x - 26, BY]], tilt: .1 };
+    F.hands = [cpt(X, L - 44), cpt(X, L - 92)]; return [F, X]; };
+  if (t < T + 1.25) { const k = eio(clamp((tp - T - .9) / .35)), [F, X] = PULLS(k);
+    const k0 = eio((tp - T - .9) / .1); return { F: k0 < 1 ? mixSpec(walkSpec(xs1, BY, SPI, 1, 0, 170, .1), F, k0) : F, X }; }
+  const [Fp, Xp] = PULLS(1), xg = xpAt(1);
+  if (t < T + 1.5) { const k = eio((tp - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, BY, 150, .2); return { F: mixSpec(Fp, Fc, k), X: mixX(Xp, Xc, k) }; }
+  const x = lerp(xg, GX + 10, clamp((tp - T - 1.5) / .35)), [F, X] = carry(tp, x, BY, 150, .2);
+  F.alpha = 1 - ss(T + 1.55, T + 1.85, t); F.inGate = x > GX - 110; if (F.alpha <= 0) return null;
+  return { F, X };
+}
+
+// ---------------- figures on the pixel grid (the rig is in design units; every part lands on whole pixels) ----------------
+function figPx(c, F, C, mid, back, over) {
+  const s = F.s, f = F.f, { P } = frame(F);
+  if ((F.alpha ?? 1) <= .5) return;   // pixel art: no half-transparent figures — they step out of sight
+  const sh = P(12, 114), shF = P(-8, 112);
+  const elbowPick = (a, b) => (a[1] - f * a[0] * .35) > (b[1] - f * b[0] * .35) ? a : b, kneePick = (a, b) => f * a[0] > f * b[0] ? a : b;
+  const arm = (S0, T, col, type) => {
+    if (!T) T = [S0[0] - f * 8 * s, S0[1] + 116 * s];
+    const [el, hd] = ik(S0, T, ARM1 * s, ARM2 * s, elbowPick), a = B2(S0), e = B2(el), h = B2(hd);
+    pxLine(c, a[0], a[1], e[0], e[1], 3, col); pxLine(c, e[0], e[1], h[0], h[1], 3, col);
+    if (type === 'flat') { R(c, h[0] - 2 + f, h[1] - 1, 4, 2, C.a); }
+    else if (type === 'open') { R(c, h[0] - 1, h[1] - 1, 3, 3, C.a); R(c, h[0] + (h[0] > e[0] ? 2 : -2), h[1] - 2, 1, 1, C.a); R(c, h[0] + (h[0] > e[0] ? 2 : -2), h[1] + 1, 1, 1, C.a); }
+    else { R(c, h[0] - 1, h[1] - 1, 3, 3, C.a); R(c, h[0] - 1, h[1] - 2, 2, 1, C.f); }   // a mitten fist, the thumb over the top
+  };
+  const leg = (T, col) => {
+    const hp = P(0, -4), ank = [T[0], T[1] - 10 * s], [kn, an] = ik(hp, ank, LEG1 * s, LEG2 * s, kneePick), a = B2(hp), k = B2(kn), b = B2(an);
+    pxLine(c, a[0], a[1], k[0], k[1], 3, col); pxLine(c, k[0], k[1], b[0], b[1], 3, col);
+    R(c, b[0] - (f > 0 ? 1 : 3), b[1] + 1, 5, 2, col);   // boot, toe forward
+  };
+  if (back) back();
+  if (!F.farFront && !(over && F.farOver)) arm(shF, F.hands[0], C.c, F.hand?.[0] || 'fist');
+  leg(F.feet[0], C.leg); leg(F.feet[1], C.leg2);
+  // cloak (the lab sprite's shapes: periwinkle with a darker back edge)
+  const sw = F.sway || 0, Q = (a, b) => P(a + sw * clamp(-b / 66, 0, 1), b);
+  const ck = pathB().m(Q(-68, -64)).b(Q(-66, 18), Q(-56, 96), Q(-26, 132)).l(Q(34, 134)).b(Q(54, 80), Q(66, 10), Q(80, -64)).q(Q(46, -76), Q(18, -60)).q(Q(-24, -80), Q(-68, -64));
+  pxPoly(c, ck.pts.map(B2), C.C);
+  const bk = pathB().m(Q(-68, -64)).b(Q(-66, 18), Q(-56, 96), Q(-26, 132)).l(Q(-12, 130)).b(Q(-40, 96), Q(-50, 18), Q(-52, -70));
+  pxPoly(c, bk.pts.map(B2), C.c);
+  const bt = B2(P(30, 60)); R(c, bt[0], bt[1], 1, 1, C.c);
+  if (over) { over(); if (F.farOver && !F.farFront) arm(shF, F.hands[0], C.c, F.hand?.[0] || 'fist'); }
+  // head in the hood
+  const N = P(8, 128), rot = F.ang + f * (F.tilt || 0), k = 1.18 * s, cr = Math.cos(rot), sr = Math.sin(rot);
+  const T = (u, v) => B2([N[0] + cr * (f * k * u) - sr * (k * v), N[1] + sr * (f * k * u) + cr * (k * v)]);
+  const hd = pathB().m([-40, 10]).b([-58, -40], [-40, -98], [8, -100]).b([48, -100], [64, -60], [58, -20]).b([56, 0], [40, 14], [20, 16]);
+  pxPoly(c, hd.pts.map(p => T(p[0], p[1])), C.H);
+  const hs = pathB().m([-6, -92]).b([-30, -84], [-40, -30], [-30, 6]).l([-40, 10]).b([-58, -40], [-40, -98], [8, -100]);
+  pxPoly(c, hs.pts.map(p => T(p[0], p[1])), C.h);
+  const fc = pathB().m([16, -64]).b([44, -66], [54, -40], [50, -16]).b([46, -2], [30, 4], [18, 0]);
+  pxPoly(c, fc.pts.map(p => T(p[0], p[1])), C.F);
+  const fs = pathB().m([18, -22]).b([30, -14], [44, -12], [50, -16]).b([46, -2], [30, 4], [18, 0]);
+  pxPoly(c, fs.pts.map(p => T(p[0], p[1])), C.f);
+  const e = T(40, -36), eye = F.eye || 'calm';
+  if (eye === 'closed' || eye === 'down' || eye === 'strain') R(c, e[0] - 1, e[1] + 1, 2, 1, C.E);
+  else if (eye === 'shock') R(c, e[0] - 1, e[1] - 1, 2, 2, C.E);
+  else R(c, e[0], e[1] - 1, 1, 2, C.E);
+  if (mid) mid();
+  if (F.farFront) arm(shF, F.hands[0], C.c, F.hand?.[0] || 'fist');
+  arm(sh, F.hands[1], C.A, F.hand?.[1] || 'fist');
+}
+// a cross on the pixel grid: post + bar, a shade strip, a 1-px highlight, fresh cut faces
+function crossPx(c, K, u0, u1, x, y, a, lying) {
+  if (u1 - u0 < 4) return;
+  const hb = lying ? CBHL : CBH, ca = Math.cos(a), sa = Math.sin(a), P = (u, v) => [(x + ca * u - sa * v) / U - V.OX, (y + sa * u + ca * v) / U - V.OY];
+  pxPoly(c, [P(u0, -PW / 2), P(u1, -PW / 2), P(u1, PW / 2), P(u0, PW / 2)], K.a);
+  const ba = Math.max(u0, CBX - CBW / 2), bb = Math.min(u1, CBX + CBW / 2);
+  if (bb > ba) pxPoly(c, [P(ba, -hb), P(bb, -hb), P(bb, hb), P(ba, hb)], K.a);
+  pxPoly(c, [P(u0, PW / 2 - 14), P(u1, PW / 2 - 14), P(u1, PW / 2), P(u0, PW / 2)], K.b);
+  if (bb > ba) { const s0 = Math.max(ba, CBX + CBW / 2 - 14); if (bb > s0) pxPoly(c, [P(s0, -hb), P(bb, -hb), P(bb, hb), P(s0, hb)], K.b); }
+  if (u1 - u0 > 20) { const h0 = P(u0 + 8, -PW / 2 + 7), h1 = P(u1 - 8, -PW / 2 + 7); pxLine(c, h0[0], h0[1], h1[0], h1[1], 1, K.c); }
+  if (u0 > .5) pxPoly(c, [P(u0, -PW / 2), P(u0 + 9, -PW / 2), P(u0 + 9, PW / 2), P(u0, PW / 2)], K.c);
+  if (u1 < L - .5) pxPoly(c, [P(u1 - 9, -PW / 2), P(u1, -PW / 2), P(u1, PW / 2), P(u1 - 9, PW / 2)], K.c);
+}
+function sawPx(c, grip, ang, Cs) {
+  const { d, up, heel } = sawGeo(grip, ang), P = (u, v) => B2([heel[0] + d[0] * u + up[0] * v, heel[1] + d[1] * u + up[1] * v]);
+  pxPoly(c, [P(0, 30), P(172, 18), P(172, -4), P(0, -4)], Cs.bl);
+  pxPoly(c, [P(0, 5), P(172, 5), P(172, -4), P(0, -4)], Cs.bl2);
+  pxPoly(c, [P(-4, 38), P(-40, 48), P(-54, 20), P(-42, -6), P(-6, 0)], Cs.h);
+  pxPoly(c, [P(-14, 30), P(-34, 36), P(-42, 20), P(-34, 8), P(-14, 12)], Cs.h2);
+}
+
+// ---------------- background layers (whole-pixel scrolling, each layer at its own parallax) ----------------
+const GYP = Math.round(RT / U);
+const LAYS = { far: { p: .45, items: [] }, mid: { p: .74, items: [] } };
+const HAZE = [], SPOOK = [];
+function buildLayers() {
+  const r = rng(11);
+  let x = -500; while (x < 900) { const k = r(), w = k < .45 ? 3 + (r() * 3 | 0) : 6 + (r() * 6 | 0);
+    LAYS.far.items.push({ k: 'trunk', x, w, col: k < .3 ? 'tL' : 'tD' });
+    if (r() < .55) LAYS.far.items.push({ k: 'br', x: x + (w >> 1), y: 30 + r() * 90, dx: (r() < .5 ? -1 : 1) * (10 + r() * 14), dy: -(16 + r() * 14) });
+    if (r() < .14) LAYS.far.items.push({ k: 'shaft', x: x + w + 3 });
+    if (r() < .35) LAYS.far.items.push({ k: 'blob', x: x + r() * 10, y: -10 + r() * 46, r: 5 + r() * 9 | 0 });
+    if (r() < .12) LAYS.far.items.push({ k: 'vine', x: x + w + 1, y: 20 + r() * 20, len: 18 + r() * 26 | 0 });
+    x += w + 6 + r() * 12; }
+  x = -500; while (x < 1100) { const k = r();
+    if (k < .3) LAYS.mid.items.push({ k: 'cap', x, w: 16 + (r() * 12 | 0), h: 38 + (r() * 22 | 0), col: r() < .5 ? 'canA' : 'canB' });
+    else if (k < .5) LAYS.mid.items.push({ k: 'pine', x, w: 18 + (r() * 8 | 0), h: 34 + (r() * 14 | 0) });
+    else LAYS.mid.items.push({ k: 'bush', x, w: 18 + (r() * 14 | 0), h: 18 + (r() * 10 | 0) });
+    if (r() < .25) LAYS.mid.items.push({ k: 'mush', x: x + 6 });
+    x += 22 + r() * 34; }
+  for (let i = 0; i < 9; i++) HAZE.push({ x: r() * 400, y: 30 + r() * 110, w: 28 + r() * 26 | 0, a: .12 + r() * .08 });
+  for (let i = 0; i < 6; i++) SPOOK.push({ x: r() * 400, y: 10 + r() * 90, ph: r() * 6, big: r() < .4, dir: r() < .5 ? -1 : 1 });
+}
+function background(c, P) {
+  const bw = c.canvas.width, bh = c.canvas.height, gy = GYP - V.OY;
+  R(c, 0, 0, bw, bh, P.bg);
+  const ox = Math.round(V.OX * LAYS.far.p + (V.OX * U + 540 * U / V.K) * 0 ), lox = Math.round((V.OX + 540 / V.K) * LAYS.far.p - 540 / V.K);
+  for (const o of LAYS.far.items) { const x = o.x - lox; if (x < -40 || x > bw + 40) continue;
+    if (o.k === 'trunk') R(c, x, -1, o.w, gy + 1, P[o.col]);
+    else if (o.k === 'br') pxLine(c, x, o.y - V.OY, x + o.dx, o.y - V.OY + o.dy, 3, P.tD);
+    else if (o.k === 'shaft') { c.globalAlpha = .3; R(c, x, -1, 5, gy - 40, P.shaft); c.globalAlpha = .16; R(c, x - 2, -1, 9, gy - 20, P.shaft); c.globalAlpha = 1; }
+    else if (o.k === 'blob') pxCircle(c, x, o.y - V.OY, o.r, P.tD);
+    else if (o.k === 'vine') { R(c, x, o.y - V.OY, 1, o.len, P.canBs); for (let j = 4; j < o.len; j += 6) R(c, x - 1 + (j % 12 ? 0 : 2), o.y - V.OY + j, 2, 2, P.canBs); } }
+  const mox = Math.round((V.OX + 540 / V.K) * LAYS.mid.p - 540 / V.K);
+  for (const o of LAYS.mid.items) { const x = o.x - mox; if (x < -40 || x > bw + 40) continue;
+    if (o.k === 'cap') { R(c, x + (o.w >> 1) - 1, gy - o.h * .45, 3, o.h * .45 + 1, P.stem); capsule(c, x, gy - o.h - 4, o.w, o.h, P[o.col], P[o.col + 's']); }
+    else if (o.k === 'pine') pine(c, x + (o.w >> 1), gy - o.h, o.h + 1, o.w, P.pine, P.pineS);
+    else if (o.k === 'bush') capsule(c, x, gy - o.h + 1, o.w, o.h, P.bush, P.bushS);
+    else if (o.k === 'mush') { R(c, x, gy - 3, 1, 3, '#d8ccb4'); R(c, x - 2, gy - 4, 5, 1, P.mush); R(c, x - 1, gy - 5, 3, 1, P.mush); } }
+}
+function haze(c, t) {   // mist bars and the lab's ghosts, drifting in whole-pixel steps (not palette-swapped)
+  const bw = c.canvas.width, q = step8(t), hx = Math.round((V.OX + 540 / V.K) * .55 - 540 / V.K);
+  for (const m of HAZE) { const x = Math.round(((m.x + q * 3 - hx) % 400 + 400) % 400) - 60; if (x > bw) continue;
+    c.globalAlpha = m.a; pxRR(c, x, Math.round(m.y - V.OY), m.w, 4, 2, '#5a72c8'); c.globalAlpha = 1; }
+  const gx = Math.round((V.OX + 540 / V.K) * .3 - 540 / V.K);
+  for (const g of SPOOK) { const x = Math.round(((g.x + Math.sin(q * .55 + g.ph) * 6 + g.dir * q * 1.5 - gx) % 400 + 400) % 400) - 60, y = Math.round(g.y + Math.sin(q * 1.3 + g.ph * 2) * 4 - V.OY);
+    if (x > bw || y < -20) continue; c.globalAlpha = g.big ? .26 : .2; c.drawImage(SPR.ghost[Math.floor(q * 4 + g.ph * 3) % 2], x, y); c.globalAlpha = 1; }
+}
+
+// ---------------- road, chasm, gate ----------------
+function road(c, P, st) {
+  const bw = c.canvas.width, bh = c.canvas.height, top = GYP - V.OY, ea = Math.round(E / U) - V.OX, eb = Math.round((E + G) / U) - V.OX;
+  if (eb > -10 && ea < bw + 10) {
+    R(c, ea, top, eb - ea, bh - top, P.deep);
+    const FXs = st.FXs; if (FXs && FXs.clip) crossPx(c, WOOD, FXs.u0, L, FXs.x, FXs.y, FXs.a, true);   // falling between the walls
+    const r = rng(71), half = (eb - ea) >> 1;
+    for (let j = 0; top + j < bh; j += 3) { const i2 = Math.min(half, 4 + Math.floor(j * .55) + (r() * 3 | 0)), i1 = Math.min(half - 1, 1 + Math.floor(j * .25) + (r() * 2 | 0));
+      const i2b = Math.min(half, 4 + Math.floor(j * .55) + (r() * 3 | 0)), i1b = Math.min(half - 1, 1 + Math.floor(j * .25) + (r() * 2 | 0));
+      R(c, ea, top + j, i2, 3, P.chasm2); R(c, ea, top + j, i1, 3, P.chasm); R(c, eb - i2b, top + j, i2b, 3, P.chasm2); R(c, eb - i1b, top + j, i1b, 3, P.chasm); }
+  }
+  for (const [a, b] of [[-2, ea], [eb, bw + 2]]) { if (b <= a) continue;
+    R(c, a, top, b - a, bh - top, P.ground); R(c, a, top, b - a, 1, P.gTop); R(c, a, top + 17, b - a, bh, P.groundD);
+    for (let x = a; x < b; x++) { const gx = x + V.OX; if (((gx * 7) % 9 + 9) % 9 === 0) { const h = ((gx * 5) % 3 + 3) % 3 + 1; R(c, x, top - h, 1, h, P.gTop); } } }
+}
+const GATE = () => { const gx = GX / U - V.OX, gy = (BY + 4) / U - V.OY; return { gx: Math.round(gx), gy: Math.round(gy), ay: Math.round(gy - 36) }; };
+function arcPts(cx, cy, r, a0, a1, n = 14) { const o = []; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; o.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } return o; }
+function gateDoor(c, P, t) {   // the doorway burns like the lab's campfire: banded flame colours, flickering on 12s
+  const { gx, gy, ay } = GATE(), q = step12(t), r = rng(1 + Math.floor(q * 12) % 6);
+  pxPoly(c, [[gx - 12, gy], ...arcPts(gx, ay, 12, Math.PI, TAU), [gx + 12, gy]], P.door);
+  pxPoly(c, [[gx - 9, gy], ...arcPts(gx, ay + 3, 9, Math.PI, TAU), [gx + 9, gy]], '#f8b830');
+  const hw = 4 + (r() * 2 | 0); pxPoly(c, [[gx - hw, gy], ...arcPts(gx, ay + 8, hw, Math.PI, TAU, 8), [gx + hw, gy]], '#fff0a0');
+  R(c, gx - 18, gy, 37, 2, P.door);   // light on the ground at the threshold
+}
+function gateArch(c, P) {
+  const { gx, gy, ay } = GATE();
+  pxPoly(c, [[gx - 18, gy], ...arcPts(gx, ay, 18, Math.PI, TAU), [gx + 18, gy], [gx + 12, gy], ...arcPts(gx, ay, 12, TAU, Math.PI), [gx - 12, gy]], P.gate);
+  pxPoly(c, [[gx + 13, gy], [gx + 13, ay], [gx + 18, ay], [gx + 18, gy]], P.gateS);
+  R(c, gx - 20, gy - 3, 9, 3, P.gate); R(c, gx + 12, gy - 3, 9, 3, P.gateS);
+  R(c, gx - 1, ay - 21, 3, 3, P.gateS);   // keystone
+  capsule(c, gx - 46, gy - 14, 22, 15, P.bush, P.bushS); capsule(c, gx + 26, gy - 16, 26, 17, P.bush, P.bushS); capsule(c, gx + 52, gy - 11, 18, 12, P.canB, P.canBs);
+}
+function embers(c, t, x0, y0, n, seed, spread = 10) {   // rising embers in whole-pixel steps (the lab's)
+  for (let i = 0; i < n; i++) { const er = rng(seed + i), per = .9 + er() * .9, ph = er() * per, age = ((t + ph) % per + per) % per;
+    const ex = x0 + Math.round((er() - .5) * spread + Math.sin(age * 5 + i) * 2), ey = y0 - Math.round(age * 40);
+    R(c, ex, ey, 1, 2 + (er() * 2 | 0), age / per > .7 ? '#c86020' : '#f0a030'); }
+}
+
+// ---------------- the world (drawn twice: night palette and lit palette; the lit one shows through pixel circles) ----------------
+function world(c, P, pk, t, st) {
+  background(c, P);
+  road(c, P, st);
+  const tq = step8(t), pal = PI[pk], xw = PXW[pk];
+  const { gx } = GATE(); const gateVis = gx > -40 && gx < c.canvas.width + 40;
+  const drawPil = Pp => { const X = Pp.X, dc = X ? () => crossPx(c, xw, X.u0, L, X.x, X.y, X.a, X.lie) : null; figPx(c, Pp.F, pal, X && X.lie ? dc : null, null, X && !X.lie ? dc : null); };
+  if (gateVis) { gateDoor(c, P, t); for (const Pp of st.pils) if (Pp.F.inGate) drawPil(Pp); gateArch(c, P); }
+  for (const Pp of st.pils) if (Pp.B) crossPx(c, xw, 0, L, Pp.B.x, Pp.B.y, Pp.B.a, true);
+  st.pils.slice().sort((a, b) => a.F.hip[0] - b.F.hip[0]).forEach(Pp => { if (!Pp.F.inGate) drawPil(Pp); });
+  const c3 = CUTS[2];
+  if (t >= c3.drop) { const kk = eio((step12(t) - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip;
+    sawPx(c, [lerp(g0[0], SAWLIE.grip[0], kk), lerp(g0[1], SAWLIE.grip[1], kk)], lerp(CUT_ANG, SAWLIE.ang, kk), SAW[pk]); }
+  for (const p of st.pieces) crossPx(c, p.glow > .5 ? EMBER : WOOD, p.c.u0, p.c.u1, p.x, p.y, p.a, true);
+  const M = st.M, F = M.F, myCross = X => { if (X) crossPx(c, WOOD, X.u0, L, X.x, X.y, X.a, X.lie); };
+  figPx(c, F, ME[pk], () => {
+    if (M.X && M.X.lie) myCross(M.X);
+    if (M.kerf) { const a = B2([M.c.cutX, M.c.y - PW / 2]); R(c, a[0], a[1], 1, Math.max(1, M.kerf.kp * PW * .92 / U), P.deep); }
+    if (M.saw) sawPx(c, M.saw.grip, M.saw.ang, SAW[pk]);
+  }, null, M.X && !M.X.lie ? () => myCross(M.X) : null);
+  const FXs = st.FXs; if (FXs && !FXs.clip) crossPx(c, WOOD, FXs.u0, L, FXs.x, FXs.y, FXs.a, true);
+  // sawdust: orange chips on 12s
+  const tq12 = step12(t);
+  for (const q of FLECKS) { const u = tq12 - q.t0; if (u < 0 || u > 1.3) continue;
+    const tl = (-q.vy + Math.sqrt(q.vy * q.vy + 4 * 700 * (q.land - q.y))) / 1400, uu = Math.min(u, Math.max(0, tl)), p = B2([q.x + q.vx * uu, q.y + q.vy * uu + 700 * uu * uu]);
+    R(c, p[0], p[1], 1, 1, q.col); }
+}
+function crossOutline(x, y) {
+  const hb = CBHL; return [[0, -PW / 2], [CBX - CBW / 2, -PW / 2], [CBX - CBW / 2, -hb], [CBX + CBW / 2, -hb], [CBX + CBW / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
+    [CBX + CBW / 2, PW / 2], [CBX + CBW / 2, hb], [CBX - CBW / 2, hb], [CBX - CBW / 2, PW / 2], [0, PW / 2]].map(([a, b]) => [x + a, y + b]);
+}
+function guidePx(c, t, k) {   // the dashed outline of my whole cross across the chasm, in marching pixel dashes
+  const ol = crossOutline(E - REST, FY + 34).map(B2), xmax = B2([E - REST + L * k, 0])[0], off = Math.floor(step8(t) * 8);
+  c.fillStyle = '#f4f0dc'; let s = 0;
+  for (let i = 0; i < ol.length; i++) { const a = ol[i], b = ol[(i + 1) % ol.length], n = Math.max(1, Math.round(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
+    for (let j = 0; j < n; j++, s++) { const x = Math.round(lerp(a[0], b[0], j / n)), y = Math.round(lerp(a[1], b[1], j / n)); if (x > xmax) continue; if (((s + off) >> 1) % 2 === 0) c.fillRect(x, y, 1, 1); } }
+}
+
+// ---------------- the camera: shots ----------------
+function shotAt(t) {
+  const c1 = CUTS[0], c2 = CUTS[1], c3 = CUTS[2], at = cc => (cc.mx + cc.cutX) / 2 - 10;
+  if (t < 2.4) return { K: 13, x: meX(t) + 30, y: 1000 };                     // the hook: close on me, the saw in my hand
+  if (t < 3.15) return { K: 8, x: meX(t) + 60, y: 900 };                     // the procession
+  if (t < 4.55) return { K: 10, x: at(c1), y: 1020 };                         // the first cut
+  if (t < 8.95) return { K: 8, x: meX(t) + 60, y: 900 };                     // lighter: I run, the others fall behind
+  if (t < 11.4) return { K: 10, x: lerp(at(c2), at(c3), eio((t - 10) / .45)), y: 1020 };   // twice more
+  if (t < 12.05) return { K: 8, x: Math.min(meX(t) + 60, E - 540 - 10), y: 900 };
+  if (t < 18.2) return { K: 6, x: E + 300, y: 915 };                          // the road ends; the others cross, one at a time
+  if (t < B.fall) return { K: 9, x: E + 160, y: 1110 };                       // mine: short
+  if (t < B.fall + .7) return { K: 11, x: E + 160, y: 1200, shake: 1 - ss(B.fall, B.fall + .55, t) };   // the hit
+  if (t < B.back) return { K: 8, x: E + 150, y: 1060 };
+  return { K: 10, x: lerp(E - 360, E + 210, eio((t - 22.75) / 1.1)), y: 1010 };   // I look back; the pieces fly to the gap
+}
+function lightsAt(t) {   // in design units
+  const q = step8(t), D = [];
+  if (q >= B.gap) D.push({ x: GX - 40, y: BY - 150, r: 470 * backEase(clamp((q - B.gap - .1) / .5)) });
+  for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, step12(t)), sw = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, q), land = ss(FILL[c.k][1], FILL[c.k][1] + .4, q);
+    const r = 150 * sw * (1 - .45 * land); if (r > 8) D.push({ x: p.cx, y: p.cy, r }); }
+  if (q >= 24.1) D.push({ x: E - REST + L / 2, y: FY + 20, r: 340 * backEase(clamp((q - 24.1) / .6)) });
+  return D;
+}
+
+// ---------------- frame (the lab's dark blobby window) ----------------
+const LW = 180, LH = 320;
+function framePlate() {
+  const c = Pilot.canvas(LW, LH), x = c.getContext('2d');
+  R(x, 0, 0, LW, LH, FRAME);
+  x.globalCompositeOperation = 'destination-out'; pxRR(x, 10, 24, LW - 20, 270, 12, '#000'); x.globalCompositeOperation = 'source-over';
+  const blobs = [[10, 58, 8], [6, 80, 6], [12, 126, 9], [8, 152, 5], [10, 200, 8], [5, 226, 7], [12, 278, 10],
+    [170, 50, 7], [175, 92, 10], [168, 134, 6], [174, 178, 9], [170, 224, 6], [172, 276, 10],
+    [34, 24, 8], [52, 20, 6], [98, 26, 10], [124, 22, 7], [148, 28, 8]];
+  for (const [bx_, by_, br] of blobs) pxCircle(x, bx_, by_, br, FRAME);
+  pxLine(x, 10, 50, 33, 54, 4, FRAME); pxLine(x, 33, 54, 38, 64, 3, FRAME); pxCircle(x, 39, 66, 3, FRAME);
+  pxLine(x, 170, 116, 155, 121, 4, FRAME); pxLine(x, 155, 121, 152, 113, 3, FRAME); pxLine(x, 155, 121, 158, 131, 2, FRAME);
+  pxRR(x, 158, 150, 14, 16, 5, FRAME); R(x, 159, 148, 2, 3, FRAME); R(x, 169, 148, 2, 3, FRAME);   // an owl in the frame
+  R(x, 0, 290, LW, LH - 290, FRAME); R(x, 0, 290, LW, 1, FRAME2);
+  return c;
+}
+function frameEyes(c, t) {
+  for (const [ex, ey, col, ph] of [[14, 274, '#f0c040', 0], [163, 156, '#f0c040', 2.3], [165, 76, '#ffffff', .6]]) {
+    if (((t + ph) % 2.3) < .125) { R(c, ex, ey + 1, 2, 1, col); R(c, ex + 4, ey + 1, 2, 1, col); continue; }
+    R(c, ex, ey, 2, 2, col); R(c, ex + 4, ey, 2, 2, col); }
+}
+
+// ---------------- frame ----------------
+const BUF = {};
+function bufs(K) { if (!BUF[K]) { const w = Math.ceil(W / K), h = Math.ceil(H / K), mk = () => { const cv = Pilot.canvas(w, h); return cv.getContext('2d'); };
+    BUF[K] = { n: mk(), l: mk(), m: mk(), tmp: mk() }; } return BUF[K]; }
+let FR, FX, FRC, CAP, CX;
+function draw(ctx, t) {
+  const sh = shotAt(t), K = sh.K, bb = bufs(K), q8 = step8(t);
+  const shx = sh.shake ? Math.round(Math.sin(q8 * 97) * 2 * sh.shake) : 0, shy = sh.shake ? Math.round(Math.sin(q8 * 131 + 1) * 2 * sh.shake) : 0;
+  V = { K, OX: Math.round(sh.x / U - 540 / K) + shx, OY: Math.round(sh.y / U - 960 / K) + shy };
+  const M = poseMe(q8), FXs = fallX(step12(t));
+  const pils = [0, 1, 2, 3].map(i => pilState(i, q8)).filter(p => p && p.F);
+  const pieces = CUTS.filter(c => t >= c.drop).map(c => { const p = pieceAt(c, step12(t)); return { ...p, c, glow: ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, q8) }; });
+  const st = { M, FXs, pils, pieces };
+  const flash = t >= B.fall && t < B.fall + .1;
+  world(bb.n, N, 'N', t, st);
+  const D = lightsAt(t);
+  if (D.length || flash) {
+    world(bb.l, LP, 'L', t, st);
+    const m = bb.m, mw = m.canvas.width, mh = m.canvas.height; m.clearRect(0, 0, mw, mh);
+    if (flash) R(m, 0, 0, mw, mh, '#fff');
+    for (const d of D) { const cx = Math.round(d.x / U - V.OX), cy = Math.round(d.y / U - V.OY), r = Math.round(d.r / U); if (r < 1) continue;
+      pxCircle(m, cx, cy, r, '#fff'); m.fillStyle = '#fff';
+      for (let dy = -r - 8; dy <= r + 8; dy++) { const yy = cy + dy; if (yy < 0 || yy >= mh) continue;
+        for (let dx = -r - 8; dx <= r + 8; dx++) { const xx = cx + dx; if (xx < 0 || xx >= mw) continue; const dd = Math.hypot(dx, dy); if (dd <= r || dd > r + 8) continue;
+          if (dd < r + 4 ? ((dx + dy) & 1) === 0 : ((dx & 1) === 0 && (dy & 1) === 0)) m.fillRect(xx, yy, 1, 1); } } }
+    const tp = bb.tmp; tp.globalCompositeOperation = 'source-over'; tp.clearRect(0, 0, mw, mh); tp.drawImage(bb.l.canvas, 0, 0);
+    tp.globalCompositeOperation = 'destination-in'; tp.drawImage(m.canvas, 0, 0); tp.globalCompositeOperation = 'source-over';
+    bb.n.drawImage(tp.canvas, 0, 0);
+  }
+  // embers: from the burning doorway, and from the pieces once they catch
+  if (t >= B.gap) { const g = GATE(); embers(bb.n, t, g.gx, g.ay - 14, 7, 40, 14); }
+  for (const p of pieces) if (p.glow > .5) { const b = B2([p.cx, p.cy]); embers(bb.n, t, Math.round(b[0]), Math.round(b[1]) - 3, 4, 60 + p.c.k * 7, 8); }
+  if (t >= 18.75 && t < 19.75) guidePx(bb.n, t, eio((t - 18.75) / .35));
+  if (t >= B.fill[0] - .2) guidePx(bb.n, t, eio((t - B.fill[0] + .2) / .45));
+  haze(bb.n, t);
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(bb.n.canvas, 0, 0, bb.n.canvas.width * K, bb.n.canvas.height * K);
+  // the lab's frame on its own 6× grid; at the end it closes in, whole pixels at a time, to a plain plate for the card
+  FX.clearRect(0, 0, LW, LH); FX.drawImage(FR, 0, 0); frameEyes(FX, t);
+  const ke = ss(B.end - .25, B.end + .3, step8(t)); if (ke > 0) { const n = Math.round(ke * 92); R(FX, 0, 0, LW, n + 24, FRAME); R(FX, 0, LH - n - 30, LW, n + 30, FRAME); R(FX, 0, 0, Math.round(ke * 90) + 10, LH, FRAME); R(FX, LW - Math.round(ke * 90) - 10, 0, Math.round(ke * 90) + 10, LH, FRAME); }
+  ctx.drawImage(FRC, 0, 0, W, H);
+  // captions on a half-resolution grid (chunky, still readable), blown up 2× — as in the lab
+  if (t < B.end) { CX.setTransform(1, 0, 0, 1, 0, 0); CX.clearRect(0, 0, W / 2, H / 2); CX.setTransform(.5, 0, 0, .5, 0, 0);
+    CX.save(); CX.translate(6, 6); Story.captions(CX, t, S.lines, { font: FONT, weight: 400, size: 70, color: '#151a3c', srcColor: '#151a3c', y: 410, shadow: 'rgba(0,0,0,0)', shadowBlur: 1 }); CX.restore();
+    Story.captions(CX, t, S.lines, { font: FONT, weight: 400, size: 70, color: '#f4f0dc', srcColor: '#c8d0f0', y: 410, shadow: 'rgba(0,0,0,0)', shadowBlur: 1 });
+    ctx.drawImage(CAP, 0, 0, W, H); }
+  Story.endCard(ctx, t, S.endCard, B.end, { font: FONT, color: '#f4f0dc', srcColor: '#aab4e0', y: 860, titleShadow: 'rgba(0,0,0,0)' });
+}
+
+async function init() {
+  buildTimeline(); buildLayers();
+  SPR.ghost = GHOST.map(g => sprite(g, { g: '#c8d4ff', e: '#1a2050' }));
+  FR = framePlate(); FRC = Pilot.canvas(LW, LH); FX = FRC.getContext('2d');
+  CAP = Pilot.canvas(W / 2, H / 2); CX = CAP.getContext('2d'); CX.imageSmoothingEnabled = false;
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 70px 'Do Hyeon'"], init, draw });
+</script>
+</body>
+</html>

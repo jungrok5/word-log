@@ -176,8 +176,8 @@ function drawCross(ctx, X, u0, u1, x, y, a, alpha = 1, glow = 0) {
   if (u1 - u0 < .5 || alpha <= 0) return;
   ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.globalAlpha = alpha;
   const hb = X.hb, dh = 2 * hb + 2 * CPAD, left = u0 <= .5 ? -CPAD : u0, right = u1 >= L - .5 ? L + CPAD : u1;
-  if (glow > 0) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha * glow * .5; ctx.filter = 'blur(10px)';
-    ctx.drawImage(X.c, (left + CPAD) * KX, 0, (right - left) * KX, dh * KX, left - 6, -hb - CPAD - 6, right - left + 12, dh + 12); ctx.restore(); }
+  if (glow > 0 && X.glow) { const gp = 12, l2 = Math.max(-CPAD, left - gp), r2 = Math.min(L + CPAD, right + gp); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha * glow * .7;
+    ctx.drawImage(X.glow, (l2 + CPAD) * KX, 0, (r2 - l2) * KX, dh * KX, l2, -hb - CPAD, r2 - l2, dh); ctx.restore(); }
   ctx.drawImage(X.c, (left + CPAD) * KX, 0, (right - left) * KX, dh * KX, left, -hb - CPAD, right - left, dh);
   ctx.fillStyle = X.endc;
   for (const u of [u0 > .5 ? u0 : null, u1 < L - .5 ? u1 : null]) if (u != null) { ctx.globalAlpha = alpha * .9; ctx.fillRect(u - 2.5, -PW / 2 + 1, 5, PW - 2); }
@@ -453,7 +453,7 @@ const SPLASH = () => B.fall + .38;   // when it hits the water
 
 // ---------------- the others: lay it across → walk over → pull it back from the far side → shoulder it → into the light ----------------
 const PIL = [{ x0: -700, ph: .3 }, { x0: -400, ph: .75 }, { x0: 300, ph: .1 }, { x0: 470, ph: .55 }];
-const BRIDGE_Y = [BY + 22, BY + 30, BY + 38], PULL = 230;
+const BRIDGE_Y = [BY + 22, BY + 30, BY + 38], PULL = 150;
 function pilState(i, t) {
   const tp = t12(t), P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY, pal = PAL.p[i];
   const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 50 * tt; const xa = P.x0 + 450, xb = E - 430 - 280 * j, xc = E - 152;
@@ -467,18 +467,18 @@ function pilState(i, t) {
   if (t < T) { const [F0, X0] = carry(T - .35, E - 152), k = eio((tp - T + .35) / .35); return { F: { ...mixSpec(F0, LAY, k), pal }, X: mixX(X0, XB, eio((t - T + .35) / .35)) }; }
   const xs0 = E - 70, xs1 = E + G + 150;
   if (t < T + .3) { const F = mixSpec(LAY, { ...standSpec(xs0, yb - PW / 2, KP, 1, { lean: .1 }) }, eio((tp - T) / .25)); F.pal = pal; return { F, B: XB }; }
-  if (t < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 30 ? yb - PW / 2 : BY;
+  if (t < T + .8) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .5))), gy = x < E + G + 30 ? yb - PW / 2 : BY;
     const F = hamWalk(x, gy, KP, 1, P.ph + x / 110, { stride: 30, lift: 11, lean: .2, head: .05, eye: 'open' }); F.pal = pal; return { F, B: XB }; }
-  // from the far side: turn, crouch, take the top end and slide it back across (pressing it down over the far lip as a lever)
-  const pv = [E + G, yb + PW / 2], pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, pv, -.08 * k);
+  // from the far side: turn, crouch, take the top end and pull it back, levering it up out of the gully over the far lip
+  const pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, [E + G + PULL * k, yb + PW / 2], .8 * k * k);
   const xpAt = k => xs1 + 30 + PULL * k;
   const PULLS = k => { const X = pullX(k), x = xpAt(k); const F = { ...standSpec(x, BY, KP, -1), lean: .45 - .15 * k, crouch: .5, head: -.1, eye: 'strain', pal, feet: [[-20, 0], [18, 0]] };
     F.paws = [upOn(X, L - 30, PW / 2 - 3), upOn(X, L - 62, PW / 2 - 3)]; return [F, X]; };
-  if (t < T + 1.25) { const k = eio(clamp((tp - T - .9) / .35)), [F, X] = PULLS(k);
-    const k0 = eio((tp - T - .9) / .1); return { F: k0 < 1 ? { ...mixSpec(hamWalk(xs1, BY, KP, 1, 0, {}), F, k0), pal } : F, X }; }
+  if (t < T + 1.2) { const k = eio(clamp((tp - T - .8) / .4)), [F, X] = PULLS(k);
+    const k0 = eio((tp - T - .8) / .1); return { F: k0 < 1 ? { ...mixSpec(hamWalk(xs1, BY, KP, 1, 0, {}), F, k0), pal } : F, X }; }
   const [Fp, Xp] = PULLS(1), xg = xpAt(1);
-  if (t < T + 1.5) { const k = eio((tp - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, BY, 110); const XcU = { ...Xc, a: Xc.a + TAU * 0 };
-    return { F: { ...mixSpec(Fp, Fc, k), pal }, X: mixX(Xp, XcU, eio((t - T - 1.25) / .25)) }; }
+  if (t < T + 1.5) { const k = eio((tp - T - 1.2) / .3), [Fc, Xc] = carry(T + 1.5, xg, BY, 110);
+    return { F: { ...mixSpec(Fp, Fc, k), pal }, X: mixX(Xp, Xc, eio((t - T - 1.2) / .3)) }; }
   const x = lerp(xg, GX + 10, clamp((tp - T - 1.5) / .35)), [F, X] = carry(tp, x, BY, 110);
   F.alpha = 1 - ss(T + 1.55, T + 1.85, t); F.inGate = x > GX - 120; if (F.alpha <= 0) return null;
   return { F, X };
@@ -778,6 +778,8 @@ async function init() {
   FX.body = rough(ellPts(0, -58, 60, 54, 24), 1.4, 3, 7);
   buildTimeline(); buildSheets();
   TX.gUp = crossSprite(C.gold, C.goldD, C.goldL, false, 3); TX.gLie = crossSprite(C.gold, C.goldD, C.goldL, true, 4); TX.gUp.endc = TX.gLie.endc = '#f7dca0';
+  { const X = TX.gLie, gc = Pilot.canvas(X.c.width, X.c.height), gx = gc.getContext('2d'); gx.filter = 'blur(14px)'; gx.drawImage(X.c, 0, 0); gx.filter = 'blur(5px)'; gx.drawImage(X.c, 0, 0);
+    gx.filter = 'none'; gx.globalCompositeOperation = 'source-in'; gx.fillStyle = 'rgba(255,214,130,1)'; gx.fillRect(0, 0, gc.width, gc.height); X.glow = gc; }
   TX.xUp = crossSprite(C.xw, C.xwD, C.xwL, false, 5); TX.xLie = crossSprite(C.xw, C.xwD, C.xwL, true, 6); TX.xUp.endc = TX.xLie.endc = '#e6dfd0';
   TX.plate = buildPlate();
   BACKX = (pieceAt(CUTS[0], 21.9).x + (CUTS[0].u0 + CUTS[0].u1) / 2) + 260;

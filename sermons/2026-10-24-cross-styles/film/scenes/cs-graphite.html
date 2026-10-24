@@ -440,16 +440,16 @@ function drawSaw(ctx, grip, ang) {
   const { d, up, heel } = sawGeo(grip, ang), P = (u, v) => [heel[0] + d[0] * u + up[0] * v, heel[1] + d[1] * u + up[1] * v];
   const blade = [P(0, 30), P(172, 18)]; for (let u = 172; u >= 0; u -= 9) blade.push(P(u, (u / 9 | 0) % 2 ? 3 : -3));
   const handle = HD.spline([P(-4, 36), P(-38, 46), P(-52, 20), P(-40, -4), P(-6, 2)], 3, true), hole = HD.spline([P(-14, 30), P(-34, 36), P(-42, 20), P(-34, 8), P(-14, 12)], 3, true);
-  ctx.save(); ctx.fillStyle = 'rgba(150,148,146,1)'; ctx.fill(HD.pathOf(blade)); ctx.globalAlpha = .5; ctx.fillStyle = PAT.chalk[1]; ctx.fill(HD.pathOf(blade)); ctx.globalAlpha = 1;
+  ctx.save(); ctx.fillStyle = 'rgba(92,94,100,1)'; ctx.fill(HD.pathOf(blade)); ctx.globalAlpha = .5; ctx.fillStyle = PAT.chalk[1]; ctx.fill(HD.pathOf(blade)); ctx.globalAlpha = 1;
   strokeG(ctx, [P(6, 26), P(166, 15)], 950, PAT.chalk[2], { w: 3, ts: 10, te: 20 });
   ctx.fillStyle = 'rgba(70,52,40,1)'; ctx.fill(HD.pathOf(handle)); ctx.fillStyle = PAT.black[1]; ctx.fill(HD.pathOf(handle));
   ctx.fillStyle = 'rgba(52,49,47,1)'; ctx.fill(HD.pathOf(hole)); ctx.restore();
-  HD.ink(ctx, blade.concat([blade[0]]), { w: 2.2, ts: 2, te: 2, mn: 1, press: .3, seed: 951, col: PAT.dark });
+  HD.ink(ctx, blade.concat([blade[0]]), { w: 3, ts: 2, te: 2, mn: 1, press: .3, seed: 951, col: PAT.dark });
   HD.ink(ctx, handle, { w: 2.6, ts: 2, te: 2, mn: 1, press: .3, seed: 952, col: PAT.dark });
 }
 
 // ---------------- the world (built once): far layer (sky, moon, houses), the road plate, a foreground of bushes + one trunk ----------------
-let PX0 = -600, PX1 = 3600, PY0 = 1040, PY1 = 2470, FX0 = -800, FX1 = 2400, GX0 = 0, GX1 = 0, TRUNKX = 0;
+let PX0 = -600, PX1 = 3600, PY0 = 660, PY1 = 2470, FX0 = -800, FX1 = 2400, GX0 = 0, GX1 = 0, TRUNKX = 0;
 const FY0 = -340, FY1 = 1330, GY0 = 1560, GY1 = 2900;
 function layerCanvas(x0, y0, x1, y1) { const c = Pilot.canvas(Math.ceil(x1 - x0), Math.ceil(y1 - y0)), g = c.getContext('2d'); g.setTransform(1, 0, 0, 1, -x0, -y0); g.lineJoin = g.lineCap = 'round'; return { c, g, x0, y0, k: 1 }; }
 function drawSheetL(ctx, s) { const v = vis(ctx), x0 = Math.max(s.x0, v.x0), y0 = Math.max(s.y0, v.y0), x1 = Math.min(s.x0 + s.c.width, v.x1), y1 = Math.min(s.y0 + s.c.height, v.y1);
@@ -704,7 +704,7 @@ async function init() {
     const z2 = 1 + (c.z - 1) * .5, hw2 = 540 / z2 + 40; fx0 = Math.min(fx0, c.x * .5 - hw2); fx1 = Math.max(fx1, c.x * .5 + hw2);
     const z3 = 1 + (c.z - 1) * 1.3, hw3 = 540 / z3 + 40; gx0 = Math.min(gx0, c.x * 1.3 - hw3); gx1 = Math.max(gx1, c.x * 1.3 + hw3); }
   PX0 = Math.floor(Math.min(x0, -560)); PX1 = Math.ceil(Math.max(x1, GX + 700)); FX0 = Math.floor(fx0); FX1 = Math.ceil(fx1); GX0 = Math.floor(gx0); GX1 = Math.ceil(gx1);
-  { const tt = 7.3, c = camAt(tt), z3 = 1 + (c.z - 1) * 1.3, ms = 540 + (meX(tt) - c.x) * c.z; TRUNKX = c.x * 1.3 + (ms - 540) / z3 + 60; }   // the trunk sweeps past while I run ahead
+  { const tt = 6.1, c = camAt(tt), z3 = 1 + (c.z - 1) * 1.3, ms = 540 + (meX(tt) - c.x) * c.z; TRUNKX = c.x * 1.3 + (ms - 540) / z3 + 60; }   // the trunk sweeps past while I run ahead
   TX.far = layerCanvas(FX0, FY0, FX1, FY1); buildFar(TX.far.g);
   TX.plate = layerCanvas(PX0, PY0, PX1, PY1); buildPlate(TX.plate.g);
   TX.fg = layerCanvas(GX0, GY0 - 1700, GX1, GY1); buildFG(TX.fg.g);
