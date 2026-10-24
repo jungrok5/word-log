@@ -613,7 +613,7 @@ function poseMe(t) {
   // laying it: kneeling at the lip, both paws pressing the near end down
   const LAY = { ...standSpec(E - 46, FY, SME, 1), hip: [E - 46, FY - 40 * SME], ang: 1.25, feet: [[E - 96, FY], [E - 14, FY]], tilt: -.35 };
   const U1 = XLay.u0 + 86, U2 = XLay.u0 + 58; LAY.hands = [cpt(XLay, U1, -PW / 2 + 4), cpt(XLay, U2, -PW / 2 + 4)]; LAY.hand = ['flat', 'flat'];
-  const XMid = { x: E - 66 - XLay.u0, y: FY - 150, a: -.1, u0: XLay.u0, lie: false };   // held in front of the belly
+  const XMid = { x: E - 66 - XLay.u0, y: FY - 130, a: -.06, u0: XLay.u0, lie: true };   // held in front of the belly
   const HOLD = { ...standSpec(E - 52, FY, SME, 1, .12), tilt: .25, eye: 'calm' }; HOLD.hands = [cpt(XMid, U1, 4), cpt(XMid, U2, 6)];
   const REACH = { ...LAY, hip: [E - 52, FY - 80 * SME], ang: .6, hands: [[E - 130, FY - 90], [E + 64, FY - 10]], hand: ['fist', 'open'], eye: 'shock', tilt: .1, sweat: 1 };
   if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = carried(ST, -.6, left, false), X0 = STc[1];
