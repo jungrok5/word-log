@@ -251,7 +251,7 @@ function drawHam(ctx, F, mid, front) {
     const e1 = [S0[0] + Math.cos(an + b) * UA, S0[1] + Math.sin(an + b) * UA], e2 = [S0[0] + Math.cos(an - b) * UA, S0[1] + Math.sin(an - b) * UA], El = e1[1] > e2[1] ? e1 : e2;   // elbow bends down
     return { S0, El, T, an: Math.atan2(T[1] - El[1], T[0] - El[0]) };
   }
-  function farReach() { return reach(SH_F, (F.paws || [])[0], false); }
+  function farReach() { return reach(F.farSh || SH_F, (F.paws || [])[0], false); }
   function limb(r, near) { ctx.fillStyle = near ? P.ham : P.hamD; ctx.strokeStyle = P.hamL; ctx.lineWidth = 1.4;
     for (const ap of [pathOf(capsule(r.S0, r.El, 16, 13.5)), pathOf(capsule(r.El, r.T, 13.5, 11))]) { ctx.fill(ap); ctx.globalAlpha = al * .55; ctx.stroke(ap); ctx.globalAlpha = al; } }
   function pawD(r, near) { const T = r.T, an = r.an, pp = new Path2D(); pp.ellipse(T[0], T[1], 8.5, 6.8, an, 0, TAU); ctx.fillStyle = near ? P.pink : shade(P.pink, .93); ctx.fill(pp);
@@ -331,14 +331,14 @@ function vMe(t) {
   if (t < 9.0) return 130 * (1 - ss(8.6, 9.0, t));
   if (t < 10.0) return 0;
   if (t < 10.4) return 380 * Math.sin(Math.PI * (t - 10) / .4);
-  if (t < 11.35) return 0;
-  if (t < 12.0) return 520 * Math.sin(Math.PI * (t - 11.35) / .65);
+  if (t < 11.6) return 0;
+  if (t < 12.0) return 560 * Math.sin(Math.PI * (t - 11.6) / .4);
   return 0;
 }
 const strideMe = t => t < 4.6 ? 84 : t < 8.8 ? 230 : 120;   // world px per step cycle (waddle) / per hop
 const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
 const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
-const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .35, saw0: 9.35, drop: 9.8, up1: 10.6 }, { s: 10.4, d: .15, saw0: 10.6, drop: 11.2, up1: 11.6 }];   // between cuts 2 and 3 I stay down and shuffle along the beam
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
 const FLECKS = [], DROPS = [];
 let E = 1600, GX = 0, GAY = 0, ROADX0 = -1500, ROADX1 = 0, SAWLIE = null;
@@ -368,16 +368,16 @@ const SLOTS = [22.9, 23.6, 24.3];   // the outline's missing span lights one pie
 // the post rests against my chest/shoulder (local 34, -34) and rises ahead; the foot trails behind toward the road
 function carryX(F, left, a0) {
   const pc = worldPt(F, 34, -26), u0 = L * (1 - left), contact = clamp(Math.max(212, u0 + 6), 212, CBX - 106);
-  if (left < .55) a0 = 0;                                                                     // the short cross is carried flat, its crossbar ahead of the face
+  const flat = left < .55; if (flat) a0 = 0;                                                   // the short cross is carried flat (crossbar foreshortened), clear of the face
   a0 = Math.min(a0, Math.asin(clamp((F.gy - 8 - pc[1]) / Math.max(1, contact - u0), 0, 1)));   // the foot never goes through the road
   const a = F.f > 0 ? -a0 : Math.PI + a0, d = [Math.cos(a), Math.sin(a)];
-  return { x: pc[0] - d[0] * contact, y: pc[1] - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
+  return { x: pc[0] - d[0] * contact, y: pc[1] - d[1] * contact, a, contact, u0: L * (1 - left), lie: false, flat };
 }
 const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
 const upOn = (X, u, off = PW / 2) => { const n = [Math.sin(X.a), -Math.cos(X.a)], s = n[1] > 0 ? -1 : 1, p = cpt(X, u); return [p[0] + n[0] * s * off, p[1] + n[1] * s * off]; };
 const SAW_PAW = [50, -45];   // the saw paw: in front of the chest, just under the muzzle, above the post
 function gripCarry(F, X, sawHeld) { F.paws = [upOn(X, Math.max(X.u0 + 8, X.contact - 34), PW / 2 - 4), sawHeld ? worldPt(F, ...SAW_PAW) : upOn(X, X.contact + 14, PW / 2 - 4)];
-  F.nearLow = false; F.nearSh = null; return F; }
+  F.nearLow = false; F.nearSh = null; F.farBehind = true; F.farSh = [8, -54]; return F; }
 const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
 function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
 
@@ -403,7 +403,7 @@ function sawState(c, t) {
   return { kp, grip: [K[0] - d[0] * uK + up[0] * 12, K[1] - d[1] * uK + up[1] * 12], K };
 }
 function sawSpec(c, t) {
-  const st = sawState(c, t);
+  const st = sawState(c, t);   // (far arm behind the body)
   return { x: c.mx, gy: FY, k: KM, f: -1, lean: .46, crouch: .9, bob: 0, sq: 1, head: -.25, eye: 'strain', feet: [[-22, 0], [18, 0]], paws: [[c.cutX + 92, c.y - PW / 2 + 1], st.grip], pal: PAL.me, farBehind: true, tag: 'saw' };
 }
 const hangSaw = (F, sw = 0) => ({ grip: worldPt(F, ...SAW_PAW), ang: Math.PI / 2 - F.f * (.42 + sw) });
@@ -421,8 +421,14 @@ function poseMe(t) {
   };
   const sawHeld = t < CUTS[2].drop;
   const carried = (F, a0, lf, held) => { F.pal = PAL.me; F.tag = 'carry'; const X = carryX(F, lf, a0); gripCarry(F, X, held); return [F, X]; };
+  { const c2 = CUTS[1], c3 = CUTS[2];   // after the second piece drops I stay crouched and shuffle along the beam to the next cut (no pop up and down)
+    if (t >= c2.drop && t < c3.saw0) { const k = eio((tp - c2.drop - .05) / (c3.saw0 - c2.drop - .12)), A = sawSpec(c2, c2.drop - .01), Bs = sawSpec(c3, c3.saw0 - .01), F = mixSpec(A, Bs, k);
+      F.pal = PAL.me; F.farBehind = true; F.bob = 5 * Math.abs(Math.sin(Math.PI * 2 * k)); F.eye = 'open'; F.tag = 'shuffle';
+      const u0 = L * (1 - S.left[2]), XA = { x: c2.baseX, y: c2.y, a: 0, u0, lie: true }, XB = { x: c3.baseX, y: c3.y, a: 0, u0, lie: true };
+      return { F, X: mixX(XA, XB, k), saw: { grip: F.paws[1], ang: CUT_ANG } }; } }
   for (const c of CUTS) {
-    if (t >= c.s && t < c.up1) {
+    const w0 = c.k === 2 ? c.saw0 : c.s, w1 = c.k === 1 ? c.drop : c.up1;
+    if (t >= w0 && t < w1) {
       const lf0 = S.left[c.k], lf1 = S.left[c.k + 1], [W0, a0] = walk(c.s, c.mx), [W1, a1] = walk(c.up1, c.mx), last = c.k === 2;
       const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
@@ -456,8 +462,8 @@ function poseMe(t) {
   if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.pal = PAL.me; F.eye = 'shock'; if (tp > 20.5) { F.eye = 'down'; F.head = -.3; F.lean = .2; }
     return { F, X: null }; }
   const BACK = { ...standSpec(E - 168, FY, KM, -1, { lean: .04, eye: 'open', head: .05 }), pal: PAL.me }, FWD = { ...standSpec(E - 168, FY, KM, 1, { lean: .1, eye: 'open', head: .12 }), pal: PAL.me };
-  if (t < 22.6) { const F = mixSpec(REACH, BACK, eio((tp - B.back) / .3)); F.pal = PAL.me; F.eye = tp < B.back + .5 ? 'down' : 'open'; F.head = tp < B.back + .5 ? -.2 : .08; return { F, X: null }; }
-  const F = mixSpec(BACK, FWD, eio((tp - 22.6) / .3)); F.pal = PAL.me; F.eye = tp > 24.5 ? 'wet' : 'open'; F.head = -.05 - .1 * ss(23.0, 24.6, tp); F.lean = .1 + .06 * ss(24.4, 25.4, tp); return { F, X: null };
+  if (t < 22.6) { const kk = eio((tp - B.back) / .4), F = mixSpec(REACH, BACK, kk); F.pal = PAL.me; F.sq = 1 - .09 * Math.sin(Math.PI * kk); F.eye = tp < B.back + .5 ? 'down' : 'open'; F.head = tp < B.back + .5 ? -.2 : .08; return { F, X: null }; }
+  const kk = eio((tp - 22.6) / .4), F = mixSpec(BACK, FWD, kk); F.pal = PAL.me; F.sq = 1 - .09 * Math.sin(Math.PI * kk); F.eye = tp > 24.5 ? 'wet' : 'open'; F.head = -.05 - .1 * ss(23.0, 24.6, tp); F.lean = .1 + .06 * ss(24.4, 25.4, tp); return { F, X: null };
 }
 // my cross once my paws slip: it tips over the lip, then falls into the brook
 function fallX(t) {
@@ -699,7 +705,9 @@ function world(ctx, t) {
   { const p = new Path2D(), r0 = 134; p.moveTo(GX - r0, BY + 6); p.lineTo(GX - r0, GAY); p.arc(GX, GAY, r0, Math.PI, TAU); p.lineTo(GX + r0, BY + 6); p.closePath();
     const ig = ctx.createLinearGradient(0, GAY - r0, 0, BY); ig.addColorStop(0, '#fff6dc'); ig.addColorStop(1, '#ffe4a8'); ctx.fillStyle = ig; ctx.fill(p); }
   const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean);
+  ctx.save(); { const ap = new Path2D(), r0 = 136; ap.moveTo(GX - r0, BY + 8); ap.lineTo(GX - r0, GAY); ap.arc(GX, GAY, r0, Math.PI, TAU); ap.lineTo(GX + r0, BY + 8); ap.lineTo(GX + r0, BY + 60); ap.lineTo(GX - r0, BY + 60); ap.closePath(); ctx.clip(ap); }
   for (const P of pils) if (P.F && P.F.inGate) drawHam(ctx, P.F, P.X ? () => drawCross(ctx, P.X.lie ? TX.xLie : TX.xUp, P.X.u0, L, P.X.x, P.X.y, P.X.a, P.F.alpha) : null);
+  ctx.restore();
   drawSheet(ctx, TX.gate);
   ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .85 + .1 * Math.sin(t * 1.7); ctx.drawImage(FX.beam, GX - 900, BY - 1650, 1400, 1700); ctx.restore();
   ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,214,150,.16)'; ctx.beginPath(); ctx.moveTo(GX - 110, BY + 4); ctx.lineTo(GX + 110, BY + 4); ctx.lineTo(GX + 200, BY + 90); ctx.lineTo(GX - 220, BY + 90); ctx.fill(); ctx.restore();
@@ -730,7 +738,7 @@ function world(ctx, t) {
   // me and my cross (and the saw in my paw)
   const M = poseMe(t), F = M.F; F.pal = PAL.me;
   hamShadow(ctx, F);
-  const myCross = X => { if (X) drawCross(ctx, X.lie ? TX.gLie : TX.gUp, X.u0, L, X.x, X.y, X.a); };
+  const myCross = X => { if (X) drawCross(ctx, X.lie || X.flat ? TX.gLie : TX.gUp, X.u0, L, X.x, X.y, X.a); };
   drawHam(ctx, F, () => {
     if (M.X && M.X.lie && !M.lay) myCross(M.X);
     if (M.kerf) { ctx.fillStyle = 'rgba(90,55,25,.85)'; ctx.fillRect(M.c.cutX - 1.8, M.c.y - PW / 2, 3.6, M.kerf.kp * PW * .92 + .5); }
