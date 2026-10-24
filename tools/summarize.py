@@ -177,7 +177,7 @@ def main():
         if not meta.get("url") or meta.get("type", "sermon") not in ("sermon", "reference") or meta.get("material"):
             continue   # material: "<other folder>" = this film reuses that folder's material
         prompt = REF_PROMPT if ref else PROMPT.format(**meta)
-        config = {"temperature": 0.2, "max_output_tokens": 16384, "thinking_level": os.environ.get("THINKING", "low")}
+        config = {"temperature": 0.2, "max_output_tokens": 65536 if ref else 16384, "thinking_level": os.environ.get("THINKING", "low")}   # a 0.5 s timeline of a 1-min reference is long
         for m in [ok] + [x for x in MODELS if x != ok]:
             print(f"… {meta_path}: summarising with {m}")
             t0 = time.time()
