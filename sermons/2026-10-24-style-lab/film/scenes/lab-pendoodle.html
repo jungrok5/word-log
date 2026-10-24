@@ -317,7 +317,7 @@ function draw(ctx, t) {
   HD.clearWhite(g);
   g.drawImage(TX.post[f], 0, 0);
   for (const m of MARKS) drawMark(g, m, (Math.floor(q * 12 / 3) + m.ph) % 3, f);
-  rain(g, t, f);
+  { const cl = new Path2D(); cl.rect(0, 0, W, H); cl.rect(250, 318, 580, 250); g.save(); g.clip(cl, 'evenodd'); rain(g, t, f); g.restore(); }   // the hand left a gap round the words
   g.setTransform(...WM); PENK = .8;
   drawBird(g, t, f); lampTicks(g, t, f);
   g.setTransform(1, 0, 0, 1, 0, 0); PENK = 1;
