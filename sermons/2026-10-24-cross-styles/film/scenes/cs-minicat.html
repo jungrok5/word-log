@@ -482,6 +482,10 @@ function init() {
   RIFT = { body: pathOf(inkPts(Lp.concat(Rp.slice().reverse()), { smooth: false, step: 12 })), L: pathOf(inkPts(Lp, { closed: false, smooth: false, step: 12 }), false),
     R: pathOf(inkPts(Rp, { closed: false, smooth: false, step: 12 }), false) };
   const wall = []; for (let y = 1060; y <= 5200; y += 40) wall.push([E + G - 30 - (y > 1100 ? 0 : 0), y]);
+  { const cv = Pilot.canvas(G + 60, 700), g = cv.getContext('2d'), gr = g.createLinearGradient(30, 0, 30 + G, 0); gr.addColorStop(0, C.rift); gr.addColorStop(.45, C.rift2); gr.addColorStop(1, '#1d2b52');
+    g.fillStyle = gr; g.fillRect(0, 0, G + 60, 700); g.globalCompositeOperation = 'destination-in'; const va = g.createLinearGradient(0, 0, 0, 700);
+    va.addColorStop(0, 'rgba(0,0,0,0)'); va.addColorStop(.35, 'rgba(0,0,0,0)'); va.addColorStop(.75, 'rgba(0,0,0,.55)'); va.addColorStop(1, 'rgba(0,0,0,1)'); g.fillStyle = va; g.fillRect(0, 0, G + 60, 700);
+    RIFT.top = cv; const g2 = Pilot.canvas(1, 1).getContext('2d').createLinearGradient(E, 0, E + G, 0); g2.addColorStop(0, C.rift); g2.addColorStop(.45, C.rift2); g2.addColorStop(1, '#1d2b52'); RIFT.grad = g2; }
   RIFT.wall = pathOf(Rp.filter(p => p[1] >= 1060).concat(wall.reverse()));
   RIFT.hatch = []; for (let y = 1090; y < 2600; y += 46) RIFT.hatch.push([E + G - 22 + (rng(y)() - .5) * 6, y, 22 + rng(y + 1)() * 26]);
   RIFT.foam = []; for (const [x0, dir] of [[E, 1], [E + G, -1]]) for (let y = 1080; y < 2600; y += 64 + rng(y + x0)() * 30) RIFT.foam.push([x0 + dir * 4, y, dir]);
@@ -515,13 +519,10 @@ function ripples(ctx, t) {
     arc(ctx, cx, P.y + 6, R, R * .3, -.2 + i, 1.2 + i, 2.6); arc(ctx, cx, P.y + 6, R, R * .3, 2.1 + i, 3.3 + i, 2.6); ctx.restore(); } }
 }
 function drawRift(ctx, t) {
-  const gr = ctx.createLinearGradient(E, 0, E + G, 0); gr.addColorStop(0, C.rift); gr.addColorStop(.45, C.rift2); gr.addColorStop(1, '#1d2b52');
-  ctx.fillStyle = gr; ctx.fill(RIFT.body);
+  ctx.save(); ctx.clip(RIFT.body); ctx.fillStyle = RIFT.grad; ctx.fillRect(E - 30, 1076, G + 60, 6000);
+  ctx.drawImage(RIFT.top, E - 30, 380, G + 60, 700); ctx.restore();   // its far end fades into the water
   ctx.fillStyle = C.wall; ctx.fill(RIFT.wall);
   for (const [x, y, l] of RIFT.hatch) { ctx.strokeStyle = 'rgba(26,28,40,.75)'; ctx.lineWidth = 2 * LW; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 2, y + l); ctx.stroke(); }
-  // the far end fades into the water (the crack runs off into the distance) — inside the crack only
-  ctx.save(); ctx.clip(RIFT.body); const fg = ctx.createLinearGradient(0, 600, 0, 1080); fg.addColorStop(0, 'rgba(86,128,189,1)'); fg.addColorStop(.6, 'rgba(86,128,189,.5)'); fg.addColorStop(1, 'rgba(86,128,189,0)');
-  ctx.fillStyle = fg; ctx.fillRect(E - 40, 380, G + 80, 700); ctx.restore();
   const sg = ctx.createLinearGradient(0, 700, 0, 1060); sg.addColorStop(0, 'rgba(26,28,40,0)'); sg.addColorStop(1, 'rgba(26,28,40,1)');
   stroke(ctx, RIFT.L, { lw: 3.2, col: sg }); stroke(ctx, RIFT.R, { lw: 3.2, col: sg });
   // water spilling over both lips: short white arcs, sliding down slowly

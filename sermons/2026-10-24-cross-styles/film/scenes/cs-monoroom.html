@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>잘라 낸 건 다리였다 · 08 보라 단색</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gamja+Flower&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script>
+/* 잘라 낸 건 다리였다 — 08 one-hue print (from the style lab's lab-monoroom), moved OUTDOORS.
+   Everything is violet in four values (pale sky, mid, deep, near-black ink) plus the cream of the people; heavy mottled grain
+   over all of it; a firm black line that only breathes (a faint boil on twos). Texture does the work colour can't:
+   cross-hatching on the dark things, pinstriped trousers, the lab's wet tufty hair. The lab's storm — bent trees, torn
+   leaves, slanting rain — is no longer outside a window: it is the world. The procession walks a wet road under it.
+   The one colour is yellow (the lab's lamp): here it is MY CROSS, and later the pieces I sawed off, which flicker on like
+   that lamp when I look back. The door across the gap is lit by a lighter VALUE of the same violet (no second colour).
+   The hit is the storm's own: a lightning flash that bleaches the frame for two frames, a crash zoom and a shake.
+   Figures and camera pose on twos, like the lab; rain too. World units ≈ screen px at zoom 1. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng, noise } = Pilot;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const C = { sky: '#b3b7da', wall: '#8b8fc4', mid: '#6b71aa', deep: '#454a86', deep2: '#363a6e', ink: '#15172b', cream: '#f2eee4', cream2: '#e2ddd2',
+  yel: '#f1e27c', yelL: '#f8efaa', leaf: '#c7cae8', pale: '#dcdef2' };
+const t12 = t => Math.floor(t * 12 + 1e-6) / 12;
+const L = 480, PW = 34, CBX = L - 118, CBW = 32, CBH = 98, CBHL = 40;   // cross: post length/width, crossbar (from foot), thickness, half-length upright / lying
+const FY = 1300, BY = 1236, RT = 1180;                                  // my lane, the others' lane, the road's far edge
+const REST = 26, G = L - 2 * REST;                                      // a whole cross rests 26 on each lip: the gap is G wide
+const SME = .9, SPI = .8;
+const frac = x => x - Math.floor(x);
+const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
+
+// ---------------- hand line (lab: breathes, does not boil hard) ----------------
+let K = 0, LWK = 1, AMPK = 1, TS = 1;
+function wob(p, amp, k = K) {
+  const x = p[0], y = p[1], f = .02;
+  return [x + (noise(x * f + k * 7.31, y * f + .37) - .5) * 2 * amp + (noise(x * .06 + 40, y * .06) - .5) * 1.4 * AMPK,
+          y + (noise(x * f + 11.3, y * f + k * 5.17) - .5) * 2 * amp + (noise(x * .06, y * .06 + 90) - .5) * 1.4 * AMPK];
+}
+function chaikin(pts, closed, it = 2) {
+  for (let r = 0; r < it; r++) { const o = [], n = pts.length, m = closed ? n : n - 1; if (!closed) o.push(pts[0]);
+    for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); }
+    if (!closed) o.push(pts[n - 1]); pts = o; }
+  return pts;
+}
+function resample(pts, closed, step) {
+  const o = [], n = pts.length, m = closed ? n : n - 1;
+  for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n], d = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(d / step));
+    for (let j = 0; j < k; j++) o.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); }
+  if (!closed) o.push(pts[n - 1]); return o;
+}
+function pathOf(pts, closed = true, smooth = true) {
+  const p = new Path2D(), n = pts.length;
+  if (!smooth || n < 3) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n; i++) p.lineTo(pts[i][0], pts[i][1]); if (closed) p.closePath(); return p; }
+  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  if (closed) { const s = mid(pts[n - 1], pts[0]); p.moveTo(s[0], s[1]);
+    for (let i = 0; i < n; i++) { const m = mid(pts[i], pts[(i + 1) % n]); p.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } p.closePath(); }
+  else { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n - 1; i++) { const m = mid(pts[i], pts[i + 1]); p.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } p.lineTo(pts[n - 1][0], pts[n - 1][1]); }
+  return p;
+}
+// an inked shape: fill printed slightly off-register, optional dot tone, then the boiling black line
+const ell = (cx, cy, rx, ry, n = 20, rot = 0) => { const o = []; for (let i = 0; i < n; i++) { const a = i / n * TAU, x = Math.cos(a) * rx, y = Math.sin(a) * ry;
+  o.push([cx + x * Math.cos(rot) - y * Math.sin(rot), cy + x * Math.sin(rot) + y * Math.cos(rot)]); } return o; };
+const rot2 = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
+function tube(line, wd) {
+  const Lf = [], R = [];
+  for (let i = 0; i < line.length; i++) { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)];
+    let dx = b[0] - a[0], dy = b[1] - a[1]; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
+    Lf.push([line[i][0] - dy * wd[i], line[i][1] + dx * wd[i]]); R.push([line[i][0] + dy * wd[i], line[i][1] - dx * wd[i]]); }
+  return Lf.concat(R.reverse());
+}
+let MR = 1;
+// an inked shape (no misregistration in this style: the line sits on the fill), optional hatch, the breathing black line
+function ink(ctx, pts, o = {}) {
+  const closed = o.closed !== false, sm = o.smooth !== false && !o.raw && pts.length > 2;
+  const step = (o.step || 11) * clamp(LWK, .6, 1.6);
+  const base = o.raw ? pts : resample(sm ? chaikin(pts, closed, 2) : pts, closed, step);
+  const amp = (o.amp ?? 1.0) * AMPK;
+  const P = base.map(p => wob(p, amp)), path = pathOf(P, closed, sm);
+  if (o.fill) { ctx.fillStyle = o.fill; ctx.fill(path); }
+  if (o.tone) { ctx.fillStyle = o.tone; ctx.fill(path); }
+  if (o.lw !== 0) { const lw = (o.lw || 5.5) * LWK; ctx.strokeStyle = o.col || C.ink; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.lineWidth = lw * .88; ctx.stroke(path);
+    if ((o.lw || 5.5) > 3.5 && !o.single) { ctx.lineWidth = lw * .7; ctx.stroke(pathOf(base.map(p => wob(p, amp * .9, K + 50.5)), closed, sm)); } }
+  return path;
+}
+
+// ---------------- prebuilt: textures ----------------
+let GRAIN, GLOW, PALE, PAT = {};
+function hash2(x, y) { let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return ((h ^ h >>> 16) >>> 0) / 4294967296; }
+function pnoise(x, y, p) {
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), m = q => ((q % p) + p) % p;
+  const a = hash2(m(xi), m(yi)), b = hash2(m(xi + 1), m(yi)), c = hash2(m(xi), m(yi + 1)), d = hash2(m(xi + 1), m(yi + 1));
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function mkHatch(cell, col, lw, a) { const c = Pilot.canvas(cell, cell), x = c.getContext('2d'); x.strokeStyle = col; x.globalAlpha = a; x.lineWidth = lw;
+  x.beginPath(); x.moveTo(0, 0); x.lineTo(cell, cell); x.moveTo(cell, 0); x.lineTo(0, cell); x.moveTo(-cell / 2, cell / 2); x.lineTo(cell / 2, cell * 1.5); x.moveTo(cell / 2, -cell / 2); x.lineTo(cell * 1.5, cell / 2); x.stroke(); return c; }
+function mkDiag(cell, col, lw, a) { const c = Pilot.canvas(cell, cell), x = c.getContext('2d'); x.strokeStyle = col; x.globalAlpha = a; x.lineWidth = lw;
+  x.beginPath(); x.moveTo(-1, cell + 1); x.lineTo(cell + 1, -1); x.moveTo(-cell / 2, cell / 2); x.lineTo(cell / 2, -cell / 2); x.moveTo(cell / 2, cell * 1.5); x.lineTo(cell * 1.5, cell / 2); x.stroke(); return c; }
+function init() {
+  const c0 = Pilot.canvas(2, 2).getContext('2d');
+  const STRIPE = Pilot.canvas(13, 4); { const x = STRIPE.getContext('2d'); x.fillStyle = C.ink; x.fillRect(5, 0, 3.4, 4); }
+  PAT.hatch = c0.createPattern(mkHatch(14, C.ink, 2, .55), 'repeat'); PAT.hatch2 = c0.createPattern(mkHatch(12, C.ink, 1.8, .5), 'repeat');
+  PAT.diag = c0.createPattern(mkDiag(12, C.ink, 1.6, .45), 'repeat'); PAT.stripe = c0.createPattern(STRIPE, 'repeat');
+  GLOW = Pilot.canvas(256, 256); { const x = GLOW.getContext('2d'), g = x.createRadialGradient(128, 128, 0, 128, 128, 128);
+    g.addColorStop(0, 'rgba(246,236,140,1)'); g.addColorStop(.3, 'rgba(240,226,120,.75)'); g.addColorStop(.62, 'rgba(232,218,120,.2)'); g.addColorStop(1, 'rgba(230,215,120,0)'); x.fillStyle = g; x.fillRect(0, 0, 256, 256); }
+  PALE = Pilot.canvas(256, 256); { const x = PALE.getContext('2d'), g = x.createRadialGradient(128, 128, 0, 128, 128, 128);   // a lighter VALUE, same hue
+    g.addColorStop(0, 'rgba(226,228,248,.85)'); g.addColorStop(.4, 'rgba(196,200,236,.4)'); g.addColorStop(1, 'rgba(170,176,222,0)'); x.fillStyle = g; x.fillRect(0, 0, 256, 256); }
+  // heavy grain (clumpy + fine, violet-tinted), a seamless tile
+  const N = 512; GRAIN = Pilot.canvas(N, N); const g = GRAIN.getContext('2d'), gd = g.createImageData(N, N), r = rng(808);
+  const hn = N >> 1, hr = new Float32Array(hn * hn); for (let i = 0; i < hr.length; i++) hr[i] = r();
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = (y * N + x) * 4, v = .62 * hr[(y >> 1) * hn + (x >> 1)] + .38 * r() - .5;
+    if (v > 0) { gd.data[i] = 236; gd.data[i + 1] = 236; gd.data[i + 2] = 255; gd.data[i + 3] = Math.min(255, v * v * 4 * 150); }
+    else { gd.data[i] = 12; gd.data[i + 1] = 12; gd.data[i + 2] = 40; gd.data[i + 3] = Math.min(255, v * v * 4 * 170); } }
+  g.putImageData(gd, 0, 0); PAT.grain = c0.createPattern(GRAIN, 'repeat');
+  const mw = 128, M = Pilot.canvas(mw, mw), mx = M.getContext('2d'), md = mx.createImageData(mw, mw);
+  for (let y = 0; y < mw; y++) for (let x = 0; x < mw; x++) { const v = pnoise(x / 16, y / 16, 8) * .55 + pnoise(x / 8 + 3, y / 8, 16) * .3 + pnoise(x / 4, y / 4 + 5, 32) * .15, i = (y * mw + x) * 4, k = (v - .5) * 2.2;
+    md.data[i] = md.data[i + 1] = md.data[i + 2] = k > 0 ? 255 : 10; md.data[i + 3] = Math.min(255, Math.abs(k) * 44); }
+  mx.putImageData(md, 0, 0); PAT.mottle = c0.createPattern(M, 'repeat');
+  buildTimeline();
+  CACHE = [0, 1].map(() => ({ c: Pilot.canvas(W, H), t: -1 }));
+}
+const pat = (name, ox, oy) => { const p = PAT[name]; p.setTransform(new DOMMatrix().translate(Math.round(ox), Math.round(oy)).scale(TS)); return p; };
+const tone = (dense, ox, oy) => pat(dense ? 'hatch' : 'hatch2', ox, oy);
+const glow = (ctx, x, y, r, a, spr = GLOW) => { if (a <= 0) return; ctx.save(); ctx.globalAlpha *= a; ctx.drawImage(spr, x - r, y - r, r * 2, r * 2); ctx.restore(); };
+const line = (ctx, a, b, lw = 4) => ink(ctx, [a, b], { closed: false, lw, single: true });
+
+// ---------------- the kid (the lab's wet-haired kid in a hoodie and pinstriped trousers; facing either way; IK arms/legs) ----------------
+const FACE = [[-50, -18], [-54, 20], [-40, 50], [-8, 60], [28, 56], [48, 38], [56, 8], [62, -4], [56, -14], [50, -30], [30, -48], [0, -54], [-32, -46]];
+const HAIR = [[-56, 0], [-58, 30], [-44, 58], [-20, 72], [6, 70], [30, 64], [50, 48], [60, 22], [52, 18], [44, 30], [34, 18], [22, 30], [10, 16], [-6, 28], [-14, 12], [-30, 20], [-40, -6]];
+function drawHead(ctx, F, HF, s, me) {
+  ink(ctx, FACE.map(q => HF(q[0], q[1])), { fill: C.cream });
+  ink(ctx, HAIR.map(q => HF(q[0], q[1])), { fill: me ? C.cream : C.cream2 });
+  for (const [u0, v0, u1, v1] of [[-30, 52, -24, 34], [-8, 62, -6, 42], [14, 60, 12, 42], [34, 52, 30, 36]]) line(ctx, HF(u0, v0), HF(u1, v1), 3.6);
+  ctx.fillStyle = C.ink; for (const [u, v] of [[18, -18], [26, -22], [12, -24]]) { const q = HF(u, v); ctx.beginPath(); ctx.arc(q[0], q[1], 1.9 * s, 0, TAU); ctx.fill(); }
+  ink(ctx, [HF(-28, -2), HF(-38, -10), HF(-34, -26), HF(-24, -22)], { closed: false, lw: 4, single: true });
+  const e = HF(32, -6), eye = F.eye || 'dot';
+  if (eye === 'tired') ink(ctx, [HF(22, -4), HF(32, -10), HF(42, -6)], { closed: false, lw: 4, single: true });
+  else if (eye === 'happy') ink(ctx, [HF(22, -10), HF(32, -1), HF(42, -9)], { closed: false, lw: 4, single: true });
+  else if (eye === 'down') ink(ctx, [HF(24, -12), HF(32, -14), HF(41, -12)], { closed: false, lw: 4, single: true });
+  else { const r = (eye === 'shock' ? 8 : 5.6) * s * 1.18; ctx.fillStyle = C.ink; ctx.beginPath(); ctx.ellipse(e[0], e[1], r, r * 1.15, 0, 0, TAU); ctx.fill();
+    if (eye === 'glint' || eye === 'shock') { ctx.fillStyle = eye === 'glint' ? C.yel : C.cream; ctx.beginPath(); ctx.arc(e[0] + F.f * r * .3, e[1] - r * .4, r * .34, 0, TAU); ctx.fill(); } }
+  if (eye === 'shock' || eye === 'worry') ink(ctx, [HF(20, 10), HF(32, 14), HF(42, 8)], { closed: false, lw: 3.6, single: true });
+  const mo = F.mouth || 'flat';
+  if (mo === 'smile') ink(ctx, [HF(38, -32), HF(45, -37), HF(51, -30)], { closed: false, lw: 3.6, single: true });
+  else if (mo === 'o') ink(ctx, ell(...HF(44, -33), 4.5 * s * 1.18, 5.5 * s * 1.18, 10), { fill: C.ink, lw: 3, single: true });
+  else if (mo === 'wavy') ink(ctx, [HF(36, -34), HF(41, -31), HF(46, -35), HF(51, -31)], { closed: false, lw: 3.4, single: true, smooth: false });
+  else if (mo === 'sad') ink(ctx, [HF(38, -35), HF(45, -31), HF(51, -35)], { closed: false, lw: 3.6, single: true });
+  else ink(ctx, [HF(38, -34), HF(50, -32)], { closed: false, lw: 3.6, single: true });
+}
+function drawLeg(ctx, F, i, P) {
+  const s = F.s, f = F.f, hp = P(i ? 8 : -6, -2), foot = F.feet[i], ank = [foot[0], foot[1] - 14 * s];
+  const kneePick = (a, b) => f * a[0] > f * b[0] ? a : b;
+  const kn = ik(hp, ank, LEG1 * s, LEG2 * s, kneePick)[0];
+  const top = P(i ? 8 : -6, 16), m1 = lerp2(hp, kn, .5), m2 = lerp2(kn, ank, .5);
+  ink(ctx, tube([top, m1, kn, m2, ank], [36, 36, 33, 31, 30].map(w => w * s)), { fill: i ? C.cream : C.cream2, tone: pat('stripe', hp[0], 0) });
+  const lift = Math.max(0, F.gy - foot[1]), toe = lift > 4 * s ? .25 : 0;
+  const sh = [[-24, -12], [8, -14], [30, -8], [40, 2], [30, 8], [-24, 8]].map(p => { const q = rot2(p, -toe); return [foot[0] + f * (q[0] + 6) * s, foot[1] + (q[1] - 6) * s]; });
+  ink(ctx, sh, { fill: i ? C.cream : C.cream2, lw: 5 });
+  const a = rot2([-18, -2], -toe), b = rot2([40, -2], -toe);
+  line(ctx, [foot[0] + f * a[0] * s, foot[1] + a[1] * s], [foot[0] + f * b[0] * s, foot[1] + b[1] * s], 3.2);
+}
+function drawKid(ctx, F, back, mid) {
+  const al = F.alpha ?? 1; if (al <= 0) return;
+  ctx.save(); ctx.globalAlpha *= al;
+  const s = F.s, f = F.f, me = !!F.me, { P } = frame(F);
+  const body = me ? C.cream : C.mid, bodyT = me ? null : tone(false, F.hip[0], F.hip[1]);
+  ctx.save(); ctx.globalAlpha *= .45; ink(ctx, ell(F.hip[0], F.gy + 6 * s, 96 * s, 11 * s, 16), { fill: C.ink, lw: 0 }); ctx.restore();
+  const AF = armGeo(F, P(SHF[0], SHF[1]), F.hands[0], true), AN = armGeo(F, P(SHN[0], SHN[1]), F.hands[1], false);
+  const hand = F.hand || ['grip', 'grip'];
+  sleeve(ctx, AF, s, me ? C.cream2 : C.deep, me ? null : bodyT); if (!F.farOver) mitten(ctx, AF, s, hand[0], f);
+  if (back) back();
+  drawLeg(ctx, F, 0, P); drawLeg(ctx, F, 1, P);
+  // hoodie with a ribbed hem and a kangaroo pocket
+  ink(ctx, [[-50, -20], [-58, 36], [-56, 92], [-44, 126], [-14, 142], [22, 140], [46, 122], [58, 90], [64, 46], [64, 6], [54, -24], [0, -28]].map(q => P(q[0], q[1])), { fill: body, tone: bodyT });
+  line(ctx, P(-40, -12), P(52, -14), 4);
+  ink(ctx, [P(-4, 8), P(44, 6), P(50, 40), P(2, 44)], { closed: false, lw: 3.6, single: true });
+  const { HF } = headFrame(F);
+  ink(ctx, [P(2, 124), P(26, 124), P(28, 150), P(2, 152)], { fill: C.cream, lw: 4.5 });
+  // the hood lying flat on the back (round, never pointed)
+  ink(ctx, [P(-46, 118), P(-58, 150), P(-30, 162), P(-4, 150), P(-8, 128)], { fill: body, tone: bodyT, lw: 4.5 });
+  drawHead(ctx, F, HF, s, me);
+  if (mid) mid();
+  if (F.farOver) mitten(ctx, AF, s, hand[0], f);
+  if (F.saw) drawSaw(ctx, F.saw.grip, F.saw.ang);
+  sleeve(ctx, AN, s, me ? C.cream : C.mid, me ? null : bodyT); mitten(ctx, AN, s, hand[1], f);
+  ctx.restore();
+}
+
+// ---------------- crosses ----------------
+function drawCross(ctx, X, u0, u1, mine, alpha = 1) {
+  if (!X || u1 - u0 < .5 || alpha <= 0) return;
+  const hb = X.lie ? CBHL : CBH, pts = crossPoly(u0, u1, hb).map(([u, v]) => cpt(X, u, v));
+  ctx.save(); ctx.globalAlpha *= alpha;
+  ink(ctx, pts, { fill: mine ? C.yel : C.cream2, tone: mine ? null : pat('diag', X.x, X.y), smooth: false, lw: 5.2, step: 12 });
+  const g0 = Math.max(u0 + 18, 30), g1 = Math.min(u1 - 18, CBX - 30);
+  if (g1 - g0 > 30) ink(ctx, [cpt(X, g0, -4), cpt(X, lerp(g0, g1, .55), -2)], { closed: false, lw: 3.2, single: true });
+  if (u1 > CBX + 40 && u0 < CBX + 30) ink(ctx, [cpt(X, CBX + 34, 5), cpt(X, Math.min(u1 - 14, CBX + 92), 6)], { closed: false, lw: 3.2, single: true });
+  if (mine) { ctx.save(); ctx.globalAlpha *= .85; ctx.strokeStyle = C.yelL; ctx.lineWidth = 4 * LWK; ctx.lineCap = 'round'; const a = cpt(X, u0 + 10, -PW / 2 + 7), b = cpt(X, u1 - 10, -PW / 2 + 7);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.restore(); }
+  ctx.restore();
+}
+function drawSaw(ctx, grip, ang) {
+  const { d, up, heel } = sawGeo(grip, ang), P = (u, v) => [heel[0] + d[0] * u + up[0] * v, heel[1] + d[1] * u + up[1] * v];
+  ink(ctx, [P(0, 28), P(140, 16), P(146, 9), P(142, 0), P(0, 0)], { fill: C.pale, smooth: false, lw: 4.8, step: 10 });
+  const tz = []; for (let u = 4; u <= 138; u += 8) tz.push(P(u, (u / 8 | 0) % 2 ? 3.5 : -3.5));
+  ink(ctx, tz, { closed: false, lw: 3, smooth: false, single: true, step: 6 });
+  ink(ctx, ell(...P(124, 13), 4.5, 4.5, 8), { fill: C.wall, lw: 3, single: true });
+  ink(ctx, [P(2, 34), P(-34, 48), P(-52, 22), P(-40, -6), P(2, -2)], { fill: C.deep2, tone: pat('hatch', heel[0], heel[1]), lw: 5, step: 8 });
+  ink(ctx, [P(-12, 29), P(-32, 36), P(-41, 21), P(-32, 8), P(-12, 11)], { fill: C.wall, lw: 3, single: true });
+}
+// ---------------- the kid (lab figure, generalised: facing either way, IK arms and legs) ----------------
+// spec F: { s, f (+1 faces right), gy, hip:[x,y], ang (world lean, + leans toward +x), feet:[far, near], hands:[far, near] (targets or null),
+//          hand:[type far, type near] ('grip' | 'flat' | 'open' | 'hang'), tilt (head nod, + = down), eye, mouth, me, alpha, saw:{grip, ang} }
+function ik(a, t, l1, l2, pick) {
+  let dx = t[0] - a[0], dy = t[1] - a[1], d = Math.hypot(dx, dy) || 1e-6; const dd = clamp(d, Math.abs(l1 - l2) + .5, l1 + l2 - .5);
+  const tx = a[0] + dx / d * dd, ty = a[1] + dy / d * dd, an = Math.atan2(ty - a[1], tx - a[0]), b = Math.acos(clamp((l1 * l1 + dd * dd - l2 * l2) / (2 * l1 * dd), -1, 1));
+  const j1 = [a[0] + Math.cos(an + b) * l1, a[1] + Math.sin(an + b) * l1], j2 = [a[0] + Math.cos(an - b) * l1, a[1] + Math.sin(an - b) * l1];
+  return [pick(j1, j2), [tx, ty]];
+}
+function frame(F) {
+  const up = [Math.sin(F.ang), -Math.cos(F.ang)], fw = [F.f * Math.cos(F.ang), F.f * Math.sin(F.ang)], s = F.s;
+  return { up, fw, P: (a, b) => [F.hip[0] + fw[0] * a * s + up[0] * b * s, F.hip[1] + fw[1] * a * s + up[1] * b * s] };
+}
+const SHN = [0, 114], SHF = [-8, 110], ARM1 = 64, ARM2 = 60, LEG1 = 86, LEG2 = 84, HIPH = 158;
+const shoulderOf = F => frame(F).P(SHN[0], SHN[1]);
+function headFrame(F) {
+  const { P } = frame(F), ha = F.ang * .5 + F.f * (F.tilt || 0), hu = [Math.sin(ha), -Math.cos(ha)], hf = [F.f * Math.cos(ha), F.f * Math.sin(ha)];
+  const nk = P(14, 136), s = F.s, hc = [nk[0] + (hu[0] * 62 + hf[0] * 8) * s, nk[1] + (hu[1] * 62 + hf[1] * 8) * s], HS = 1.18 * s;
+  return { hc, HF: (u, v) => [hc[0] + HS * (u * hf[0] + v * hu[0]), hc[1] + HS * (u * hf[1] + v * hu[1])] };
+}
+function armGeo(F, S0, T, far) {
+  const s = F.s, f = F.f; if (!T) T = [S0[0] + f * (far ? -4 : 6) * s, S0[1] + 116 * s];
+  const elbowPick = (a, b) => (a[1] - f * a[0] * .35) > (b[1] - f * b[0] * .35) ? a : b;
+  const [el, hd] = ik(S0, T, ARM1 * s, ARM2 * s, elbowPick);
+  return { S0, el, hd };
+}
+function sleeve(ctx, A, s, fill, tn) {
+  const wr = lerp2(A.el, A.hd, .8);
+  ink(ctx, tube([A.S0, A.el, lerp2(A.el, A.hd, .45), wr], [24 * s, 21 * s, 19 * s, 17 * s]), { fill, tone: tn });
+}
+function mitten(ctx, A, s, type, f) {
+  const d0 = [A.hd[0] - A.el[0], A.hd[1] - A.el[1]], dl = Math.hypot(d0[0], d0[1]) || 1, d = [d0[0] / dl, d0[1] / dl];
+  let pr = [-d[1], d[0]]; if (pr[1] > 0) pr = [-pr[0], -pr[1]];   // the side facing up
+  let an = Math.atan2(d[1], d[0]);
+  if (type === 'flat') { an = f > 0 ? 0 : Math.PI; const c = A.hd;
+    ink(ctx, ell(c[0], c[1], 21 * s, 11 * s, 16, 0), { fill: C.cream, lw: 5.5 });
+    ink(ctx, ell(c[0] - f * 10 * s, c[1] - 8 * s, 6 * s, 8 * s, 10, -f * .5), { fill: C.cream, lw: 4.5, single: true }); return; }
+  const c = [A.hd[0] + d[0] * 5 * s, A.hd[1] + d[1] * 5 * s];
+  ink(ctx, ell(c[0], c[1], 17 * s, 14 * s, 16, an), { fill: C.cream, lw: 5.5 });
+  const th = type === 'open' ? 16 : 11;
+  ink(ctx, ell(c[0] + pr[0] * th * s - d[0] * 3 * s, c[1] + pr[1] * th * s - d[1] * 3 * s, 6.5 * s, 8.5 * s, 10, an + .6), { fill: C.cream, lw: 4.5, single: true });
+  if (type === 'grip') ink(ctx, [[c[0] + d[0] * 6 * s - pr[0] * 9 * s, c[1] + d[1] * 6 * s - pr[1] * 9 * s], [c[0] + d[0] * 9 * s + pr[0] * 4 * s, c[1] + d[1] * 9 * s + pr[1] * 4 * s]], { closed: false, lw: 3.6, single: true });
+}
+function crossPoly(u0, u1, hb) {
+  const a = PW / 2, c0 = CBX - CBW / 2, c1 = CBX + CBW / 2, bar = u0 < c0 && u1 > c1, pts = [[u0, -a]];
+  if (bar) pts.push([c0, -a], [c0, -hb], [c1, -hb], [c1, -a]);
+  pts.push([u1, -a], [u1, a]);
+  if (bar) pts.push([c1, a], [c1, hb], [c0, hb], [c0, a]);
+  pts.push([u0, a]); return pts;
+}
+const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
+const CUT_ANG = Math.PI - .78, hangAng = f => Math.atan2(.95, .3 * f);
+function sawGeo(grip, ang) { const d = [Math.cos(ang), Math.sin(ang)]; let up = [-d[1], d[0]]; if (up[1] > 0 || (up[1] === 0 && up[0] > 0)) up = [-up[0], -up[1]];
+  return { d, up, heel: [grip[0] - up[0] * 14 + d[0] * 20, grip[1] - up[1] * 14 + d[1] * 20] }; }
+function sawState(c, t) {   // the stroke: the teeth pass through the kerf, the blade moves along its own length
+  const kp = clamp((t - c.saw0) / (c.drop - .06 - c.saw0)), saw = t >= c.saw0 - .05 && t < c.drop + .02;
+  const osc = saw ? 22 * Math.sin(TAU * 3.4 * (t - c.saw0)) : 0, d = [Math.cos(CUT_ANG), Math.sin(CUT_ANG)];
+  let up = [-d[1], d[0]]; if (up[1] > 0) up = [-up[0], -up[1]];
+  const Kp = [c.cutX, c.y - PW / 2 + kp * PW * .92], heel = [Kp[0] - d[0] * (66 - osc), Kp[1] - d[1] * (66 - osc)];
+  return { kp, grip: [heel[0] + up[0] * 14 - d[0] * 20, heel[1] + up[1] * 14 - d[1] * 20], K: Kp };
+}
+
+// ---------------- timeline: my path (integrated once), the cuts ----------------
+const DT = 1 / 240, NT = Math.ceil((S.DUR + 1) / DT) + 2, MEX = new Float32Array(NT), MEP = new Float32Array(NT);
+function vMe(t) {
+  if (t < 3.2) return 44 * (1 + .6 * Math.sin(t * TAU / 1.15 - 1));        // staggering
+  if (t < 4.6) return 0;
+  if (t < 5.0) return 380 * eio((t - 4.6) / .4);                            // lighter: big quick strides
+  if (t < 8.3) return 380;
+  if (t < 8.6) return lerp(380, 150, (t - 8.3) / .3);
+  if (t < 9.0) return 150 * (1 - ss(8.6, 9.0, t));
+  if (t < 10.0) return 0;
+  if (t < 10.4) return 450 * Math.sin(Math.PI * (t - 10) / .4);
+  if (t < 11.35) return 0;
+  if (t < 12.0) return 640 * Math.sin(Math.PI * (t - 11.35) / .65);
+  return 0;
+}
+const strideMe = t => t < 4.6 ? 104 : t < 8.8 ? 250 : 160;
+const tab = (T, t) => { const i = clamp(t / DT, 0, NT - 2), i0 = Math.floor(i); return lerp(T[i0], T[i0 + 1], i - i0); };
+const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
+const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .2, saw0: 9.2, drop: 9.8, up1: 10.0 }, { s: 10.4, d: .15, saw0: 10.55, drop: 11.2, up1: 11.35 }];
+const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
+const FILL = [[22.95, 24.3], [22.6, 23.7], [22.2, 23.25]];   // nearest piece first; the first one cut comes from far down the road
+const FLECKS = [];
+let E = 2000, GX = 0, SAWLIE = null, CACHE = null;
+function buildTimeline() {
+  let x = 0, p = 0;
+  for (let i = 0; i < NT; i++) { const t = i * DT; MEX[i] = x; MEP[i] = p; const v = vMe(t); x += v * DT; p += v / strideMe(t) * DT; }
+  E = meX(12) + 52; GX = E + G + 250;
+  CUTS.forEach((c, k) => {
+    c.k = k; c.mx = meX(c.s); c.cutX = c.mx - 150; c.u0 = L * (1 - S.left[k]); c.u1 = L * (1 - S.left[k + 1]); c.baseX = c.cutX - c.u1; c.y = FY + 30;
+    const r = rng(100 + k);
+    for (let n = 0; n < 16; n++) FLECKS.push({ t0: n < 11 ? lerp(c.saw0, c.drop, n / 11) : c.drop + r() * .05, x: c.cutX + (r() - .5) * 8, y: c.y - PW / 2,
+      vx: (r() - .5) * (n < 11 ? 180 : 320), vy: -(80 + r() * (n < 11 ? 160 : 260)), land: FY + 24 + r() * 40, r0: r() * TAU, vr: (r() - .5) * 20, sz: 4 + r() * 4, col: C.yel });
+  });
+  const c3 = CUTS[2]; SAWLIE = { grip: [c3.cutX + 190, FY + 58], ang: Math.PI + .05 };
+  const r = rng(200);
+  for (let n = 0; n < 14; n++) FLECKS.push({ t0: B.fall + r() * .1, x: E + 6 + r() * 30, y: FY + 30, vx: (r() - .2) * 260, vy: -(60 + r() * 220), land: 2700, r0: r() * TAU, vr: (r() - .5) * 24, sz: 4 + r() * 6, col: n % 3 ? C.yel : C.cream });
+}
+function pieceAt(c, t) {   // a cut piece lying where it fell, or flying into the gap at the end
+  const sh = 22 * eo((t - c.drop) / .25), cu = (c.u0 + c.u1) / 2;
+  let cx = c.baseX + cu - sh, cy = c.y + 4 * eo((t - c.drop) / .2), a = -.05 * eo((t - c.drop) / .25), fly = 0;
+  const [f0, f1] = FILL[c.k];
+  if (t > f0) { const u = clamp((t - f0) / (f1 - f0)), e = eio(u), tx = E - REST + cu, ty = FY + 34;
+    cx = lerp(cx, tx, e); cy = lerp(cy, ty, e) - (c.k ? 200 : 300) * Math.sin(Math.PI * u); a = lerp(a, 0, e) + Math.sin(u * Math.PI * 3) * .5 * (1 - u); fly = u; }
+  return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, lie: true, cx, cy, fly };
+}
+
+// ---------------- poses ----------------
+function walkSpec(x, gy, s, f, ph, stride, lean, lift = 22) {
+  const feet = [0, 1].map(i => { const p = frac(ph + i * .5); let off, up = 0;
+    if (p < .58) off = stride * (.29 - p); else { const u = (p - .58) / .42; off = -.29 * stride + .58 * stride * eio(u); up = lift * Math.sin(Math.PI * u); }
+    return [x + f * off * s, gy - up * s]; });
+  const hipH = (HIPH - 7 * Math.abs(Math.sin(TAU * ph))) * s;
+  return { s, f, gy, hip: [x, gy - hipH], ang: f * lean, feet, hands: [null, null], hand: ['grip', 'grip'], tilt: 0, eye: 'dot', ph };
+}
+function standSpec(x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - (HIPH - 2) * s], ang: f * lean, feet: [[x - f * 16 * s, gy], [x + f * 20 * s, gy]], hands: [null, null], hand: ['hang', 'hang'], tilt: 0, eye: 'dot' }; }
+function hangHands(F, swing = 0) { const fr = frame(F), sF = fr.P(SHF[0], SHF[1]), sN = fr.P(SHN[0], SHN[1]); return [[sF[0] - F.f * (6 + swing) * F.s, sF[1] + 116 * F.s], [sN[0] + F.f * (4 - swing) * F.s, sN[1] + 116 * F.s]]; }
+function mixSpec(A, Bs, k) {
+  if (k <= 0) return A; if (k >= 1) return Bs;
+  const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = hangHands(A), hB = hangHands(Bs), pick = k < .5 ? A : Bs;
+  return { ...pick, s: lerp(A.s, Bs.s, k), gy: lerp(A.gy, Bs.gy, k), hip: l2(A.hip, Bs.hip), ang: lerp(A.ang, Bs.ang, k), feet: [l2(A.feet[0], Bs.feet[0]), l2(A.feet[1], Bs.feet[1])],
+    hands: [0, 1].map(i => l2(A.hands[i] || hA[i], Bs.hands[i] || hB[i])), hand: (pick.hand || ['grip', 'grip']).slice(), tilt: lerp(A.tilt || 0, Bs.tilt || 0, k),
+    knees: null, toes: null };
+}
+// the cross on the FAR shoulder (the head hides it where they overlap): {x, y, a} = foot origin and angle
+function carryCross(F, left, a0) {
+  const fr = frame(F), sh = fr.P(SHF[0], SHF[1] + 4), T = [sh[0] + fr.up[0] * 10 * F.s, sh[1] + fr.up[1] * 10 * F.s];
+  const a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
+  const contact = L - Math.min(250, left * L - 36);
+  return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
+}
+function gripCarry(F, X) { F.hands = [cpt(X, Math.min(L - 16, X.contact + 60)), cpt(X, X.contact + 2, PW * .55)]; F.hand = ['grip', 'grip']; return F; }   // near mitten holds the beam at the shoulder
+const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
+function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
+const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (14 + sw) * F.s, sh[1] + 112 * F.s]; };
+
+// sawing: I face back (−x) toward the foot, squat over the lying cross; far mitten pins it beside the cut, near hand saws
+function sawSpec(c, t) {
+  const f = -1, s = SME, st = sawState(c, t), lean = 1.12, ang = f * lean;
+  const F0 = { s, f, ang, hip: [0, 0] }, fr = frame(F0), so = fr.P(SHN[0], SHN[1]);   // shoulder offset from the hip
+  const shT = [c.cutX + 116, FY - 94], hip = [shT[0] - so[0], shT[1] - so[1]];
+  return { s, f, gy: FY, hip, ang, feet: [[hip[0] - 28 * s, FY], [hip[0] + 42 * s, FY]], hands: [[c.cutX + 104, c.y - PW / 2 - 4], st.grip],
+    hand: ['flat', 'grip'], tilt: .32, eye: 'dot', mouth: 'flat', farOver: true, me: true };
+}
+
+function poseMe(t) {
+  const tp = Math.max(0, t12(t)), left = leftAt(tp);
+  const walk = (tt, xx) => {
+    const x = xx ?? meX(tt), ph = meP(tt);
+    if (tt < 3.2) { const F = walkSpec(x, FY, SME, 1, ph, 104, .34 + .08 * Math.sin(tt * TAU / 1.15), 14); F.eye = 'tired'; F.mouth = 'wavy'; F.tilt = .26;
+      F.hip[1] += 6 * Math.max(0, Math.sin(tt * TAU / 1.15 + 2)); F.wind = .15; return [F, -.36 + .05 * Math.sin(tt * TAU / 1.15 + .6)]; }
+    if (tt < 8.8) { const k = ss(4.6, 5.2, tt), F = walkSpec(x, FY, SME, 1, ph, lerp(104, 250, k), lerp(.34, .2, k), lerp(14, 60, k));
+      F.eye = k > .5 ? 'happy' : 'tired'; F.mouth = k > .5 ? 'smile' : 'flat'; F.tilt = lerp(.26, -.05, k); F.wind = lerp(.15, 1, k); return [F, -.4]; }
+    const F = walkSpec(x, FY, SME, 1, ph, 160, .14, 30); F.eye = 'dot'; F.mouth = 'smile'; F.wind = .6; return [F, -.4];
+  };
+  const sawHeld = tp < CUTS[2].drop;
+  const carried = (F, a0, lf, held) => { const X = carryCross(F, lf, a0); gripCarry(F, X);
+    if (held) { F.hands[0] = cpt(X, Math.min(L - 14, X.contact + 50)); F.hands[1] = hangGrip(F, F.ph != null ? 14 * Math.sin(TAU * F.ph) : 0); F.hand = ['grip', 'grip']; }
+    F.me = true; return [F, X]; };
+  for (const c of CUTS) {
+    if (tp >= c.s && tp < c.up1) {
+      const lf0 = S.left[c.k], lf1 = S.left[c.k + 1], [W0, a0] = walk(c.s, c.mx), [W1, a1] = walk(c.up1, c.mx), last = c.k === 2;
+      const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
+      const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
+      if (tp < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k); F.me = true; F.farOver = k > .5;
+        F.hands = [lerp2(WA.hands[0], SP.hands[0], k), lerp2(WA.hands[1], cg, k)]; F.hand = k > .6 ? ['flat', 'grip'] : ['grip', 'grip'];
+        F.eye = 'dot'; return { F, X: mixX(XA, XL, k), c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
+      if (tp < c.drop) { const st = sawState(c, tp); return { F: SP, X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
+      const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k); F.me = true; F.farOver = k < .5;
+      F.hands = [lerp2(SP.hands[0], WB.hands[0], k), lerp2(cg, WB.hands[1], k)]; F.hand = k < .4 ? ['flat', 'grip'] : ['grip', 'grip'];
+      return { F, X: mixX(XL, XB, k), c, saw: last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), k) } };
+    }
+  }
+  if (tp < 12) { const [F, a] = walk(tp); const [G2, X] = carried(F, a, left, sawHeld); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
+  // at the edge: stop (shock), step back to make room for the others, come back
+  if (tp < 18.4) { const [F0] = walk(12, E - 52), k = eio((tp - 12) / .3);
+    const bx = -170 * eio((tp - 12.9) / .7) + 170 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
+    const st = standSpec(E - 52 + bx, FY, SME, 1, .08), STx = mv > 0 ? mixSpec(st, walkSpec(E - 52 + bx, FY, SME, 1, (E + bx) / 140, 140, .1, 24), mv) : st;
+    const F = mixSpec(F0, STx, k); F.ang += -.12 * Math.sin(Math.PI * clamp((tp - 12) / .5));
+    F.eye = tp < 13.4 ? 'shock' : 'dot'; F.mouth = tp < 13.4 ? 'o' : 'flat'; F.tilt = tp < 13.4 ? -.1 : .05; F.wind = .3;
+    const [G2, X] = carried(F, -.4, left, false); return { F: G2, X, shock: tp < 13.4 }; }
+  // my turn: lay it across — it hangs short off the near lip; I press the near end down
+  const XLay = { x: E - REST - L * (1 - left), y: FY + 34, a: 0, u0: L * (1 - left), lie: true };
+  // squatting at the lip, both mittens pressing the near end down (the body placed from where the hands must be)
+  const layHip = (() => { const F0 = { s: SME, f: 1, ang: 1.0, hip: [0, 0] }, so = frame(F0).P(SHN[0], SHN[1]); return [E - 34 - so[0], FY - 84 - so[1]]; })();
+  const LAY = { ...standSpec(E - 70, FY, SME, 1), hip: layHip, ang: 1.0, feet: [[layHip[0] + 34, FY], [layHip[0] - 30, FY]], tilt: .25, me: true, eye: 'worry', mouth: 'wavy' };
+  LAY.hands = [cpt(XLay, L * (1 - left) + 4, -PW / 2 - 6), cpt(XLay, L * (1 - left) + 40, -PW / 2 - 6)]; LAY.hand = ['flat', 'flat'];
+  const REACH = { ...LAY, hip: [layHip[0] + 6, FY - 120 * SME], ang: .55, feet: [[layHip[0] + 40, FY], [layHip[0] - 34, FY]], hands: [[E - 130, FY - 70], [E + 50, FY - 40]], hand: ['grip', 'open'], eye: 'shock', mouth: 'o', tilt: .4 };
+  if (tp < B.tip) { if (tp < 18.9) { const ST = { ...standSpec(E - 52, FY, SME, 1, .08), me: true }, STc = carried(ST, -.4, left, false), k = eio((tp - 18.4) / .45);
+      const F = mixSpec(STc[0], LAY, k); F.me = true; F.hand = k > .5 ? ['flat', 'flat'] : ['grip', 'grip']; F.eye = 'dot'; return { F, X: mixX(STc[1], XLay, k), lay: true }; }
+    return { F: LAY, X: XLay, lay: true }; }
+  if (tp < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.me = true; F.hand = REACH.hand; F.eye = tp > 20.5 ? 'down' : 'shock'; F.mouth = tp > 20.5 ? 'sad' : 'o'; return { F, X: null }; }
+  // I turn round and take a step back toward the pieces; then turn to watch them fill the gap
+  const BACK = { ...standSpec(E - 180, FY, SME, -1, .04), tilt: .02, eye: 'glint', mouth: 'o', me: true }, FWD = { ...standSpec(E - 120, FY, SME, 1, .08), tilt: .22, eye: 'glint', mouth: 'flat', me: true };
+  const step = (x0, x1, a, b, f) => { const k = eio((tp - a) / (b - a)), x = lerp(x0, x1, k), W0 = walkSpec(x, FY, SME, f, Math.abs(x - x0) / 120, 120, .08, 22); return [W0, Pilot.win(tp, a, b, .08, .12)]; };
+  if (tp < 23.0) { const T0 = mixSpec(REACH, { ...standSpec(E - 90, FY, SME, -1, .04), eye: 'glint', mouth: 'o', me: true }, eio((tp - B.back) / .3));
+    const [Wk, w] = step(E - 90, E - 180, B.back + .25, B.back + .85, -1), base = tp < B.back + .55 ? T0 : BACK, F = mixSpec(base, Wk, w);
+    F.me = true; F.eye = 'glint'; F.mouth = 'o'; F.f = -1; if (tp > B.back + .85) return { F: BACK, X: null, look: true }; if (tp < B.back + .25) return { F: T0, X: null }; return { F, X: null, look: true }; }
+  const [Wk, w] = step(E - 180, E - 120, 23.05, 23.6, 1), F = mixSpec(mixSpec(BACK, FWD, eio((tp - 23.0) / .3)), Wk, w * .9); F.me = true; F.f = tp < 23.15 ? -1 : 1;
+  F.eye = 'glint'; F.mouth = tp > 24.3 ? 'smile' : 'flat'; return { F, X: null };
+}
+// my cross once my hands slip: it tips over the lip, then falls into the dark
+function fallX(t) {
+  if (t < B.tip) return null;
+  const left = S.left[3], u0 = L * (1 - left), pv = [E, FY + 34 + PW / 2];
+  const X0 = { x: E - REST - u0, y: FY + 34, a: 0, u0, lie: true };
+  if (t < B.fall) return rotAbout(X0, pv, .5 * Math.pow((t - B.tip) / (B.fall - B.tip), 2));
+  const X1 = rotAbout(X0, pv, .5), u = t - B.fall, cu = (u0 + L) / 2, c0 = cpt(X1, cu);
+  const cx = c0[0] + 90 * u, cy = c0[1] + 160 * u + 1500 * u * u, a = X1.a + 2.6 * u + 1.2 * u * u;
+  return { ...X1, x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a, alpha: 1 - ss(B.fall + .6, B.fall + 1.1, t), clip: true };
+}
+
+// ---------------- the others: lay it across → walk over → pull it back from the far side → shoulder it → into the light ----------------
+const PIL = [{ x0: -470, ph: .3 }, { x0: -230, ph: .75 }, { x0: 190, ph: .1 }, { x0: 430, ph: .55 }];
+const BRIDGE_Y = [BY + 2, BY + 10, BY + 18], PULL = 220;
+function pilState(i, t) {
+  const tp = t12(t), P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY;
+  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 320 - 140 * j, xc = E - 46;
+    if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, clamp((tt - 12) / (T - .35 - 12))); };
+  const tired = tt => tt > 5 && tt < 9.5;
+  const carry = (tt, x, gy = BY, stride = 110, lean = .3) => { const F = walkSpec(x, gy, SPI, 1, P.ph + x / (stride * SPI), stride, lean, 16); F.tilt = .12;
+    F.eye = tired(tt) ? 'tired' : 'down'; F.mouth = tired(tt) ? 'wavy' : 'flat'; const X = carryCross(F, 1, -.42); gripCarry(F, X); return [F, X]; };
+  if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
+  if (tp < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
+  const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
+  const LAY = { ...standSpec(E - 60, BY, SPI, 1), hip: [E - 74, BY - 120 * SPI], ang: .6, feet: [[E - 108, BY], [E - 30, BY]], tilt: .2 };
+  LAY.hands = [cpt(XB, 26), cpt(XB, 60)]; LAY.hand = ['flat', 'flat'];
+  if (tp < T) { const [F0, X0] = carry(T - .35, E - 46), k = eio((tp - T + .35) / .35); const F = mixSpec(F0, LAY, k); F.hand = k > .5 ? ['flat', 'flat'] : ['grip', 'grip']; return { F, X: mixX(X0, XB, k) }; }
+  const xs0 = E - 20, xs1 = E + G + 70;
+  if (tp < T + .3) { const F = mixSpec(LAY, standSpec(xs0, yb - PW / 2, SPI, 1, .1), eio((tp - T) / .25)); return { F, B: XB }; }
+  if (tp < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 4 ? yb - PW / 2 : BY, ph = P.ph + x / (160 * SPI);
+    const F = walkSpec(x, gy, SPI, 1, ph, 160, .12, 30); F.tilt = -.05; F.hands = hangHands(F, 22 * Math.sin(TAU * ph)); F.hand = ['hang', 'hang']; return { F, B: XB }; }
+  // from the far side: turn, crouch, take the top end and pull it back across
+  const pv = [E + G, yb + PW / 2], pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, pv, -.08 * k), xpAt = k => xs1 + 30 + PULL * k;
+  const PULLS = k => { const X = pullX(k), x = xpAt(k); const F = { ...standSpec(x, BY, SPI, -1), hip: [x + 10, BY - 112 * SPI], ang: -.6, feet: [[x + 34, BY], [x - 26, BY]], tilt: .15, eye: 'dot' };
+    F.hands = [cpt(X, L - 30), cpt(X, L - 70)]; F.hand = ['grip', 'grip']; return [F, X]; };
+  if (tp < T + 1.25) { const k = eio(clamp((tp - T - .9) / .35)), [F, X] = PULLS(k), k0 = eio((tp - T - .9) / .1);
+    return { F: k0 < 1 ? mixSpec(walkSpec(xs1, BY, SPI, 1, 0, 160, .1), F, k0) : F, X }; }
+  const [Fp, Xp] = PULLS(1), xg = xpAt(1);
+  if (tp < T + 1.5) { const k = eio((tp - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, BY, 140, .22); const F = mixSpec(Fp, Fc, k); F.eye = 'dot'; return { F, X: mixX(Xp, Xc, k) }; }
+  const x = lerp(xg, GX + 10, clamp((tp - T - 1.5) / .35)), [F, X] = carry(tp, x, BY, 140, .22);
+  F.alpha = 1 - ss(T + 1.55, T + 1.85, tp); F.inGate = x > GX - 120; F.eye = 'dot'; F.mouth = 'smile'; if (F.alpha <= 0) return null;
+  return { F, X };
+}
+
+// ---------------- camera (on twos, like everything else) ----------------
+const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
+function camAt(t) {
+  let c = { x: meX(t) + 60 + 110 * ss(4.3, 5.4, t), y: 940, z: 1.0 };
+  c = mixCam({ x: meX(t) + 40, y: 1010, z: 1.6 }, c, eio((t - 1.5) / 1.1));       // the hook: close on me (the saw in my hand), widening by ~2.6
+  const c1 = CUTS[0], c2 = CUTS[1], c3 = CUTS[2], at = cc => ({ x: cc.cutX + 120, y: 1060, z: 1.3 });
+  c = mixCam(c, at(c1), Pilot.win(t, c1.s - .05, c1.up1 + .2, .32, .35));
+  c = mixCam(c, mixCam(at(c2), at(c3), eio((t - 10.0) / .45)), Pilot.win(t, c2.s - .1, c3.up1 + .25, .3, .4));
+  if (t < 12.4) c.x = Math.min(c.x, E - 540 / c.z - 10 + 1600 * ss(11.45, 12.4, t) * ss(11.45, 12.4, t));   // the gap stays out of frame until I reach it
+  if (t >= 12) c = mixCam(c, { x: E + 290, y: 840, z: .88 }, eio((t - 12.05) / .95));
+  if (t >= 18.2) c = mixCam(c, { x: E + 160, y: 980, z: 1.2 }, eio((t - 18.2) / .45));
+  if (t >= B.fall) c = mixCam(c, { x: E + 130, y: 1090, z: 1.5 }, eo((t - B.fall) / .09));
+  if (t >= B.fall + .65) c = mixCam(c, { x: E + 140, y: 980, z: 1.2 }, eio((t - B.fall - .65) / .7));
+  if (t >= B.back) c = mixCam(c, { x: E - 400, y: 1040, z: 1.38 }, eio((t - B.back) / .42));
+  if (t >= 22.6) c = mixCam(c, { x: E + 110, y: 980, z: 1.12 }, eio((t - 22.6) / 1.0));
+  if (t >= 24.2) c = mixCam(c, { x: E + 150, y: 1010, z: 1.24 }, eio((t - 24.2) / 1.6));
+  const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 16 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 12 * k * Math.sin(t * 131 + 1) : 0;
+  return c;
+}
+function setCam(ctx, cm, p) { const z = 1 + (cm.z - 1) * p, cx = cm.x * p, cy = 960 + (cm.y - 960) * p; ctx.setTransform(z, 0, 0, z, 540 - cx * z + cm.sx * p, 960 - cy * z + cm.sy * p); return z; }
+function camScale(z) { LWK = Math.pow(z, -.8); AMPK = 1.2 / z; MR = 1 / z; TS = 1 / z; }
+function crossOutline(x, y) { return crossPoly(0, L, CBHL).map(([u, v]) => [x + u, y + v]); }
+function guide(ctx, t, k, al, fill) {   // the dashed outline: my whole cross across the gap
+  const ol = crossOutline(E - REST, FY + 34), x1 = E - REST - 4 + (L + 8) * k;
+  ctx.save(); ctx.globalAlpha *= al; ctx.beginPath(); ctx.rect(E - REST - 10, FY - 200, x1 - (E - REST - 10), 400); ctx.clip();
+  const P = resample(ol, true, 10 * LWK).map(p => wob(p, 1.2 * AMPK)), path = pathOf(P, true, false);
+  ctx.fillStyle = 'rgba(247,218,134,.30)'; ctx.fill(path);
+  if (fill) {   // what I kept (it fell): a pale ghost in the outline's far part, brightening once the pieces are all in
+    const u0 = L * (1 - S.left[3]), whole = ss(24.25, 24.55, t), gp = crossPoly(u0, L, CBHL).map(([u, v]) => [E - REST + u, FY + 34 + v]);
+    ctx.save(); ctx.globalAlpha *= .55 + .45 * whole; ink(ctx, gp, { fill: C.yelL, lw: 0, smooth: false, mx: 0, my: 0 }); ctx.restore();
+    if (whole > 0) glow(ctx, E + G / 2, FY + 34, 330, whole * (1 - .5 * ss(24.8, 25.6, t)));
+  }
+  ctx.lineCap = 'butt'; ctx.setLineDash([18 * LWK, 12 * LWK]); ctx.lineDashOffset = -t * 20;
+  ctx.lineWidth = 10 * LWK; ctx.strokeStyle = C.ink; ctx.stroke(path); ctx.lineWidth = 5 * LWK; ctx.strokeStyle = C.cream; ctx.stroke(path); ctx.setLineDash([]);
+  ctx.restore();
+}
+function drawFlecks(ctx, t) {
+  for (const q of FLECKS) {
+    const u = t - q.t0; if (u < 0) continue; const al = 1 - ss(q.t0 + 1.2, q.t0 + 1.8, t); if (al <= 0) continue;
+    const tl = (-q.vy + Math.sqrt(q.vy * q.vy + 4 * 700 * (q.land - q.y))) / 1400, uu = Math.min(u, Math.max(0, tl));
+    const x = q.x + q.vx * uu, y = q.y + q.vy * uu + 700 * uu * uu, r = q.r0 + q.vr * uu;
+    ctx.save(); ctx.globalAlpha *= al; const pts = []; for (let i = 0; i < 3; i++) { const a = r + i * TAU / 3; pts.push([x + Math.cos(a) * q.sz, y + Math.sin(a) * q.sz * .7]); }
+    ctx.fillStyle = q.col; ctx.fill(pathOf(pts, true, false)); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.4 * LWK; ctx.stroke(pathOf(pts, true, false)); ctx.restore();
+  }
+}
+// ---------------- the storm world ----------------
+function stormBand(ctx, x0, x1, t) {   // lumpy mid-value cloud mass with a deep core, drifting; wind dashes in the gaps
+  const dr = t * 14, xa = Math.floor((x0 - 80) / 40) * 40, xb = x1 + 80, bot = [], core = [];
+  for (let x = xa; x <= xb; x += 40) { const u = (x + dr) / 300; bot.push([x, 560 + 50 * Math.sin(u * 1.3 + 1) + 30 * Math.abs(Math.sin(u * 3.1 + 2)) + 26 * Pilot.fbm(x / 500, 1, 2)]);
+    core.push([x, 330 + 46 * Math.sin(u * 1.7) + 22 * Math.abs(Math.sin(u * 4.3))]); }
+  ink(ctx, [[xa, -400], [xb, -400], ...bot.slice().reverse()], { fill: C.mid, lw: 5, smooth: true });
+  ink(ctx, [[xa, -400], [xb, -400], ...core.slice().reverse()], { fill: C.deep, lw: 5, smooth: true });
+  for (let i = 0; i < 9; i++) { const px = xa + ((i * 173 + dr * 2.2) % (xb - xa)), py = 700 + (i % 3) * 30 + (i * 37 % 50); line(ctx, [px, py], [px + 18, py - 5], 3); line(ctx, [px + 26, py - 6], [px + 38, py - 9], 3); }
+}
+function ridge(ctx, x0, x1) {
+  const pts = []; for (let x = Math.floor((x0 - 60) / 30) * 30; x <= x1 + 60; x += 30) pts.push([x, RT - 70 - 70 * Pilot.fbm(x / 420 + 4, 2, 3) - 14 * Math.sin(x / 90)]);
+  ink(ctx, [...pts, [x1 + 60, RT + 600], [x0 - 60, RT + 600]], { fill: C.mid, lw: 5 });
+}
+const TREES = []; { const r = rng(61); for (let x = -900; x < 4600; x += 340 + r() * 300) TREES.push([x, .75 + r() * .45, r() * 6]); }
+function tree(ctx, bx, by, s, ph, t) {   // the lab's wind-bent tree: black trunk, pale leaf streamers torn to the right
+  const sway = .06 * Math.sin(t * 4.2 + ph) + .025 * Math.sin(t * 9.1 + ph * 2), lean = .36 + sway, len = 470 * s, tr = [];
+  for (let i = 0; i <= 8; i++) { const u = i / 8, a2 = lean + u * u * (.5 + sway * 2); tr.push(i ? [tr[i - 1][0] + Math.sin(a2) * len / 8, tr[i - 1][1] - Math.cos(a2) * len / 8] : [bx, by]); }
+  const lr = rng(31 + Math.round(ph * 10));
+  const leaf = j => { const p0 = tr[Math.min(8, 3 + (j % 5))], fl = Math.sin(t * 6 + j * 1.3 + ph) * 10;
+    const Ll = (80 + lr() * 70) * s, wd = (18 + lr() * 12) * s, ang = .25 + lr() * .35 + Math.sin(t * 5 + j) * .05, pts = [];
+    for (let k = 0; k <= 6; k++) { const u = k / 6; pts.push([u * Ll, -wd * Math.sin(Math.PI * Math.pow(u, .7))]); }
+    for (let k = 6; k >= 0; k--) { const u = k / 6; pts.push([u * Ll, wd * .8 * Math.sin(Math.PI * Math.pow(u, .7)) + 6 * Math.sin(u * 7 + j)]); }
+    ink(ctx, pts.map(q => { const r2 = rot2(q, ang); return [p0[0] + r2[0] - 10 + fl * .5, p0[1] + r2[1] - 20 + (j % 3) * 18 + fl * .3]; }), { fill: C.leaf, lw: 4.2, single: true }); };
+  for (let j = 0; j < 4; j++) leaf(j);
+  ink(ctx, tube(tr, [36, 32, 28, 25, 21, 17, 13, 9, 5].map(v => v * s)), { fill: C.ink, lw: 4, single: true });
+  for (let j = 4; j < 7; j++) leaf(j);
+  for (let j = 0; j < 3; j++) { const k = ((t * .7 + j / 3 + ph) % 1), fx = tr[8][0] + 10 + k * 260, fy = tr[6][1] + j * 34 - k * 30 + Math.sin(k * 9 + j) * 14;
+    ink(ctx, ell(fx, fy, (13 - j * 2) * s, 6 * s, 10), { fill: C.leaf, lw: 3.2, single: true }); }
+}
+function wallPts(x, dir, seed) { const q = rng(seed), o = [[x, RT]]; for (let y = RT + 40; y <= 2900; y += 44) o.push([x + dir * (y < FY + 70 ? 0 : 8 + q() * 24 + (y - FY) * .05), y]); return o; }
+let WALLS = null;
+const PUDDLES = []; { const r = rng(91); for (let x = -900; x < 4600; x += 200 + r() * 260) PUDDLES.push([x, RT + 40 + r() * 460, 50 + r() * 60]); }
+function ground(ctx, x0, x1, t) {
+  if (!WALLS) WALLS = [wallPts(E, 1, 71), wallPts(E + G, -1, 73)];
+  const gL = [[x0 - 60, RT], ...WALLS[0], [x0 - 60, 2900]], gR = [...WALLS[1], [x1 + 60, 2900], [x1 + 60, RT]];
+  if (x0 < E) ink(ctx, gL, { fill: C.deep, lw: 0, smooth: false });
+  if (x1 > E + G) ink(ctx, gR, { fill: C.deep, lw: 0, smooth: false });
+  // the ravine: deep violet hatched near the top, sinking to ink
+  if (x1 > E - 20 && x0 < E + G + 20) {
+    const pth = pathOf([...WALLS[0], ...WALLS[1].slice().reverse()]); ctx.save(); ctx.fillStyle = C.deep2; ctx.fill(pth); ctx.clip(pth);
+    ctx.fillStyle = pat('hatch', E, RT); ctx.fillRect(E - 50, RT, G + 100, 1800);
+    const gg = ctx.createLinearGradient(0, RT + 80, 0, RT + 620); gg.addColorStop(0, 'rgba(21,23,43,0)'); gg.addColorStop(1, 'rgba(21,23,43,1)'); ctx.fillStyle = gg; ctx.fillRect(E - 50, RT, G + 100, 1800); ctx.restore();
+    ink(ctx, WALLS[0].slice(0, 20), { closed: false, lw: 5.5, smooth: false }); ink(ctx, WALLS[1].slice(0, 20), { closed: false, lw: 5.5, smooth: false });
+    for (const [x, y, dx] of [[E + 16, FY + 130, 40], [E + 30, FY + 300, 30], [E + G - 20, FY + 190, -40], [E + G - 30, FY + 380, -28]]) ink(ctx, [[x, y], [x + dx * .5, y + 22], [x + dx, y + 14]], { closed: false, lw: 3.6, single: true });
+  }
+  if (x0 < E) line(ctx, [x0 - 40, RT], [E, RT], 5.5);
+  if (x1 > E + G) line(ctx, [E + G, RT], [x1 + 40, RT], 5.5);
+  // the lab's floor lines, and puddles with rain rings
+  const rr = rng(5);
+  for (let x = Math.floor((x0 - 400) / 520) * 520; x < x1 + 400; x += 520) for (const [dx, dy, l] of [[0, 70, 260], [210, 150, 300], [90, 230, 200], [330, 330, 340], [40, 450, 380], [280, 580, 300], [120, 720, 420]]) {
+    const a = x + dx, b = a + l; if (b < E - 10 || a > E + G + 10) { if (b > x0 - 50 && a < x1 + 50) line(ctx, [a, RT + dy], [b, RT + dy], 3.2); }
+    else { if (a < E - 10) line(ctx, [a, RT + dy], [E - 10, RT + dy], 3.2); if (b > E + G + 10) line(ctx, [E + G + 10, RT + dy], [b, RT + dy], 3.2); } }
+  for (const [px, py, pw] of PUDDLES) { if (px < x0 - 150 || px > x1 + 150 || (px > E - pw - 20 && px < E + G + pw + 20)) continue;
+    ink(ctx, ell(px, py, pw, pw * .16, 18), { fill: C.mid, tone: pat('diag', px, py), lw: 3.4, single: true });
+    const k = frac(t * 1.4 + px * .013); ctx.save(); ctx.globalAlpha *= 1 - k; ink(ctx, ell(px + (px % 37) - 18, py, 8 + k * 30, (8 + k * 30) * .22, 14), { closed: true, lw: 2.6, single: true, col: C.pale }); ctx.restore(); }
+}
+function door(ctx, t) {   // the far side: a plain arched door, open, lit by a lighter value of the same violet
+  const gy = BY + 4, x = GX, R = 104, ay = gy - 300, r0 = 74, ay0 = gy - 270;
+  glow(ctx, x, gy - 170, 420, .9, PALE); glow(ctx, x, gy - 150, 220, 1, PALE);
+  ctx.save(); ctx.globalAlpha *= .45; ink(ctx, [[x - r0, gy], [x + r0, gy], [x + 200, gy + 80], [x - 220, gy + 80]], { fill: C.pale, lw: 0, smooth: false }); ctx.restore();
+  const op = [[x - r0, gy]]; for (let i = 0; i <= 16; i++) { const a = Math.PI + Math.PI * i / 16; op.push([x + Math.cos(a) * r0, ay0 + Math.sin(a) * r0]); } op.push([x + r0, gy]);
+  ink(ctx, op, { fill: C.cream, lw: 0, smooth: false });
+  return { op, draw: () => {
+    const fr = [[x - R, gy]]; for (let i = 0; i <= 18; i++) { const a = Math.PI + Math.PI * i / 18; fr.push([x + Math.cos(a) * R, ay + Math.sin(a) * R + 30]); } fr.push([x + R, gy]);
+    ink(ctx, fr.concat(op.slice().reverse()), { fill: C.deep2, tone: pat('hatch', x, gy), smooth: false, lw: 5.5 });
+    ink(ctx, [[x - R, gy], [x - R - 46, gy + 22], [x - R - 46, ay0 - 30], [x - R, ay0 - 10]], { fill: C.deep, tone: pat('hatch2', x, gy), lw: 5, smooth: false });
+    ink(ctx, [[x + R, gy], [x + R + 46, gy + 22], [x + R + 46, ay0 - 30], [x + R, ay0 - 10]], { fill: C.deep, tone: pat('hatch2', x, gy), lw: 5, smooth: false });
+  } };
+}
+function lampLevel(k) { if (k < 0) return 0; if (k < .09) return .8; if (k < .17) return .1; if (k < .25) return 1; if (k < .3) return .35; return .94 + .06 * Math.sin(k * 3.1); }   // the lab lamp's flicker
+function world(ctx, t, x0, x1) {
+  ground(ctx, x0, x1, t);
+  const D = x1 > E - 200 ? door(ctx, t) : null;
+  const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean);
+  if (D) { ctx.save(); ctx.clip(pathOf(D.op, true, false));
+    for (const P of pils) if (P.F && P.F.inGate) drawKid(ctx, P.F, P.X ? () => drawCross(ctx, P.X, P.X.u0, L, false) : null, null);
+    ctx.restore(); D.draw(); }
+  for (const P of pils) if (P.B) drawCross(ctx, P.B, 0, L, false);
+  pils.slice().sort((a, b) => a.F.hip[0] - b.F.hip[0]).forEach(P => {
+    if (P.F.inGate) return; const X = P.X;
+    drawKid(ctx, P.F, X && !X.lie ? () => drawCross(ctx, X, X.u0, L, false) : null, X && X.lie ? () => drawCross(ctx, X, X.u0, L, false) : null);
+  });
+  if (t >= 18.75 && t < 19.75) guide(ctx, t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
+  if (t >= B.fill[0] - .2) guide(ctx, t, eio((t - B.fill[0] + .2) / .45), 1, true);
+  const c3 = CUTS[2];
+  if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip; drawSaw(ctx, lerp2(g0, SAWLIE.grip, k), lerp(CUT_ANG, SAWLIE.ang, k)); }
+  // the pieces I cut: lying where they fell; when I look back they flicker on like the lab's lamp, then fly into the gap
+  for (const c of CUTS) if (t >= c.drop) {
+    const p = pieceAt(c, t), on = lampLevel(t - (B.back + .25 + (2 - c.k) * .18)), landed = ss(FILL[c.k][1] - .05, FILL[c.k][1] + .1, t);
+    if (on > 0) { glow(ctx, p.cx, p.cy + 10, 230, on * .8 * (1 - .5 * landed), PALE); glow(ctx, p.cx, p.cy, 170, on * (1 - .55 * landed)); glow(ctx, p.cx, p.cy, 80, on * (1 - .5 * landed)); }
+    if (p.fly > 0 && p.fly < 1) { ctx.save(); ctx.globalAlpha *= Math.sin(Math.PI * p.fly) * .9;   // light streaks behind it, slanting like the rain
+      for (let i = 0; i < 3; i++) line(ctx, [p.cx - 70 - i * 12, p.cy - 26 + i * 26], [p.cx - 150 - i * 30, p.cy - 40 + i * 30], 3.4); ctx.restore(); }
+    const big = 1 + .55 * Math.sin(Math.PI * p.fly);
+    ctx.save(); ctx.translate(p.cx, p.cy); ctx.scale(big, big); ctx.translate(-p.cx, -p.cy); drawCross(ctx, p, c.u0, c.u1, true); ctx.restore();
+  }
+  const M = poseMe(t), F = M.F; F.me = true;
+  if (M.saw) F.saw = M.saw;
+  drawKid(ctx, F, M.X && !M.X.lie ? () => drawCross(ctx, M.X, M.X.u0, L, true) : null, () => {
+    if (M.X && M.X.lie) drawCross(ctx, M.X, M.X.u0, L, true);
+    if (M.kerf) { ctx.fillStyle = C.ink; ctx.fillRect(M.c.cutX - 2 * LWK, M.c.y - PW / 2, 4 * LWK, M.kerf.kp * PW * .92 + .5); }
+  });
+  const FX = fallX(t);
+  if (FX && (FX.alpha ?? 1) > 0) { ctx.save(); if (FX.clip) { ctx.beginPath(); ctx.rect(E + 2, -4000, G - 4, 9000); ctx.clip(); } drawCross(ctx, FX, FX.u0, L, true, FX.alpha ?? 1); ctx.restore(); }
+  drawFlecks(ctx, t);
+  return M;
+}
+// ---------------- small marks in the lab's manner: water, not comic symbols ----------------
+function marks(ctx, t, M) {
+  const F = M.F, { hc } = headFrame(F), s = F.s;
+  if (t < 3.2) for (let j = 0; j < 4; j++) { const t0 = Math.floor(t / .7) * .7 + j * .175, k = t - t0; if (k < 0 || k > .45) continue;   // drips off my wet hair
+    const bx = hc[0] + (-50 + j * 22) * s, by = hc[1] + 30 * s + 1800 * k * k; ink(ctx, [[bx, by - 11], [bx + 5, by], [bx, by + 5], [bx - 5, by]], { fill: C.cream2, lw: 3, single: true }); }
+  const run = Pilot.win(t, 4.7, 8.7, .25, .3);
+  if (run > 0) { ctx.save(); ctx.globalAlpha *= run;   // splashes kicked up behind my feet
+    for (const i of [0, 1]) { const ph = frac((F.ph ?? 0) + i * .5); if (ph < .25) { const k = ph / .25, fx = F.feet[i][0];
+      for (let d = 0; d < 4; d++) { const a = -2.2 - d * .28, r = 30 + k * (50 + d * 12); ink(ctx, ell(fx - 20 + Math.cos(a) * r, FY - 6 + Math.sin(a) * r * .8 + k * k * 30, 5 - d * .6, 6 - d * .6, 8), { fill: C.pale, lw: 2.6, single: true }); } } }
+    ctx.restore(); }
+  const land = B.fall, im = t >= land ? 1 - ss(land + .4, land + .8, t) : 0;   // grit off the lip as it goes over
+  if (im > 0) for (let i = 0; i < 6; i++) { const k = t - land, x = E + 8 + i * 9, y = FY + 40 + 900 * k * k + i * 6; ink(ctx, ell(x + i * k * 30, y, 4, 3.4, 7), { fill: C.cream2, lw: 2.4, single: true }); }
+}
+function rain(ctx, t) {   // slanting rain over everything, on twos
+  ctx.save(); ctx.strokeStyle = 'rgba(232,232,250,.5)'; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.beginPath();
+  const r = rng(4);
+  for (let i = 0; i < 150; i++) { const sx = r() * (W + 500) - 300, sp = 1700 + r() * 600, ph = r(), k = frac(t * sp / (H + 300) + ph), px = sx + k * 330, py = -150 + k * (H + 300);
+    ctx.moveTo(px, py); ctx.lineTo(px + 13, py + 42); }
+  ctx.stroke(); ctx.restore();
+}
+function flashAt(t) { const k = t - B.fall; if (k < 0) return 0; if (k < .085) return 1; if (k < .17) return .25; if (k < .25) return .75; if (k < .5) return .15 * (1 - (k - .25) / .25); return 0; }
+function lightning(ctx, t, sx) {   // the hit: a bolt over the gap and the frame bleached to the palest value
+  const f = flashAt(t); if (f <= 0) return;
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .62 * f; ctx.fillStyle = C.pale; ctx.fillRect(0, 0, W, H); ctx.restore();
+  if (t - B.fall < .3) { const r = rng(9), pts = [[sx + 160, -20]]; let x = sx + 160, y = -20; while (y < 760) { y += 60 + r() * 50; x += (r() - .55) * 90; pts.push([x, y]); }
+    ctx.save(); ctx.globalAlpha = Math.min(1, f * 1.4); ctx.lineJoin = 'miter';
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 30; ctx.stroke(pathOf(pts, false, false)); const br = pts.slice(3, 6).map((p, i) => [p[0] + i * 70 + 10, p[1] + i * 60]); ctx.lineWidth = 18; ctx.stroke(pathOf([pts[3], ...br], false, false)); ctx.strokeStyle = C.cream; ctx.lineWidth = 8; ctx.stroke(pathOf([pts[3], ...br], false, false)); ctx.lineWidth = 15; ctx.stroke(pathOf(pts, false, false)); ctx.restore(); }
+}
+// ---------------- the end card: a deep violet plate ----------------
+function endPlate(ctx, t) {
+  const k = ss(B.end - .2, B.end + .15, t); if (k <= 0) return;
+  ctx.save(); ctx.globalAlpha = .5 * k; ctx.fillStyle = C.deep2; ctx.fillRect(0, 0, W, H); ctx.restore();
+  const dy = (1 - k) * 40, x0 = 96, x1 = 984, y0 = 618 + dy, y1 = 1262 + dy;
+  ctx.save(); ctx.globalAlpha = k;
+  ink(ctx, resample([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], true, 18), { fill: C.deep2, tone: pat('diag', 0, 0), raw: true, lw: 6.5 });
+  ink(ctx, resample([[x0 + 22, y0 + 22], [x1 - 22, y0 + 22], [x1 - 22, y1 - 22], [x0 + 22, y1 - 22]], true, 18), { fill: C.deep2, raw: true, lw: 3, col: C.mid });
+  ctx.save(); ctx.translate(540, y0 + 72); ctx.rotate(-Math.PI / 2); ctx.scale(.3, .3); ctx.translate(-L * .5, 0); glow(ctx, L * .62, 0, 260, .6);
+  const lw0 = LWK; LWK = 1 / .3 * .75; ink(ctx, crossPoly(0, L, CBH), { fill: C.yel, smooth: false, lw: 5.5 }); LWK = lw0; ctx.restore();
+  ctx.restore();
+}
+
+// ---------------- frame ----------------
+function scene(ctx, t) {
+  K = Math.round(t * 12);
+  const cm = camAt(t);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const sk = ctx.createLinearGradient(0, 0, 0, H); sk.addColorStop(0, C.mid); sk.addColorStop(.55, C.wall); sk.addColorStop(1, C.sky);
+  ctx.fillStyle = sk; ctx.fillRect(0, 0, W, H);
+  ctx.save(); PAT.mottle.setTransform(new DOMMatrix().translate(-cm.x * .12, -cm.y * .12).scale(8)); ctx.fillStyle = PAT.mottle; ctx.fillRect(0, 0, W, H); ctx.restore();
+  const vis = (p, z) => { const cx = cm.x * p; return [cx - 540 / z - 80, cx + 540 / z + 80]; };
+  let z = setCam(ctx, cm, .2); camScale(z); stormBand(ctx, ...vis(.2, z), t);
+  z = setCam(ctx, cm, .45); camScale(z); ridge(ctx, ...vis(.45, z).map(v => v / 1));
+  z = setCam(ctx, cm, .8); camScale(z); { const [a, b] = vis(.8, z); for (const [x, sc, ph] of TREES) if (x > a - 500 && x < b + 100) tree(ctx, x, RT + 40, sc, ph, t); }
+  z = setCam(ctx, cm, 1); camScale(z);
+  const x0 = cm.x - 540 / z - 60, x1 = cm.x + 540 / z + 60;
+  const M = world(ctx, t, x0, x1);
+  marks(ctx, t, M);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); camScale(1);
+  rain(ctx, t);
+  lightning(ctx, t, 540 + (E + G / 2 - cm.x) * cm.z);
+  endPlate(ctx, t);
+  ctx.save(); PAT.grain.setTransform(new DOMMatrix().translate(-(cm.x * cm.z) % 512, -(cm.y * cm.z) % 512)); ctx.fillStyle = PAT.grain; ctx.fillRect(0, 0, W, H); ctx.restore();
+}
+function draw(ctx, t) {
+  const tp = t12(t);
+  let slot = CACHE.find(c => c.t === tp);   // the picture changes 12×/s: draw it once per pose, reuse it for the frames in between
+  if (!slot) { slot = CACHE[CACHE.next = 1 - (CACHE.next || 0)]; const c = slot.c.getContext('2d'); c.save(); scene(c, tp); c.restore(); slot.t = tp; }
+  ctx.drawImage(slot.c, 0, 0);
+  if (t < B.end) Story.captions(ctx, t, S.lines, { font: "'Gamja Flower',cursive", weight: 400, size: 76, y: 400, color: C.cream, shadow: 'rgba(21,23,43,.6)', shadowBlur: 10, srcColor: C.pale });
+  Story.endCard(ctx, t, S.endCard, B.end, { font: "'Gamja Flower',cursive", srcFont: "'Gamja Flower',cursive", color: C.cream, srcColor: C.sky, y: 870, titleShadow: '' });
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 76px 'Gamja Flower'"], init, draw });
+</script>
+</body>
+</html>

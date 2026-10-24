@@ -25,7 +25,7 @@ const C = {
   sky0: '#1d4256', sky1: '#3b7583', sky2: '#5e9a9c', far: '#4a8189', far2: '#3c717d', mid: '#28525f', near: '#173444', near2: '#10283a',
   hill: '#2a5a60', hillT: '#3a7471', hill2: '#25525a', bush: '#1b3f52', bush2: '#21506a',
   water0: '#3f8f98', water1: '#6cc3c2', water2: '#8fded5', leaf: '#2d6cb8', leaf2: '#4a92d6', stem: '#0f2534', moon: '#f1fbf4',
-  moss: '#3d7a72', moss2: '#2c6064', moss3: '#22505a', cliff: '#1a3c4a', cliff2: '#132f3d', cliffL: '#2a5864',
+  moss: '#3d7a72', moss2: '#2c6064', moss3: '#22505a', cliff: '#214a55', cliff2: '#1a3d48', cliffL: '#2c5c66',
   cloak: '#1f2633', cloak2: '#2b3444', sleeve: '#323d50', fox: '#c4612c', fox2: '#9b4420', white: '#f2eee2', leg: '#2a1a16', paw: '#e6dccb',
   gcloak: '#2e3b45', gcloak2: '#3a4a54', gsleeve: '#3b4955', gfur: '#8c8579', gfur2: '#6b655c', gwhite: '#d6d2c6', gleg: '#2a2622', gpaw: '#cfc8ba',
   wood: '#eab55c', woodL: '#ffdc8e', woodD: '#b07832', xwood: '#6b5a48', xwoodL: '#8a7760', xwoodD: '#4e4134',
@@ -35,7 +35,7 @@ const C = {
 const L = 520, PW = 34, CBX = L - 130, CBW = 32, CBH = 118, CBHL = 50;   // cross: post length, width; crossbar (from foot), thickness, half-length upright / lying
 const FY = 1300, BY = 1252, RT = 1212;                                    // front lane (me), back lane (the others), the embankment's far edge
 const REST = 26, G = L - 2 * REST;                                        // a full cross rests 26 px on each lip: the gap is G wide
-const LIP = 1372, WATER = 1720;                                           // the path's front edge; the water line below the embankment
+const LIP = 1372;                                                          // the path's front edge (WATER, the water line, is set with the world)
 const shade = (hex, k) => { const c = Pilot.hex(hex); return `rgb(${Math.min(255, c[0] * k) | 0},${Math.min(255, c[1] * k) | 0},${Math.min(255, c[2] * k) | 0})`; };
 const t12 = t => Math.floor(t * 12 + 1e-6) / 12;                          // figures pose on twos (12 fps), like a hand-animated picture book
 const frac = x => x - Math.floor(x);
@@ -117,16 +117,14 @@ function drawCross(ctx, X, u0, u1, x, y, a, alpha = 1, glow = 0) {
   if (u1 - u0 < .5 || alpha <= 0) return;
   ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.globalAlpha = alpha;
   const hb = X.hb, dh = 2 * hb + 2 * CPAD, left = u0 <= .5 ? -CPAD : u0, right = u1 >= L - .5 ? L + CPAD : u1;
-  if (glow > 0) { ctx.shadowColor = `rgba(255,200,100,${.7 * glow})`; ctx.shadowBlur = 24 * glow; }
-  else { ctx.shadowColor = 'rgba(6,20,30,.35)'; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 4; ctx.shadowBlur = 2; }
   ctx.drawImage(X.c, (left + CPAD) * KX, 0, (right - left) * KX, dh * KX, left, -hb - CPAD, right - left, dh);
   ctx.restore();
 }
 // the lantern's grainy halo laid along my cross (between u0 and u1), the accent
 function crossHalo(ctx, X, u0, u1, a, k) {
-  if (k <= 0) return; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .42 * k;
+  if (k <= 0) return; ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .2 * k;
   const n = Math.max(1, Math.round((u1 - u0) / 90));
-  for (let i = 0; i <= n; i++) { const u = lerp(u0, u1, n ? i / n : .5), p = [X.x + Math.cos(X.a) * u, X.y + Math.sin(X.a) * u], R = 70; ctx.drawImage(TX.halo, p[0] - R, p[1] - R, 2 * R, 2 * R); }
+  for (let i = 0; i <= n; i++) { const u = lerp(u0, u1, n ? i / n : .5), p = [X.x + Math.cos(X.a) * u, X.y + Math.sin(X.a) * u], R = 56; ctx.drawImage(TX.halo, p[0] - R, p[1] - R, 2 * R, 2 * R); }
   ctx.restore();
 }
 let E = 1600, GX = 0, GAY = 0, ROADX0 = -1600, ROADX1 = 0;
@@ -200,7 +198,7 @@ function drawFig(ctx, F, mid, back, mid0) {
   leg(F.feet[1], K.leg);
   if (mid0) mid0();
   // collar: a pale knit band with a dotted pattern, and the fur ruff under the chin
-  const c0 = P(-12, 140), c1 = P(32, 140); ctx.strokeStyle = K.wh; ctx.lineWidth = 16 * s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(...c0); ctx.lineTo(...c1); ctx.stroke();
+  const c0 = P(-12, 128), c1 = P(34, 128); ctx.strokeStyle = K.wh; ctx.lineWidth = 16 * s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(...c0); ctx.lineTo(...c1); ctx.stroke();
   ctx.fillStyle = K.cl; for (let k = 0; k < 5; k++) { const p = [lerp(c0[0], c1[0], .1 + k * .2), lerp(c0[1], c1[1], .1 + k * .2)]; ctx.fillRect(p[0] - 2.5 * s, p[1] - 2.5 * s, 5 * s, 5 * s); }
   // the head (the lab's fox head, ×1.39), on the neck
   const tilt = F.ang + (F.tilt || 0), hu = [Math.sin(tilt), -Math.cos(tilt)], hf = [f * Math.cos(tilt), f * Math.sin(tilt)], N = P(10, 150);
@@ -528,14 +526,12 @@ function buildWorld() {
       branch(g, x, 100 + r() * 300, -Math.PI / 2 + (r() < .5 ? -.7 : .7), 190, 9, C.near, x + 3000); }
   });
   // the ravine inside the gap: dark teal walls stepping down, mist, dark water far below
-  SH.rav = sheet(E - 40, RT - 20, E + G + 40, WATER + 120, g => {
-    const r = rng(41), rg = g.createLinearGradient(0, RT, 0, WATER); rg.addColorStop(0, '#2a5a64'); rg.addColorStop(.4, '#173a46'); rg.addColorStop(1, '#0c2230');
+  SH.rav = sheet(E - 40, RT - 20, E + G + 40, WATER + 20, g => {
+    const r = rng(41), rg = g.createLinearGradient(0, RT, 0, WATER); rg.addColorStop(0, '#4a8a90'); rg.addColorStop(.25, '#2a5a64'); rg.addColorStop(.6, '#173a46'); rg.addColorStop(1, '#0f2a36');
     g.fillStyle = rg; g.fillRect(E - 40, RT - 20, G + 80, WATER - RT + 140);
     for (const [col, inset, yTop] of [['#1f4652', 14, RT + 40], ['#173744', 46, RT + 200], ['#10283a', 84, RT + 420]]) {
       const lw = [], rw = []; for (let y = yTop; y <= WATER + 40; y += 22) { lw.push([E + inset + r() * 16 + (y - yTop) * .07, y]); rw.push([E + G - inset - r() * 16 - (y - yTop) * .07, y]); }
       paint(g, smooth(rough([[E - 40, yTop - 30], ...lw, [E - 40, WATER + 60]], 5, inset, 12)), col, .9); paint(g, smooth(rough([[E + G + 40, yTop - 30], ...rw, [E + G + 40, WATER + 60]], 5, inset + 7, 12)), col, .9); }
-    g.fillStyle = '#163e48'; g.fillRect(E - 40, WATER - 6, G + 80, 130);
-    g.fillStyle = 'rgba(160,220,214,.35)'; for (let i = 0; i < 14; i++) g.fillRect(E + 40 + r() * (G - 80), WATER + 6 + r() * 90, 20 + r() * 40, 2);
   });
   // the embankment: a mossy walking surface, a rough earth face below it down to the water; the gap cut through both
   const top0 = rough([[ROADX0, RT], [E, RT]], 4, 2, 14, false), top1 = rough([[E + G, RT], [ROADX1, RT]], 4, 3, 14, false);
@@ -548,7 +544,9 @@ function buildWorld() {
       g.save(); g.clip(part);
       const bg = g.createLinearGradient(0, RT, 0, LIP); bg.addColorStop(0, C.moss); bg.addColorStop(.6, C.moss2); bg.addColorStop(1, C.moss3); g.fillStyle = bg; g.fillRect(ROADX0, RT - 30, ROADX1 - ROADX0, LIP - RT + 30);
       const face = smooth(rough([[ROADX0, LIP + 4], [ROADX1, LIP + 4], [ROADX1, WATER + 40], [ROADX0, WATER + 40]], 8, 5, 18)); paint(g, face, C.cliff, 1);
-      g.strokeStyle = C.cliff2; g.lineWidth = 7; g.lineCap = 'round'; for (let k = 0; k < 4; k++) { const y0 = LIP + 70 + k * 105; g.beginPath(); g.moveTo(ROADX0, y0); for (let x = ROADX0; x <= ROADX1; x += 60) g.lineTo(x, y0 + 10 * Math.sin(x / 170 + k) + 6 * (noise(x / 50, k) - .5)); g.stroke(); }
+      const fg = g.createLinearGradient(0, LIP, 0, WATER); fg.addColorStop(0, 'rgba(10,30,40,.35)'); fg.addColorStop(.25, 'rgba(10,30,40,0)'); fg.addColorStop(1, 'rgba(60,120,125,.25)'); g.fillStyle = fg; g.fillRect(ROADX0, LIP, ROADX1 - ROADX0, WATER - LIP + 40);
+      for (let i = 0; i < (ROADX1 - ROADX0) / 70; i++) { const x = ROADX0 + r() * (ROADX1 - ROADX0), y = LIP + 90 + r() * (WATER - LIP - 120), rw = 30 + r() * 60, rh = rw * (.5 + r() * .3);
+        paint(g, smooth(rough(ell(x, y, rw, rh, 16), 5, i, 9)), r() < .5 ? C.cliffL : C.cliff2, .9); }
       g.strokeStyle = C.cliffL; g.lineWidth = 4; g.beginPath(); for (let x = ROADX0; x <= ROADX1; x += 30) g.lineTo(x, LIP + 8 + 4 * Math.sin(x / 47)); g.stroke();   // the lit lip
       g.strokeStyle = '#0d2230'; g.lineWidth = 3; for (let x = ROADX0 + 40; x < ROADX1; x += 120 + r() * 200) { const l = 30 + r() * 90; g.beginPath(); g.moveTo(x, LIP + 10); g.quadraticCurveTo(x + 10, LIP + l * .6, x + (r() - .5) * 16, LIP + l); g.stroke(); }   // roots
       g.fillStyle = 'rgba(170,225,205,.4)'; for (let i = 0; i < 900; i++) { const x = ROADX0 + r() * (ROADX1 - ROADX0), y = RT + 10 + r() * (LIP - RT - 20); g.fillRect(x, y, 6, 2); }   // pale grass dashes
@@ -562,7 +560,7 @@ function buildWorld() {
   });
   // the gate: a plain round stone arch in a hillside on the far side
   SH.gate = sheet(GX - 320, 280, ROADX1, BY + 30, g => {
-    const r = rng(61), hp = [[GX - 300, BY + 20]]; for (let i = 0; i <= 24; i++) { const u = i / 24; hp.push([GX - 300 + u * 700, BY + 10 - Math.sin(Math.min(1, u * 1.15) * Math.PI / 2) * 760]); } hp.push([ROADX1, 480], [ROADX1, BY + 20]);
+    const r = rng(61), hp = [[GX - 300, BY + 20]]; for (let i = 0; i <= 24; i++) { const u = i / 24; hp.push([GX - 320 + u * 760, BY + 10 - Math.pow(Math.sin(Math.min(1, u * 1.1) * Math.PI / 2), .8) * 540]); } hp.push([ROADX1, BY - 520], [ROADX1, BY + 20]);
     const hill = smooth(rough(hp, 9, 6, 14)); paint(g, hill, '#1d4652', 1);
     g.save(); g.clip(hill); const hg = g.createLinearGradient(GX - 300, 0, GX + 300, 0); hg.addColorStop(0, 'rgba(58,116,113,.6)'); hg.addColorStop(1, 'rgba(58,116,113,0)'); g.fillStyle = hg; g.fillRect(GX - 320, 280, 800, BY);
     g.fillStyle = 'rgba(150,210,200,.22)'; for (let i = 0; i < 160; i++) g.fillRect(GX - 280 + r() * 900, 500 + r() * 700, 5, 2); g.restore();
@@ -624,18 +622,18 @@ function halo(ctx, x, y, R, a) { if (a <= 0) return; ctx.save(); ctx.globalCompo
 // ---------------- the world layer ----------------
 function world(ctx, t, cm, lk) {
   const xa = cm.x - 540 / cm.z - 60, xb = cm.x + 540 / cm.z + 60;
+  drawSheet(ctx, SH.rav);
+  // mist drifting in the ravine
+  ctx.save(); ctx.globalAlpha = .35; for (let k = 0; k < 3; k++) { const mx = E + G * (.2 + .3 * k) + 30 * Math.sin(t * .4 + k * 2), my = RT + 260 + k * 170; ctx.drawImage(MIST, mx - 200, my - 60, 400, 120); } ctx.restore();
+  drawSheet(ctx, SH.ground);
   // water below the embankment (open, bright turquoise like the lab's swamp)
   const wg = ctx.createLinearGradient(0, WATER - 40, 0, WATER + 700); wg.addColorStop(0, C.water0); wg.addColorStop(.3, C.water1); wg.addColorStop(1, C.water2);
-  ctx.fillStyle = wg; ctx.fillRect(xa - 100, WATER - 40, xb - xa + 200, 1200);
+  ctx.fillStyle = wg; ctx.fillRect(xa - 100, WATER, xb - xa + 200, 1200);
   ctx.fillStyle = 'rgba(30,80,92,.55)'; ctx.fillRect(xa - 100, WATER, xb - xa + 200, 70);   // the embankment's reflection
   ctx.save(); ctx.lineCap = 'round';
   for (const d of DASH) { const xx = d.x + Math.sin(t * .6 + d.p) * 12; if (xx < xa - 100 || xx > xb) continue; const a = .5 + .5 * Math.sin(t * d.f + d.p); if (a < .15) continue;
     ctx.strokeStyle = `rgba(214,250,240,${a * d.a})`; ctx.lineWidth = d.w; ctx.beginPath(); ctx.moveTo(xx, d.y); ctx.lineTo(xx + d.l, d.y); ctx.stroke(); }
   ctx.restore();
-  drawSheet(ctx, SH.rav);
-  // mist drifting in the ravine
-  ctx.save(); ctx.globalAlpha = .35; for (let k = 0; k < 3; k++) { const mx = E + G * (.2 + .3 * k) + 30 * Math.sin(t * .4 + k * 2), my = RT + 260 + k * 170; ctx.drawImage(MIST, mx - 200, my - 60, 400, 120); } ctx.restore();
-  drawSheet(ctx, SH.ground);
   // the gate: warm light inside the arch, whoever is walking into it, the hill and its stones, the lantern
   const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean);
   if (GX - 500 < xb) {
@@ -649,10 +647,13 @@ function world(ctx, t, cm, lk) {
     drawLantern(ctx, t, lk * (1 + .06 * Math.sin(t * 13.3) + .04 * Math.sin(t * 23.1 + 1)));
   }
   // the figures layer (bridges, the others, my pieces, me): drawn into its own buffer so the chalk tooth sits on it, locked to the world
-  const fc = FIG.x, m = ctx.getTransform(); fc.setTransform(1, 0, 0, 1, 0, 0); fc.globalCompositeOperation = 'source-over'; fc.globalAlpha = 1; fc.clearRect(0, 0, W, H); fc.setTransform(m);
+  const fc = FIG.x, m = ctx.getTransform(); fc.setTransform(1, 0, 0, 1, 0, 0); fc.globalCompositeOperation = 'source-over'; fc.globalAlpha = 1;
+  { const y0 = clamp(Math.floor(m.f + m.d * (FY - 720)), 0, H), y1 = clamp(Math.ceil(m.f + m.d * (WATER + 40)), 0, H); if (y1 > y0) fc.clearRect(0, y0, W, y1 - y0); } fc.setTransform(m);
   figures(fc, t, pils);
-  fc.globalCompositeOperation = 'source-atop'; fc.globalAlpha = .8; fc.fillStyle = TX.chalkPat; fc.fillRect(xa - 200, 0, xb - xa + 400, 2600); fc.globalAlpha = 1; fc.globalCompositeOperation = 'source-over';
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(FIG.c, 0, 0); ctx.restore();
+  // only the band where figures can be (world y FY-700 … WATER), in screen pixels
+  const by0 = clamp(Math.floor(m.f + m.d * (FY - 700)), 0, H), by1 = clamp(Math.ceil(m.f + m.d * (WATER + 20)), 0, H);
+  if (by1 > by0) { fc.globalCompositeOperation = 'source-atop'; fc.globalAlpha = .8; fc.fillStyle = TX.chalkPat; fc.fillRect(xa - 200, FY - 700, xb - xa + 400, WATER - FY + 720); fc.globalAlpha = 1; fc.globalCompositeOperation = 'source-over';
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(FIG.c, 0, by0, W, by1 - by0, 0, by0, W, by1 - by0); ctx.restore(); }
   // the glows on top (unchalked): my cross's halo, the pieces' halos, the guide
   const M = LASTM;
   if (M && M.X) crossHalo(ctx, M.X, M.X.u0, L, M.X.a, 1);
@@ -740,7 +741,7 @@ function endPlate(ctx, t) {   // a painted page comes over the picture
 let DASH = [], DROPS = [], MOTES = [], PLANTS = [], MIST = null, SHADE = null, PLATE = null, FIG = {}, SKY = null, VIG = null, GRAIN = null;
 function draw(ctx, t) {
   const cm = camAt(t), lk = lightK(t);
-  ctx.fillStyle = SKY; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = C.sky1; ctx.fillRect(0, 0, W, H);
   layer(ctx, cm, .15, () => drawSheet(ctx, SH.far));
   layer(ctx, cm, .42, () => drawSheet(ctx, SH.mid));
   layer(ctx, cm, .7, () => drawSheet(ctx, SH.near));
@@ -749,7 +750,7 @@ function draw(ctx, t) {
   drawFore(ctx, t, cm);
   ctx.drawImage(VIG, 0, 0);
   const dim = 1 - lk; if (dim > 0) { ctx.fillStyle = `rgba(6,20,30,${.5 * dim})`; ctx.fillRect(0, 0, W, H); }
-  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .45;
+  ctx.save(); ctx.globalAlpha = .06;
   GRAIN.setTransform(new DOMMatrix([cm.z, 0, 0, cm.z, 540 - cm.x * cm.z, 960 - cm.y * cm.z])); ctx.fillStyle = GRAIN; ctx.fillRect(0, 0, W, H); ctx.restore();
   endPlate(ctx, t);
   if (t < B.end) { captionShade(ctx, t);
