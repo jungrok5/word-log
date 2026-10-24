@@ -198,6 +198,8 @@ function drawFig(ctx, F, mid, back, mid0) {
   leg(F.feet[1], K.leg);
   if (mid0) mid0();
   if (mid0 && !F.farFront) arm(shF, F.hands[0], shade(K.sl, .78), F.hand?.[0] || 'fist');
+  const nearUp = mid0 && F.hands[1] && F.hands[1][1] < sh[1];   // a hand up on the carried beam: the arm goes behind the head, not across the face
+  if (nearUp) arm(sh, F.hands[1], K.sl, F.hand?.[1] || 'fist');
   // collar: a pale knit band with a dotted pattern, and the fur ruff under the chin
   const c0 = P(-12, 128), c1 = P(34, 128); ctx.strokeStyle = K.wh; ctx.lineWidth = 16 * s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(...c0); ctx.lineTo(...c1); ctx.stroke();
   ctx.fillStyle = K.cl; for (let k = 0; k < 5; k++) { const p = [lerp(c0[0], c1[0], .1 + k * .2), lerp(c0[1], c1[1], .1 + k * .2)]; ctx.fillRect(p[0] - 2.5 * s, p[1] - 2.5 * s, 5 * s, 5 * s); }
@@ -224,7 +226,7 @@ function drawFig(ctx, F, mid, back, mid0) {
   ctx.restore();
   if (mid) mid();
   if (F.farFront) arm(shF, F.hands[0], shade(K.sl, .78), F.hand?.[0] || 'fist');
-  arm(sh, F.hands[1], K.sl, F.hand?.[1] || 'fist');
+  if (!nearUp) arm(sh, F.hands[1], K.sl, F.hand?.[1] || 'fist');
   ctx.restore();
 }
 
@@ -421,21 +423,21 @@ function pilState(i, t) {
     F.hands = [cpt(Xm, lerp(X0.contact + 26, 70, e)), cpt(Xm, lerp(X0.contact + 80, 26, e))]; return { F, X: Xm }; }
   const xs0 = E - 24, xs1 = E + G + 70;
   if (t < T + .3) { const F = mixSpec(LAY, standSpec(xs0, yb - PW / 2, SPI, 1, .1), eio((tp - T) / .25)); F.col = C.pil; return { F, B: XB }; }
-  if (t < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 4 ? yb - PW / 2 : BY;
+  if (t < T + .75) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .45))), gy = x < E + G + 4 ? yb - PW / 2 : BY;
     const F = walkSpec(x, gy, SPI, 1, P.ph + x / (170 * SPI), 170, .12, 30); F.col = C.pil; F.tilt = -.05; F.hands = hangHands(F, 26 * Math.sin(TAU * (P.ph + x / (170 * SPI)))); return { F, B: XB }; }
   // from the far side: turn, crouch, take the top end and pull it back across (pressing it down over the far lip as a lever)
   const pv = [E + G, yb + PW / 2], pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, [pv[0], pv[1]], -.1 * k);
   const xpAt = k => xs1 + 10 + PULL * k;
   const PULLS = k => { const X = pullX(k), x = xpAt(k); const F = { ...standSpec(x, BY, SPI, -1), hip: [x + 14, BY - 84 * SPI], ang: -1.1, feet: [[x + 36, BY], [x - 30, BY]], tilt: -.35, col: C.pil };
     F.hands = [cpt(X, L - 44), cpt(X, L - 92)]; return [F, X]; };
-  if (t < T + 1.25) { const k = eio(clamp((tp - T - .9) / .35)), [F, X] = PULLS(k);
-    const k0 = eio((tp - T - .9) / .1); return { F: k0 < 1 ? { ...mixSpec(walkSpec(xs1, BY, SPI, 1, 0, 170, .1), F, k0), col: C.pil } : F, X }; }
+  if (t < T + 1.0) { const k = eio(clamp((tp - T - .75) / .25)), [F, X] = PULLS(k);
+    const k0 = eio((tp - T - .75) / .08); return { F: k0 < 1 ? { ...mixSpec(walkSpec(xs1, BY, SPI, 1, 0, 170, .1), F, k0), col: C.pil } : F, X }; }
   const [Fp, Xp] = PULLS(1), xg = xpAt(1);
-  if (t < T + 1.5) { const k = eio((tp - T - 1.25) / .25), e = eio((t - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, BY, 150, .2), Xm = mixX(Xp, Xc, e), F = { ...mixSpec(Fp, Fc, k), col: C.pil };
+  if (t < T + 1.2) { const k = eio((tp - T - 1.0) / .2), e = eio((t - T - 1.0) / .2), [Fc, Xc] = carry(T + 1.2, xg, BY, 150, .2), Xm = mixX(Xp, Xc, e), F = { ...mixSpec(Fp, Fc, k), col: C.pil };
     F.hands = F.f < 0 ? [cpt(Xm, lerp(L - 44, Xc.contact + 26, e)), cpt(Xm, lerp(L - 92, Xc.contact + 80, e))] : [cpt(Xm, lerp(L - 44, Xc.contact + 26, e)), cpt(Xm, lerp(L - 92, Xc.contact + 80, e))];
     return { F, X: Xm }; }
-  const x = lerp(xg, GX + 10, clamp((tp - T - 1.5) / .35)), [F, X] = carry(tp, x, BY, 150, .2);
-  F.alpha = 1 - ss(T + 1.55, T + 1.85, t); F.inGate = x > GX - 110; if (F.alpha <= 0) return null;
+  const x = lerp(xg, GX + 10, clamp((tp - T - 1.2) / .4)), [F, X] = carry(tp, x, BY, 150, .2);
+  F.alpha = 1 - ss(T + 1.35, T + 1.65, t); F.inGate = x > GX - 110; if (F.alpha <= 0) return null;
   return { F, X };
 }
 

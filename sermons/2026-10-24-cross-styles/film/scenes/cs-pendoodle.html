@@ -563,10 +563,9 @@ function drawHole() {
   TX.pHoleL.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(o[0]) + FD * 29, Math.round(o[1]) + FD * 17])); G_.fillStyle = TX.pHoleL; pathS(G_, P); G_.fill();
   const hg = TX.holeG; hg.globalCompositeOperation = 'source-over'; hg.clearRect(0, 0, W, H);
   TX.pHoleD.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(o[0]) + FD * 37, Math.round(o[1]) + FD * 23])); hg.fillStyle = TX.pHoleD; pathS(hg, P); hg.fill();
-  const c = toS([HOLE.cx, HOLE.cy + HOLE.b * .35]), rx = HOLE.a * CAM.z, ry = HOLE.b * CAM.z;
-  hg.save(); hg.translate(c[0], c[1]); hg.scale(1, ry * 1.25 / rx);
-  const gr = hg.createRadialGradient(0, 0, rx * .1, 0, 0, rx * 1.02); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.55, 'rgba(0,0,0,.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-  hg.globalCompositeOperation = 'destination-in'; hg.fillStyle = gr; hg.fillRect(-rx * 3, -rx * 3, rx * 6, rx * 6); hg.restore(); hg.globalCompositeOperation = 'source-over';
+  const yA = toS([0, HF + 6])[1], yB = toS([0, NR - 10])[1], gr = hg.createLinearGradient(0, yA, 0, yB);   // light under the far lip → black down to the near lip
+  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(.42, 'rgba(0,0,0,.8)'); gr.addColorStop(.62, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,1)');
+  hg.globalCompositeOperation = 'destination-in'; hg.fillStyle = gr; hg.fillRect(0, 0, W, H); hg.globalCompositeOperation = 'source-over';
   G_.drawImage(TX.holeC, 0, 0);
   for (const [x, y, l] of HOLE.cracks) penS([toS([x, y]), toS([x + 3, y + l])], 4010 + (x | 0), { w: 2.6, col: 'rgba(34,31,40,.55)' });
   penS(HOLE.far.map(toS), 4003, { w: 3.6 });
