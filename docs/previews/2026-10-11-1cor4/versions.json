@@ -106,5 +106,41 @@
    }
   ],
   "stamp": "20261023162312"
+ },
+ {
+  "v": 4,
+  "date": "2026-10-24",
+  "note": "소리 다시 만듦: 무겁고 진지하게(낮은 현악·심장박동 같은 북·깊은 협곡, 실제 같은 톱질·목재 소리). 밝은 음악·종소리 제거",
+  "scenes": [
+   {
+    "id": "cross-blueprint",
+    "label": "① 청사진 설계도 — Blueprint (치수선이 모자람을 증명)",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   },
+   {
+    "id": "cross-ukiyoe",
+    "label": "④ 우키요에 순례길 — Ukiyo-e",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   },
+   {
+    "id": "cross-papercut",
+    "label": "⑥ 붉은 전지 오림 — Red paper-cut",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   },
+   {
+    "id": "cross-glass",
+    "label": "⑦ 스테인드글라스 — Stained glass",
+    "dur": 30.5,
+    "cuts": [],
+    "poster": true
+   }
+  ],
+  "stamp": "20261024005847"
  }
 ]
