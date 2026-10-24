@@ -140,7 +140,7 @@ function drawFig(ctx, F, mid, back, mid0) {
     part(pathOf(shoe), c);
   };
   if (back) back();
-  if (!F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist');
+  if (!F.farFront && !mid0) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist');
   leg(F.feet[0], far); leg(F.feet[1], shade(col, .88));
   // the cape: one silhouette from the shoulders to a soft hem below the knees; the hem trails behind with the step
   const hemD = Math.max(40 * s, F.gy - F.hip[1] - 52 * s), sw = (F.sway || 0) * s;
@@ -152,6 +152,7 @@ function drawFig(ctx, F, mid, back, mid0) {
   ctx.fillStyle = Pilot.rgb(Pilot.mix([47, 90, 128], rc, .25), me ? .85 : .5);
   ctx.fill(blobPath([P(20, 146), P(29, 110), P(30, 56), P(28, 6), skx(35, hemD * .5), skx(43, hemD - 6), skx(36, hemD - 4), skx(29, hemD * .5), P(21, 8), P(22, 58), P(21, 110), P(14, 144)]));
   if (mid0) mid0();
+  if (mid0 && !F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist');
   // head on a short neck
   const tilt = F.ang + (F.tilt || 0), hu = [Math.sin(tilt), -Math.cos(tilt)], hf = [f * Math.cos(tilt), f * Math.sin(tilt)], N = P(6, 146);
   const Hc = [N[0] + hu[0] * 30 * s + hf[0] * 4 * s, N[1] + hu[1] * 30 * s + hf[1] * 4 * s];
@@ -181,7 +182,7 @@ function drawFig(ctx, F, mid, back, mid0) {
   ctx.restore();
   if (mid) mid();
   if (F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist');
-  arm(sh, F.hands[1], col, F.hand?.[1] || 'fist');
+  arm(sh, F.hands[1], shade(col, me ? 1.6 : 1.3), F.hand?.[1] || 'fist');
   ctx.restore();
 }
 

@@ -178,7 +178,7 @@ function drawFig(ctx, F, mid, back, mid0) {
     ctx.fill(smooth(paw));
   };
   if (back) back();
-  if (!F.farFront) arm(shF, F.hands[0], shade(K.sl, .78), F.hand?.[0] || 'fist');
+  if (!F.farFront && !mid0) arm(shF, F.hands[0], shade(K.sl, .78), F.hand?.[0] || 'fist');
   leg(F.feet[0], shade(K.leg, .7));
   // the tail: bushy, low, swishing with the step
   const tp = P(-26, 8), tw = (F.sway || 0) * .012 + .1;
@@ -197,6 +197,7 @@ function drawFig(ctx, F, mid, back, mid0) {
   ctx.restore();
   leg(F.feet[1], K.leg);
   if (mid0) mid0();
+  if (mid0 && !F.farFront) arm(shF, F.hands[0], shade(K.sl, .78), F.hand?.[0] || 'fist');
   // collar: a pale knit band with a dotted pattern, and the fur ruff under the chin
   const c0 = P(-12, 128), c1 = P(34, 128); ctx.strokeStyle = K.wh; ctx.lineWidth = 16 * s; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(...c0); ctx.lineTo(...c1); ctx.stroke();
   ctx.fillStyle = K.cl; for (let k = 0; k < 5; k++) { const p = [lerp(c0[0], c1[0], .1 + k * .2), lerp(c0[1], c1[1], .1 + k * .2)]; ctx.fillRect(p[0] - 2.5 * s, p[1] - 2.5 * s, 5 * s, 5 * s); }
