@@ -594,7 +594,7 @@ function guide(t, k, al) {   // the dashed pen outline of my whole cross across 
 function world(t) {
   const q = t12(t);
   // two unlit lamps from the lab, along the back of the road
-  for (const [x, sd] of [[620, 5000], [1780, 5100]]) { const sx = toS([x, 0])[0]; if (sx > -200 && sx < W + 200) drawPost(x, RT + 2, sd); }
+  if (t < B.back) for (const [x, sd] of [[620, 5000], [1780, 5100]]) {   // (gone once the words take the upper third with the verse) const sx = toS([x, 0])[0]; if (sx > -200 && sx < W + 200) drawPost(x, RT + 2, sd); }
   // puddle scribbles on the road (rippling), then the gap
   const vx0 = CAM.x - 600 / CAM.z, vx1 = CAM.x + 600 / CAM.z;
   for (const m of MARKS) { if (m.x < vx0) continue; if (m.x > vx1) break; drawMark(m, (Math.floor(q * 4) + m.ph) % 3, q); }
@@ -659,7 +659,7 @@ function world(t) {
 // ---------------- words ----------------
 const PEN = "'Nanum Pen Script','Nanum Pen',cursive";
 function capRect(t) {   // the hand leaves a gap in the rain round the words
-  for (const [a, b, s, src] of S.lines) { if (t < a - .05 || t > b + .05) continue; const n = s.split('\n').length; return [100, 300, 880, (n - 1) * 143 + 150 + (src ? 110 : 0)]; }
+  for (const [a, b, s, src] of S.lines) { if (t < a - .05 || t > b + .05) continue; const n = s.split('\n').length; return [100, 300, 880, (n - 1) * 143 + 150 + (src ? 175 : 0)]; }
   return null;
 }
 function words(ctx, t) {
@@ -667,7 +667,8 @@ function words(ctx, t) {
   const f = FD; ctx.save(); ctx.translate([0, 1, -1][f], [0, -1, 1][f]); ctx.rotate([0, .004, -.003][f]);
   Story.captions(ctx, t, S.lines.map(l => [l[0], l[1], l[2]]), { font: PEN, weight: 400, size: 92, y: 410, color: '#25222b', shadow: 'rgba(0,0,0,0)', shadowBlur: 0 });
   for (const [a, b, s, src] of S.lines) { if (!src) continue; const al = Pilot.win(t, a, b, .35, .45); if (al <= 0) continue;
-    const n = s.split('\n').length; Pilot.text(ctx, src, W / 2, 410 + (n - 1) * 92 * 1.55 + 92, { size: 46, font: PEN, color: '#3a3540', alpha: al }); }
+    const n = s.split('\n').length, m = src.match(/^(.*”)\s*(.*)$/) || [0, src, ''], y0 = 410 + (n - 1) * 92 * 1.55 + 92;
+    Pilot.text(ctx, m[1], W / 2, y0, { size: 52, font: PEN, color: '#3a3540', alpha: al }); if (m[2]) Pilot.text(ctx, m[2], W / 2, y0 + 56, { size: 40, font: PEN, color: '#55505a', alpha: al }); }
   ctx.restore();
 }
 function endCard(ctx, t) {
