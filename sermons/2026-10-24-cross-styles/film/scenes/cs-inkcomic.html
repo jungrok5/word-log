@@ -181,7 +181,10 @@ function drawCross(g, X, mine, o = {}) {
   GREY = was;
 }
 function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
-const mixX = (A, Bx, k) => { if (k <= 0) return A; if (k >= 1) return Bx; let b = Bx.a; while (b - A.a > Math.PI) b -= TAU; while (b - A.a < -Math.PI) b += TAU;
+const mixX = (A, Bx, k, dir = 0) => { if (k <= 0) return A; if (k >= 1) return Bx; let b = Bx.a; while (b - A.a > Math.PI) b -= TAU; while (b - A.a < -Math.PI) b += TAU;
+  if (dir > 0) while (b < A.a) b += TAU; if (dir < 0) while (b > A.a) b -= TAU;   // forced: over the top, never down through the road
+  if (dir) { const cu = ((Bx.u0 || 0) + L) / 2, ca = xpt(A, cu), cb = xpt(Bx, cu), cc = lerp2(ca, cb, k), an = lerp(A.a, b, k);   // turned over about its middle, like a baton
+    return { ...Bx, x: cc[0] - Math.cos(an) * cu, y: cc[1] - Math.sin(an) * cu - Math.sin(Math.PI * k) * 110, a: an, k: lerp(A.k || 0, Bx.k || 0, k) }; }
   return { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, b, k), k: lerp(A.k || 0, Bx.k || 0, k) }; };
 const lying = (x, y, u0 = 0, u1 = L, a = 0) => ({ x, y, a, k: 1, u0, u1 });
 
@@ -359,12 +362,12 @@ function poseMe(t) {
     // turning round on all fours with the cross on my back: four feet planted, the body (and the load on it) squashed to a front view
     const turnRound = (A, Bs, k, u, saw) => { const F = mixSpec(A, Bs, k); F.back = { u0: u }; F.saw = saw ? 'strap' : null; return F; };
     // sitting up (k 0→1) from standing facing left: the cross slides off my back onto my lap, the saw comes out of the strap
-    const sitUp = (k, u, ST, saw0t) => { const { F: SP } = sawSit(c, saw0t), F = mixSpec({ ...ST, back: null, saw: null }, SP, k), Xm = mixX(backCross(ST, u), { ...c.X, u0: u }, k);
+    const sitUp = (k, u, ST, saw0t) => { const { F: SP } = sawSit(c, saw0t), F = mixSpec({ ...ST, back: null, saw: null }, SP, k), Xm = mixX(backCross(ST, u), { ...c.X, u0: u }, k, 1);
       const sv = strapSaw(ST), sg = sawState(c, saw0t).grip, sw = lerp2(sv.grip, sg, k), sa = lerp(sv.ang, CUT_ANG, k), cp = xpt(Xm, lerp(CBX - 40, c.u1 + 46, k)), lw = legsOf(ST);
       F.legs[0] = k < .25 ? lerp2(lw[0], sw, k / .25) : sw; F.legs[1] = k < .25 ? lerp2(lw[1], cp, k / .25) : cp;
       F.mid = () => drawCross(INKG, Xm, true); F.preNear = () => drawSaw(INKG, sw, sa); return F; };
     const sitDown = (k, uA, uB, ST, keepSaw, dropT) => {   // the reverse: lap → back, saw → strap (or the saw stays on the road)
-      const { F: A } = sawSit(c, dropT), F = mixSpec(A, { ...ST, back: null, saw: null }, k), Xm = mixX({ ...c.X, u0: uB }, backCross(ST, uB), k);
+      const { F: A } = sawSit(c, dropT), F = mixSpec(A, { ...ST, back: null, saw: null }, k), Xm = mixX({ ...c.X, u0: uB }, backCross(ST, uB), k, -1);
       const sg = sawState(c, dropT).grip, sv = strapSaw(ST), cp = xpt(Xm, lerp(c.u1 + 46, CBX - 40, k)), lw = legsOf(ST);
       const sw = keepSaw ? lerp2(sg, sv.grip, k) : null, sa = lerp(CUT_ANG, sv.ang, k), free = keepSaw ? sw : lerp2(A.legs[0], lw[0], k);
       F.legs[0] = k > .75 ? lerp2(free, lw[0], (k - .75) / .25) : free; F.legs[1] = k > .75 ? lerp2(cp, lw[1], (k - .75) / .25) : cp;

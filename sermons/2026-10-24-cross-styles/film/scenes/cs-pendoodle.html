@@ -417,12 +417,12 @@ function poseMe(t) {
       const [WA, XA] = carried(W0, a0, lf0, true), [WB, XB] = carried(W1, a1, lf1, !last);
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       const PIN = c.u1 + PINU;
-      if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k), X = mixX(XA, XL, k, .7);
+      if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k), X = mixX(XA, XL, eio(clamp(k * 1.5)), .7);   // the beam gets down quickly (no long diagonal 'X' frames)
         F.hands[0] = cpt(X, lerp(farU(XA), PIN, k), -PW / 2 * k);   // the free hand stays on the beam all the way down
         F.hands[1] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)]; F.hand = ['grip', 'grip'];
         return { F: me(F), X, c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t); return { F: me(sawSpec(c, t)), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
-      const k = eio((tp - c.drop) / (c.up1 - c.drop)), k2 = eio((tp - c.drop) / ((c.up1 - c.drop) * .55)), F = mixSpec(SP, WB, k), X = mixX(XL, XB, k, .3);
+      const k = eio((tp - c.drop) / (c.up1 - c.drop)), k2 = eio((tp - c.drop) / ((c.up1 - c.drop) * .55)), F = mixSpec(SP, WB, k), X = mixX(XL, XB, eio(clamp(k * 1.6)), .3);   // ...and up onto the shoulder before the saw hand moves
       F.hands[0] = cpt(X, lerp(PIN, farU(XB), k), -PW / 2 * (1 - k));   // ...and lifts it back onto the shoulder
       const rT = last ? cpt(X, nearU(XB)) : WB.hands[1], kk = last ? k : eio(clamp((k - .5) / .5));   // the saw hand stays low at the cut while the beam lifts away, then comes up
       F.hands[1] = [lerp(cg[0], rT[0], kk), lerp(cg[1], rT[1], kk)]; F.hand = ['grip', 'grip'];
@@ -444,7 +444,7 @@ function poseMe(t) {
   LAY.hands = [cpt(XLay, u0 + 50, -PW / 2), cpt(XLay, u0 + 16, -PW / 2)]; LAY.hand = ['flat', 'flat'];   // pressing the near end down on the lip
   const REACH = me({ ...LAY, hip: [EDGE - 10, FY - 66 * SME], ang: .42, hands: [[EDGE - 60, FY - 150], [EDGE + 150, FY - 40]], hand: ['open', 'open'], eye: 'shock', tilt: .5, look: [4, 9], ticks: true });
   if (t < B.tip) { if (t < 18.9) { const ST = me(standSpec(EDGE, FY, SME, 1, .06)), STc = carried(ST, -1.05, left, false), k = eio((tp - 18.4) / .4);
-      const X = mixX(STc[1], XLay, k, .55), F = mixSpec(STc[0], LAY, k);   // both wings stay on the beam while I lower it
+      const X = mixX(STc[1], XLay, eio(clamp(k * 1.4)), .55), F = mixSpec(STc[0], LAY, k);   // both wings stay on the beam while I lower it
       F.hands = [cpt(X, lerp(farU(STc[1]), u0 + 50, k), -PW / 2 * k), cpt(X, lerp(nearU(STc[1]), u0 + 16, k), -PW / 2 * k)];
       F.hand = k > .5 ? ['flat', 'flat'] : ['grip', 'grip']; F.strap = k < .4 ? 1 : 0; return { F: me(F), X }; }
     return { F: LAY, X: XLay }; }
@@ -480,7 +480,7 @@ function pilState(i, t) {
   const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
   const LAY = tag({ ...standSpec(pe, BY, SPI, 1), hip: [pe - 4, BY - 58 * SPI], ang: .6, feet: [[pe - 22, BY], [pe + 14, BY]], tilt: .25 });
   LAY.hands = [cpt(XB, 48, -PW / 2), cpt(XB, 16, -PW / 2)]; LAY.hand = ['flat', 'flat'];
-  if (t < T) { const [F0, X0] = carry(T - .35, pe), k = eio((tp - T + .35) / .35), X = mixX(X0, XB, k, .55), F = tag(mixSpec(F0, LAY, k));
+  if (t < T) { const [F0, X0] = carry(T - .35, pe), k = eio((tp - T + .35) / .35), X = mixX(X0, XB, eio(clamp(k * 1.4)), .55), F = tag(mixSpec(F0, LAY, k));
     F.hands = [cpt(X, lerp(farU(X0), 48, k), -PW / 2 * k), cpt(X, lerp(nearU(X0), 16, k), -PW / 2 * k)]; F.hand = ['grip', 'grip']; return { F, X }; }
   const xs0 = E - 10, xs1 = E + G + 60;
   if (t < T + .3) { const F = tag(mixSpec(LAY, standSpec(xs0, yb - PW / 2, SPI, 1, .1), eio((tp - T) / .25))); return { F, B: XB }; }
@@ -723,7 +723,7 @@ function draw(ctx, t) {
   { g.save(); if (cr) { const cl = new Path2D(); cl.rect(0, 0, W, H); cl.rect(cr[0], cr[1], cr[2], cr[3]); g.clip(cl, 'evenodd'); } rain(t, 1, keep); g.restore(); }
   world(t);
   HD.dropout(g, TX.drop, .5);
-  const fade = 1 - .96 * ss(B.end - .15, B.end + .35, t);
+  const fade = 1 - ss(B.end - .15, B.end + .35, t);   // the end card sits on plain paper
   HD.multiply(ctx, HLc, 0, 0, W, H, fade); HD.multiply(ctx, INKL.c, 0, 0, W, H, fade);
   words(ctx, t); endCard(ctx, t);
 }

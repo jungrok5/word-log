@@ -191,6 +191,7 @@ function drawKid(ctx, F, back, mid) {
 // ---------------- crosses ----------------
 function drawCross(ctx, X, u0, u1, mine, alpha = 1) {
   if (!X || u1 - u0 < .5 || alpha <= 0) return;
+  if (X.sx != null) { ctx.save(); ctx.translate(X.px, 0); ctx.scale(X.sx, 1); ctx.translate(-X.px, 0); drawCross(ctx, { ...X, sx: null }, u0, u1, mine, alpha); ctx.restore(); return; }
   const hb = X.lie ? CBHL : CBH, pts = crossPoly(u0, u1, hb).map(([u, v]) => cpt(X, u, v));
   ctx.save(); ctx.globalAlpha *= alpha;
   ink(ctx, pts, { fill: mine ? C.yel : C.cream2, tone: mine ? null : pat('diag', X.x, X.y), smooth: false, lw: 5.2, step: 12 });
@@ -342,6 +343,14 @@ function carryCross(F, left, a0) {
   const contact = left < .6 ? L * (1 - left) + 14 : L - Math.min(250, left * L - 36);
   return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
 }
+function heldX(F, left) {
+  const u0 = L * (1 - left), f = F.f, s = F.s, g = [F.hip[0] + f * 44 * s, F.hip[1] - 30 * s], a = f > 0 ? Math.PI - .08 : .08, ug = u0 + 56;
+  return { x: g[0] - Math.cos(a) * ug, y: g[1] - Math.sin(a) * ug, a, u0, lie: false };
+}
+function holdShort(F, left) {   // near mitten on the beam ahead of me, far mitten on it behind my back
+  const X = heldX(F, left); F.hands = [cpt(X, X.u0 + 150, PW / 2 - 2), cpt(X, X.u0 + 30, -PW / 2 - 2)]; F.hand = ['grip', 'grip']; F.farMid = true; return [F, X];
+}
+const mirrorX = (X, px, sx) => ({ ...X, px, sx: Math.sign(sx || 1) * Math.max(.08, Math.abs(sx)) });   // a yaw turn with the beam, drawn as a horizontal squash
 function reachOnBeam(F, X) {   // the far hand steadies the beam behind my back (where it shows past the body), within real reach
   const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let u = Math.max(X.u0 + 22, X.contact - 100 * F.s);
   while (u < X.contact) { const q = cpt(X, u, PW / 2); if (Math.hypot(q[0] - sh[0], q[1] - sh[1]) <= R) break; u += 6; }
@@ -389,29 +398,36 @@ function poseMe(t) {
         F.eye = 'dot'; return { F, X: Xm, c, saw: { grip: F.hands[1], ang: lerp(hangAng(1), CUT_ANG, ss(.35, 1, k)) } }; }
       if (tp < c.drop) { const st = sawState(c, tp); return { F: SP, X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k), Xm = mixX(XL, XB, k); F.me = true; F.farOver = true;
-      F.hands = [lerp2(onBeam(Xm, F, 1 - k), WB.hands[0], ss(.75, 1, k)), lerp2(cg, WB.hands[1], ss(0, .55, k))];   // the saw comes away first, clear of the beam F.hand = k < .4 ? ['flat', 'grip'] : ['grip', 'grip'];
-      if (last) { F.hands[1] = lerp2(cg, cpt(Xm, Math.min(L - 20, c.u1 + 150), -PW / 2 - 4), k); }   // the saw is left on the road: both hands lift the beam
+      F.hands = [lerp2(onBeam(Xm, F, 1 - k), WB.hands[0], ss(.75, 1, k)), lerp2(cg, WB.hands[1], ss(0, .55, k))]; F.hand = k < .4 ? ['flat', 'grip'] : ['grip', 'grip'];   // the saw comes away first, clear of the beam
+      if (last) {   // the saw is left on the road: both hands lift the short cross to the waist, then I turn round with it
+        const FL = { ...WB, f: -1, ang: -WB.ang, hip: WB.hip.slice() }, [, XLh] = holdShort(FL, lf1), y = clamp((k - .62) / .38);
+        if (y <= 0) { const Xh = mixX(XL, XLh, eio(k / .62)); F.f = -1; F.headF = -1; F.hands = [cpt(Xh, Xh.u0 + 150, PW / 2 - 2), lerp2(cg, cpt(Xh, Xh.u0 + 30, -PW / 2 - 2), ss(0, .5, k))]; F.farMid = true; F.farOver = false;
+          return { F, X: Xh, c, saw: null }; }
+        const fr = y < .5 ? -1 : 1, Fh = { ...F, f: fr, headF: fr, ang: fr * Math.abs(F.ang) }, [F2, Xh] = holdShort(Fh, lf1), sx = y < .5 ? 1 - 2 * y : 2 * y - 1, px = F.hip[0];
+        F2.hands = F2.hands.map(h => [px + (h[0] - px) * Math.max(.08, sx), h[1]]); F2.me = true; F2.farOver = false;
+        return { F: F2, X: mirrorX(Xh, px, sx), c, saw: null }; }
       return { F, X: Xm, c, saw: last ? null : { grip: F.hands[1], ang: lerp(CUT_ANG, hangAng(1), ss(0, .55, k)) } };
     }
   }
-  if (tp < 12) { const [F, a] = walk(tp); const [G2, X] = carried(F, a, left, sawHeld); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
+  if (tp < 12) { const [F, a] = walk(tp); if (left < .6) { const [G2, X] = holdShort(F, left); G2.me = true; return { F: G2, X }; } const [G2, X] = carried(F, a, left, sawHeld); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
   // at the edge: stop (shock), step back to make room for the others, come back
   if (tp < 18.4) { const [F0] = walk(12, E - 52), k = eio((tp - 12) / .3);
     const bx = -170 * eio((tp - 12.9) / .7) + 170 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
     const st = standSpec(E - 52 + bx, FY, SME, 1, .08), STx = mv > 0 ? mixSpec(st, walkSpec(E - 52 + bx, FY, SME, 1, (E + bx) / 140, 140, .1, 24), mv) : st;
     const F = mixSpec(F0, STx, k); F.ang += -.12 * Math.sin(Math.PI * clamp((tp - 12) / .5));
     F.eye = tp < 13.4 ? 'shock' : 'dot'; F.mouth = tp < 13.4 ? 'o' : 'flat'; F.tilt = tp < 13.4 ? -.1 : .05; F.wind = .3;
-    const [G2, X] = carried(F, -.24, left, false); return { F: G2, X, shock: tp < 13.4 }; }
+    const [G2, X] = holdShort(F, left); G2.me = true; return { F: G2, X, shock: tp < 13.4 }; }
   // my turn: lay it across — it hangs short off the near lip; I press the near end down
-  const XLay = { x: E + G + REST, y: FY + 34, a: -Math.PI, u0: L * (1 - left), lie: true };
+  const XLay = { x: E + G + REST, y: FY + 34, a: Math.PI, u0: L * (1 - left), lie: true };
   // squatting at the lip, both mittens pressing the near end down (the body placed from where the hands must be)
   const layHip = (() => { const F0 = { s: SME, f: 1, ang: 1.0, hip: [0, 0] }, so = frame(F0).P(SHN[0], SHN[1]); return [E - 34 - so[0], FY - 84 - so[1]]; })();
   const LAY = { ...standSpec(E - 70, FY, SME, 1), hip: layHip, ang: 1.0, feet: [[layHip[0] + 34, FY], [layHip[0] - 30, FY]], tilt: .25, me: true, eye: 'worry', mouth: 'wavy' };
   LAY.hands = [[E - REST + 10, FY + 34 - PW / 2 - 6], [E - REST + 46, FY + 34 - PW / 2 - 6]]; LAY.hand = ['flat', 'flat'];   // both mittens press the crossbar end down on the lip
   const REACH = { ...LAY, hip: [layHip[0] - 8, FY - 122 * SME], ang: .42, feet: [[layHip[0] + 40, FY], [layHip[0] - 34, FY]], hands: [[E - 130, FY - 70], [E + 50, FY - 40]], hand: ['grip', 'open'], eye: 'shock', mouth: 'o', tilt: .4 };
-  if (tp < B.tip) { if (tp < 18.9) { const ST = { ...standSpec(E - 52, FY, SME, 1, .08), me: true }, STc = carried(ST, -.24, left, false), k = eio((tp - 18.4) / .45);
-      const F = mixSpec(STc[0], LAY, k), X = flipX(STc[1], XLay, k), cu = (XLay.u0 + L) / 2; F.me = true; F.eye = 'dot';
-      if (k < .75) { F.hands = [cpt(X, cu + 40), cpt(X, cu - 10)]; F.hand = ['grip', 'grip']; } else F.hand = ['flat', 'flat'];   // hands stay on the beam while I swing it round
+  if (tp < B.tip) { if (tp < 18.9) { const ST = { ...standSpec(E - 52, FY, SME, 1, .08), me: true }, STc = holdShort(ST, left), k = eio((tp - 18.4) / .45);
+      const F = mixSpec(STc[0], LAY, k), X = mixX(STc[1], XLay, k); F.me = true; F.eye = 'dot'; F.farMid = k < .62;
+      if (k < .8) { const u = q => lerp(q[0], q[1], ss(0, .8, k)); F.hands = [cpt(X, u([X.u0 + 150, L - 10]), -PW / 2 - 4), cpt(X, u([X.u0 + 30, L - 46]), -PW / 2 - 4)]; F.hand = ['grip', 'grip']; }
+      else F.hand = ['flat', 'flat'];   // hands stay on the beam, sliding to the crossbar end as it goes down
       return { F, X, lay: true }; }
     return { F: LAY, X: XLay, lay: true }; }
   if (tp < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.me = true; F.hand = REACH.hand; F.eye = tp > 20.5 ? 'down' : 'shock'; F.mouth = tp > 20.5 ? 'sad' : 'o'; return { F, X: null }; }
@@ -423,7 +439,7 @@ function poseMe(t) {
 function fallX(t) {
   if (t < B.tip) return null;
   const left = S.left[3], u0 = L * (1 - left), pv = [E, FY + 34 + PW / 2];
-  const X0 = { x: E + G + REST, y: FY + 34, a: -Math.PI, u0, lie: true };
+  const X0 = { x: E + G + REST, y: FY + 34, a: Math.PI, u0, lie: true };
   if (t < B.fall) return rotAbout(X0, pv, .5 * Math.pow((t - B.tip) / (B.fall - B.tip), 2));
   const X1 = rotAbout(X0, pv, .5), u = t - B.fall, cu = (u0 + L) / 2, c0 = cpt(X1, cu);
   const cx = c0[0] + 90 * u, cy = c0[1] + 160 * u + 1500 * u * u, a = X1.a + 2.6 * u + 1.2 * u * u;
