@@ -16,14 +16,17 @@ nav{display:flex;gap:16px;margin-top:40px;padding-top:16px;border-top:1px solid 
 </head>
 <body><main>
 <h1>개인정보처리방침</h1>
-<p class="muted">시행일: 2026년 10월 18일</p>
-<p>word-log(이하 "도구")는 운영자 본인이 자신의 유튜브 채널에 영상을 올리기 위해 쓰는 개인용 도구입니다.</p>
+<p class="muted">시행일: 2026년 10월 24일</p>
+<p>word-log(이하 "도구")는 운영자 본인이 자신의 유튜브 채널(@word-log)에 영상을 올리고 관리하기 위해 쓰는 개인용 도구입니다.
+도구는 같은 운영자의 내부 도구 "one-scroll-bible tools"(one-scroll-bible.com)와 같은 Google API 클라이언트를 씁니다.</p>
 <h2>1. 수집하는 정보</h2>
-<p>도구는 다른 사용자의 개인정보를 수집하지 않습니다. 운영자가 Google 계정으로 승인하면 유튜브 업로드 권한(<code>youtube.upload</code>)에 대한 인증 토큰만 발급받습니다.</p>
+<p>도구는 다른 사용자의 개인정보를 수집하지 않습니다. 운영자가 Google 계정으로 승인하면 운영자 채널의 영상 업로드·설명·댓글·자막 관리 권한(<code>youtube.force-ssl</code>)과
+채널 통계 조회 권한(<code>yt-analytics.readonly</code>)에 대한 인증 토큰만 발급받습니다.</p>
 <h2>2. 이용 목적</h2>
-<p>인증 토큰은 운영자가 확인하고 승인한 영상을 운영자 본인의 채널에 업로드하는 데에만 쓰입니다. 시청 기록, 구독자 정보 등 다른 데이터는 읽지 않습니다.</p>
+<p>인증 토큰은 운영자가 확인하고 승인한 영상을 운영자 본인의 채널에 올리고, 그 영상의 조회수·시청 비율을 확인해 다음 영상을 개선하는 데에만 쓰입니다.
+읽은 통계는 저장하지 않고 운영자가 요약해 기록하며, 시청자 개인의 정보나 구독자 목록은 읽지 않습니다.</p>
 <h2>3. 보관과 보호</h2>
-<p>토큰은 GitHub 저장소의 암호화된 Secrets에만 보관되며 코드나 로그에 남지 않습니다. 운영자는 언제든 <a href="https://myaccount.google.com/permissions">Google 계정 권한 페이지</a>에서 접근을 철회할 수 있습니다.</p>
+<p>토큰은 운영자 컴퓨터와 운영자 작업 환경의 환경 변수에만 보관되며 코드나 로그에 남지 않습니다. 운영자는 언제든 <a href="https://myaccount.google.com/permissions">Google 계정 권한 페이지</a>에서 접근을 철회할 수 있습니다.</p>
 <h2>4. 제3자 제공</h2>
 <p>수집한 정보를 제3자에게 제공하거나 판매하지 않습니다. Google API에서 받은 정보의 사용은 <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API 서비스 사용자 데이터 정책</a>(제한적 사용 요건 포함)을 따릅니다. 업로드된 영상에는 <a href="https://www.youtube.com/t/terms">YouTube 서비스 약관</a>과 <a href="https://policies.google.com/privacy">Google 개인정보처리방침</a>이 적용됩니다.</p>
 <h2>5. 문의</h2>

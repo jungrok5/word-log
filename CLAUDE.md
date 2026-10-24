@@ -1,5 +1,6 @@
 # word-log
 
+채널 방향: 예배·수련회·책·일상·큐티책 등 여러 곳에서 얻은 인사이트로, 사람들이 성경을 더 가까이 접하게 하는 채널(@word-log).
 말씀(설교·책·묵상·주제) 하나를 **25–35초의 임팩트 있는 세로 영상**(1080×1920)으로 만든다. 요약 영상이 아니다:
 메시지 하나를 **하나의 강한 그림(비유·장면)**으로 보여 줘서, 처음 보는 사람도 30초 안에 느끼게 하는 것이 목표.
 예) "작은 죄가 번진다" → 문틈이 조금씩 벌어지다 그 틈으로 악마가 문을 열고 들어온다.
@@ -70,13 +71,19 @@
    7. **MP4는 사용자가 고른 버전만**: `python3 tools/export.py sermons/<폴더>` (몇 분 — 백그라운드 작업으로) →
       `film/out/<id>-upload.mp4`(올릴 파일: H.264, 닫힌 GOP, 2초마다 키프레임, B프레임 없음 — 플랫폼 재인코딩 때
       컷 직후 화면이 튀지 않게) + `<id>-cover.jpg`(커버). `out/`은 git에 넣지 않음.
-6. **업로드**(OAuth 준비 중 — 지금은 사용자가 직접): upload.md 문구로. 48시간·7일 뒤 `tools/metrics.template.md`를
+6. **업로드**(유튜브 API 도구 준비됨 — 구글 감사 통과 전까지는 사용자가 직접): upload.md 문구로. 48시간·7일 뒤 `tools/metrics.template.md`를
    `sermons/<폴더>/metrics.md`로 채우고, 확인된 교훈을 LEARNINGS.md에.
    - 인스타: `-upload.mp4`(H.264)를 올리고 앱 설정의 **"최고 화질로 업로드"**를 켠다(안드로이드는 기본 꺼짐).
      커버의 얼굴·제목은 가운데 3:4(y 240–1680) 안에 — 프로필 격자는 그만큼만 보인다.
-   - 유튜브 API 자동 업로드(나중에): 구글 감사를 통과하지 않은 프로젝트는 **비공개·잠김**으로만 올라가고(주인도 공개 못 함),
-     OAuth 동의 화면이 "테스트" 상태면 갱신 토큰이 7일 뒤 만료된다 → 감사 신청 + 프로덕션 게시. 브랜드 계정 채널은 동의
-     화면에서 채널을 골라야 그 채널로 올라간다. 키·토큰은 환경 변수/Secret에만(대화에 쓰지 않음).
+   - 유튜브 API: `node tools/youtube.mjs` — `whoami`(토큰이 @word-log인지), `upload sermons/<폴더> [--publish-at ISO] [--dry]`
+     (`-upload.mp4` + upload.md의 유튜브 제목·설명·해시태그 → 비공개 또는 예약, 결과는 `sermons/<폴더>/youtube.json`),
+     `comment`(고정 댓글 문구를 게시 — 고정은 앱에서), `stats`(조회수·평균 시청 비율 → metrics.md).
+     - one-scroll-bible과 **같은 구글 클라우드 프로젝트·OAuth 클라이언트**("one-scroll-bible tools")를 쓴다 → 감사 한 번으로
+       두 채널 모두(one-scroll-bible `motion/youtube/API-AUDIT.md`). 동의 화면은 이미 프로덕션 게시라 토큰이 7일 뒤 만료되지 않는다.
+     - 감사 통과 전에는 API로 올린 영상이 **비공개·잠김**(주인도 공개 못 함) → 그때까지 업로드는 손으로, `whoami`·`stats`만 쓴다.
+     - 자격 증명은 환경 변수에만(대화·저장소에 쓰지 않음): `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN_WORDLOG`.
+       토큰은 사용자 PC에서 one-scroll-bible의 `node motion/youtube/yt-auth.mjs --as WORDLOG`로 만든다(동의 화면에서
+       one-scroll-bible 계정 → word-log 브랜드 계정 선택). 클라우드 세션에서는 클라우드 환경의 환경 변수로 넣는다.
    - 썸네일·설명의 문구는 영상 그대로 사실이어야 한다.
 
 ## 규칙
