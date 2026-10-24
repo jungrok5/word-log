@@ -154,6 +154,7 @@ function drawArm(ctx, Fr, F, near, col) {
 function drawCat(ctx, F) {
   const al = F.alpha ?? 1; if (al <= 0) return; if (!F.pal) F.pal = MEPAL;
   ctx.save(); ctx.globalAlpha *= al;
+  if (F.sq != null && F.sq < .999) { ctx.translate(F.x, 0); ctx.scale(F.sq, 1); ctx.translate(-F.x, 0); }   // mid-turn: squashed toward a front view
   const Fr = frameOf(F), { hip, TF, HF, f } = Fr, P = F.pal;
   if (F.back) F.back(Fr);
   drawArm(ctx, Fr, F, false, P.c2);
@@ -206,17 +207,16 @@ function drawCatRefl(ctx, F, Xs) {
 }
 
 // ---------------- carrying ----------------
-// on the far shoulder at a shallow angle: the crossbar sits just behind my head, the top end comes out in front of my
-// chest where a paw holds it, the long post trails behind me down to the water (a whole cross drags its foot; a cut one
-// hangs clear — the shorter it is, the shorter the tail behind me)
-const JL = [-30, 74], GRIPU = CBX + 92, GRIPU2 = CBX + 58;
+// dragged on the shoulder: the top end rests on my shoulder, tied there with the lab's strap (over the shoulder, across the
+// chest, held by the near paw); the crossbar stands clear behind me, the long post trails down to the water — a whole cross
+// drags its foot, a cut one hangs clear (the shorter it is, the shorter the tail behind the crossbar)
+const TL = [-34, 72], GRIPU = L - 30, GRIPU2 = L - 60;
 function shoulderCarry(Fr, gy, u0) {
-  const J = Fr.TF(JL[0], JL[1]), h = gy - J[1], th = Math.asin(clamp(h / CBX, .18, .62)), a = Fr.f > 0 ? -th : Math.PI + th, d = [Math.cos(a), Math.sin(a)];
-  return { x: J[0] - d[0] * CBX, y: J[1] - d[1] * CBX, a, k: 0, u0, u1: L };
+  const T = Fr.TF(TL[0], TL[1]), h = gy - T[1], th = Math.asin(clamp(h / L, .14, .5)), a = Fr.f > 0 ? -th : Math.PI + th, d = [Math.cos(a), Math.sin(a)];
+  return { x: T[0] - d[0] * (L - 8), y: T[1] - d[1] * (L - 8), a, k: 0, u0, u1: L };
 }
-function carrySpec(F, u0, pal, both) {   // put the cross on F's shoulder, the far paw (and the near one too, when it's free) on the post
-  const X = shoulderCarry(frameOf(F), F.gy, u0); F.X = X;
-  F.hands = [xpt(X, GRIPU), both ? xpt(X, GRIPU2) : F.hands[1]];
+function carrySpec(F, u0, pal, holdStrap) {   // put the cross on F's shoulder, tied with the strap (the near paw holds the strap when it's free)
+  const X = shoulderCarry(frameOf(F), F.gy, u0); F.X = X; F.strap = holdStrap ? 'hold' : 'wrap';
   F.back = () => drawCross(ctxNow, X, pal); return F;
 }
 
@@ -275,7 +275,7 @@ function crouchSpec(x, gy, f, o = {}) { return { x, gy, f, feet: [[x + f * 16 * 
 function mixSpec(A, Bs, k) {
   if (k <= 0) return A; if (k >= 1) return Bs;
   const pick = k < .5 ? A : Bs, hA = [0, 1].map(i => A.hands[i] || armOf(frameOf(A), A, i === 1).hand), hB = [0, 1].map(i => Bs.hands[i] || armOf(frameOf(Bs), Bs, i === 1).hand);
-  return { ...pick, x: lerp(A.x, Bs.x, k), gy: lerp(A.gy, Bs.gy, k), bob: lerp(A.bob || 0, Bs.bob || 0, k), crouch: lerp(A.crouch || 0, Bs.crouch || 0, k),
+  return { ...pick, sq: A.f !== Bs.f ? Math.max(.32, Math.abs(1 - 2 * k)) : 1, x: lerp(A.x, Bs.x, k), gy: lerp(A.gy, Bs.gy, k), bob: lerp(A.bob || 0, Bs.bob || 0, k), crouch: lerp(A.crouch || 0, Bs.crouch || 0, k),
     lean: lerp(A.lean || 0, Bs.lean || 0, k), head: lerp(A.head || 0, Bs.head || 0, k), feet: [lerp2(A.feet[0], Bs.feet[0], k), lerp2(A.feet[1], Bs.feet[1], k)],
     hands: [lerp2(hA[0], hB[0], k), lerp2(hA[1], hB[1], k)] };
 }
@@ -316,6 +316,7 @@ function poseMe(t) {
   };
   // the saw in my near paw (until the last cut), the cross on my shoulder held by the far paw — by both once the saw is gone
   const carried = (F, lu0, saw) => { carrySpec(F, lu0, HONEY, !saw); if (saw) { F.grip = true; F.mid = Fr => { const s = hangSaw(Fr, F); drawSaw(ctxNow, s.grip, s.ang); }; } return F; };
+  const noStrap = F => { F.strap = null; return F; };
   for (const c of CUTS) {
     if (t < c.s || t >= c.up1) continue;
     const mx = c.mx, lieX = u => lying(c.xl, FY - LIE, u, L);
@@ -323,13 +324,13 @@ function poseMe(t) {
       if (t < c.drop) { const F = sawSpec(c, tp, mx), st = sawState(c, t); F.mid = () => drawSaw(ctxNow, st.grip, CUT_ANG);
         return { F, lieX: lieX(CUTS[1].u1), c, kerf: t >= c.saw0, kp: st.kp }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), A = sawSpec(c, c.drop - .01, mx), Bw = carried(walk(c.up1, mx), c.u1, false), F = mixSpec(A, Bw, k);
-      F.f = k < .5 ? -1 : 1; const Xm = mixX(lieX(c.u1), Bw.X, k);
-      F.hands = [xpt(Xm, lerp(c.u1 + 34, GRIPU, k)), k < .3 ? lerp2(A.hands[1], xpt(Xm, GRIPU2), k / .3) : xpt(Xm, GRIPU2)];
+      const Xm = mixX(lieX(c.u1), Bw.X, k); noStrap(F); if (k > .9) F.strap = 'hold';
+      F.hands = [xpt(Xm, lerp(c.u1 + 34, GRIPU, k)), k < .3 ? lerp2(A.hands[1], xpt(Xm, c.u1 + 80), k / .3) : xpt(Xm, lerp(c.u1 + 80, GRIPU2, k))];
       F.back = () => drawCross(ctxNow, Xm, HONEY); return { F, c, sawDropT: c.drop };
     }
     const W0 = carried(walk(c.s, mx), c.u0, true);
     if (t < c.s + c.d) {   // set it down behind me, my far paw sliding down the post to the cut, and turn to its foot end
-      const k = eio((tp - c.s) / c.d), SP = sawSpec(c, c.saw0, mx), F = mixSpec(W0, SP, k); F.f = k < .5 ? 1 : -1; F.grip = true; F.face = 'calm';
+      const k = eio((tp - c.s) / c.d), SP = sawSpec(c, c.saw0, mx), F = noStrap(mixSpec(W0, SP, k)); F.grip = true; F.face = 'calm';
       const Xm = mixX(W0.X, lieX(c.u0), k); F.back = () => drawCross(ctxNow, Xm, HONEY); F.hands[0] = xpt(Xm, lerp(GRIPU, c.u1 + 34, k));
       const sg = sawState(c, c.saw0).grip, sh = hangSaw(frameOf(W0), W0); F.hands[1] = lerp2(sh.grip, sg, k); F.mid = () => drawSaw(ctxNow, F.hands[1], lerp(sh.ang, CUT_ANG, k));
       return { F, c };
@@ -346,7 +347,7 @@ function poseMe(t) {
     }
     // pick it up again (cut 1): lying → back on my shoulder, turn back to the road
     const k = eio((tp - c.drop) / (c.up1 - c.drop)), A = sawSpec(c, c.drop - .01, mx), Bw = carried(walk(c.up1, mx), c.u1, true), F = mixSpec(A, Bw, k);
-    F.f = k < .5 ? -1 : 1; F.grip = true; F.face = 'calm';
+    noStrap(F); if (k > .9) F.strap = 'wrap'; F.grip = true; F.face = 'calm';
     const Xm = mixX(lieX(c.u1), Bw.X, k); F.back = () => drawCross(ctxNow, Xm, HONEY); F.hands[0] = xpt(Xm, lerp(c.u1 + 34, GRIPU, k));
     const sg = sawState(c, c.drop - .01).grip, sh = hangSaw(frameOf(Bw), Bw); F.hands[1] = lerp2(sg, sh.grip, k);
     F.mid = () => drawSaw(ctxNow, F.hands[1], lerp(CUT_ANG, sh.ang, k));
@@ -367,7 +368,7 @@ function poseMe(t) {
   const LAY = { ...crouchSpec(E - REST - HIPOFF + 30, FY, 1, { lean: .9, head: .35, crouch: 20 }), face: 'calm' };
   LAY.hands = [xpt(XLay, u0 + 56), xpt(XLay, u0 + 20)];
   if (t < B.tip) {
-    if (t < 18.85) { const ST = carried(standSpec(EX, FY, 1, { lean: .1 }), u0, false), k = eio((tp - 18.4) / .4), F = mixSpec(ST, LAY, k);
+    if (t < 18.85) { const ST = carried(standSpec(EX, FY, 1, { lean: .1 }), u0, false), k = eio((tp - 18.4) / .4), F = noStrap(mixSpec(ST, LAY, k));
       const Xm = mixX(ST.X, XLay, eio((t - 18.4) / .4)); F.back = () => drawCross(ctxNow, Xm, HONEY);
       F.hands = [xpt(Xm, lerp(GRIPU, u0 + 56, k)), xpt(Xm, lerp(GRIPU2, u0 + 20, k))]; return { F, lay: true }; }
     return { F: { ...LAY, face: t > 19.0 ? 'strain' : 'calm' }, X: XLay, lay: true };
@@ -404,10 +405,11 @@ function pilState(j, t) {
   const tp = t12(t), P = PIL[j], T = B.bridges[j], yb = BY - 20, top = yb - PWL / 2 - 2;
   const tag = F => { F.pal = PILPAL; return F; };
   const carry = (x, stride = 70, o = {}) => carrySpec(tag(walkSpec(x, BY, 1, P.ph + x / stride, stride, { lean: .3, head: .34, bob: 3, face: 'strain', ...o })), 0, GREY, true);
+  const ns = F => { F.strap = null; return F; };
   if (t < T - .35) { const x = pilX(j, tp); return { F: carry(x, tp > 11.4 ? 130 : 70, tp > 11.4 ? { lean: .24, head: .2, face: 'calm' } : {}) }; }
   const XB = lying(E - REST, yb);
   const LAY = tag({ ...crouchSpec(E - REST - HIPOFF + 30, BY, 1, { lean: .9, head: .3, crouch: 20 }) }); LAY.hands = [xpt(XB, 56), xpt(XB, 20)];
-  if (t < T) { const F0 = carry(E - REST - HIPOFF + 30), k = eio((tp - T + .35) / .35), F = tag(mixSpec(F0, LAY, k)), Xm = mixX(F0.X, XB, eio((t - T + .35) / .35));
+  if (t < T) { const F0 = carry(E - REST - HIPOFF + 30), k = eio((tp - T + .35) / .35), F = ns(tag(mixSpec(F0, LAY, k))), Xm = mixX(F0.X, XB, eio((t - T + .35) / .35));
     F.back = () => drawCross(ctxNow, Xm, GREY); F.hands = [xpt(Xm, lerp(GRIPU, 56, k)), xpt(Xm, lerp(GRIPU2, 20, k))]; return { F }; }
   const xs0 = E - 30, xs1 = E + G + 60;
   if (t < T + .25) { const F = tag(mixSpec(LAY, standSpec(xs0, top, 1, { lean: .08 }), eio((tp - T) / .25))); return { F, bridge: XB, onBridge: true }; }
@@ -420,8 +422,8 @@ function pilState(j, t) {
   if (t < T + 1.15) { const k = eio(clamp((tp - T - .8) / .35)), [F, X] = PULLS(k), k0 = eio((tp - T - .8) / .12);
     return { F: k0 < 1 ? tag(mixSpec(standSpec(xs1, BY, 1), F, k0)) : F, bridge: X, pulling: true }; }
   const [Fp, Xp] = PULLS(1), xg = Fp.x;
-  if (t < T + 1.35) { const k = eio((tp - T - 1.15) / .2), Fc = carry(xg, 120), F = tag(mixSpec(Fp, Fc, k)), Xm = mixX(Xp, Fc.X, k);
-    F.f = k < .5 ? -1 : 1; F.back = () => drawCross(ctxNow, Xm, GREY); F.hands = [xpt(Xm, lerp(L - 50, GRIPU, k)), xpt(Xm, lerp(L - 12, GRIPU2, k))]; return { F }; }
+  if (t < T + 1.35) { const k = eio((tp - T - 1.15) / .2), Fc = carry(xg, 120), F = ns(tag(mixSpec(Fp, Fc, k))), Xm = mixX(Xp, Fc.X, k);
+    F.back = () => drawCross(ctxNow, Xm, GREY); F.hands = [xpt(Xm, lerp(L - 50, GRIPU, k)), xpt(Xm, lerp(L - 12, GRIPU2, k))]; return { F }; }
   const x = lerp(xg, GX, clamp((tp - T - 1.35) / .45)), F = carry(x, 120, { lean: .2, head: .1, face: 'calm' });
   F.alpha = 1 - ss(T + 1.6, T + 1.9, t); if (F.alpha <= 0) return null; F.inGate = x > GX - 70;
   return { F };
@@ -466,9 +468,9 @@ function init() {
     gr.addColorStop(0, 'rgba(255,240,196,1)'); gr.addColorStop(.3, 'rgba(255,226,160,.5)'); gr.addColorStop(.65, 'rgba(240,214,170,.12)'); gr.addColorStop(1, 'rgba(230,220,210,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); }
   // the sky (parallax .4): the moon, lavender cloud blobs part-outlined, star specks — all above the ledge
   const r = rng(31);
-  SKY.push(shape(ell(E * .4 + 420, 520, 60, 48, 20).map((q, i) => [q[0] + Math.sin(i * 1.7) * 3, q[1] + Math.cos(i * 2.3) * 3]), { fill: C.moon }));
-  SKY.push(shape(ell(300, 560, 50, 40, 20).map((q, i) => [q[0] + Math.sin(i * 1.3) * 3, q[1] + Math.cos(i * 2.1) * 3]), { fill: C.moon }));
-  for (let x = -700; x < E * .4 + 1400; x += 420 + r() * 260) { const y = 690 + r() * 170, rx = 90 + r() * 150;
+  SKY.push(shape(ell(E * .4 + 420, 690, 56, 44, 20).map((q, i) => [q[0] + Math.sin(i * 1.7) * 3, q[1] + Math.cos(i * 2.3) * 3]), { fill: C.moon }));
+  SKY.push(shape(ell(300, 700, 48, 38, 20).map((q, i) => [q[0] + Math.sin(i * 1.3) * 3, q[1] + Math.cos(i * 2.1) * 3]), { fill: C.moon }));
+  for (let x = -700; x < E * .4 + 1400; x += 420 + r() * 260) { const y = 790 + r() * 110, rx = 90 + r() * 150;
     SKY.push(shape(blobPts(x, y, rx, rx * (.24 + r() * .14), (x | 0) % 97 + 3, 20), { fill: C.lav, part: [0, .55] })); }
   SKY.stars = []; for (let i = 0; i < 60; i++) SKY.stars.push([-700 + r() * (E * .4 + 2200), 300 + r() * 520, .9 + r() * 1.4]);
   // the quiet ripple rings on the open water below the ledge (world)
@@ -561,9 +563,9 @@ function outline(ctx, t, al, full) {
     const u0 = L * (1 - S.left[k]), u1 = L * (1 - S.left[k + 1]), q = [[u0 + 3, -PWL / 2], [u1 - 3, -PWL / 2], [u1 - 3, PWL / 2], [u0 + 3, PWL / 2]].map(([u, v]) => xpt(X, u, v)), c = xpt(X, (u0 + u1) / 2);
     const pulse = 1 + .35 * Math.exp(-(t - SLOTS[k]) * 4);
     ctx.save(); ctx.globalAlpha *= on * .8; const R = 95 * pulse; ctx.drawImage(GLOW, c[0] - R, c[1] - R * .8, 2 * R, 1.6 * R); ctx.restore();
-    ctx.save(); ctx.globalAlpha *= on * .7; ctx.fillStyle = 'rgba(255,224,150,1)'; ctx.fill(pathOf(q)); ctx.restore();
+    ctx.save(); ctx.globalAlpha *= on * .9; ctx.fillStyle = 'rgba(255,214,120,1)'; ctx.fill(pathOf(q)); ctx.restore();
     ctx.save(); ctx.globalAlpha *= on; ctx.setLineDash([7 * LW, 6 * LW]); ctx.lineWidth = 2.6 * LW; ctx.strokeStyle = '#fff6dc'; ctx.stroke(pathOf(q)); ctx.restore(); }
-  ctx.setLineDash([14 * LW, 10 * LW]); ctx.lineDashOffset = -t * 14; ctx.lineWidth = 3.4 * LW; ctx.strokeStyle = 'rgba(255,236,190,.9)'; ctx.stroke(pathOf(pts)); ctx.setLineDash([]);
+  ctx.setLineDash([16 * LW, 10 * LW]); ctx.lineDashOffset = -t * 14; ctx.lineWidth = 4.2 * LW; ctx.strokeStyle = 'rgba(255,240,205,1)'; ctx.stroke(pathOf(pts)); ctx.setLineDash([]);
   ctx.restore();
 }
 

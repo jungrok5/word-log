@@ -186,10 +186,10 @@ function sawState(c, t) {
 }
 function sawSpec(c, t) {
   const f = -1, mx = c.mx, s = SME, st = sawState(c, t);
-  return { s, f, gy: FY, hip: [mx, FY - 44 * s], ang: f * .62, feet: [[mx + 66 * s, FY], [mx - 44 * s, FY]], hands: [st.grip, [c.cutX + 44 * s, c.y - PW / 2 - 3]],
+  return { s, f, gy: FY, hip: [mx, FY - 44 * s], ang: f * .62, feet: [[mx + 66 * s, FY], [mx - 44 * s, FY]], hands: [st.grip, [c.cutX + 116 * s, c.y - PW / 2 - 3]],
     hand: ['fist', 'flat'], tilt: .35, eye: 'calm', sway: 0, farFront: true };
 }
-const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (18 + sw) * F.s, sh[1] + 110 * F.s]; };
+const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (18 + sw) * F.s, sh[1] + 92 * F.s]; };
 const rIdx = F => F.f > 0 ? 1 : 0, lIdx = F => F.f > 0 ? 0 : 1;
 
 function poseMe(t) {
@@ -214,35 +214,49 @@ function poseMe(t) {
       const XL = { x: c.baseX, y: c.y, a: 0, u0: L * (1 - left), lie: true }, SP = sawSpec(c, tp), cg = sawState(c, tp).grip;
       if (t < c.s + c.d) { const k = eio((tp - c.s) / c.d), F = mixSpec(WA, SP, k);
         F.hands[rIdx(F)] = [lerp(WA.hands[1][0], cg[0], k), lerp(WA.hands[1][1], cg[1], k)];
-        F.hands[lIdx(F)] = [lerp(WA.hands[0][0], SP.hands[1][0], k), lerp(WA.hands[0][1], SP.hands[1][1], k)];
+        const Xm = mixX(XA, XL, k), onX = cpt(Xm, CBX, 58 * (1 - k)), k2 = ss(.55, 1, k);   // the hand rides the crossbar down, then slides to the beam
+        F.hands[lIdx(F)] = [lerp(onX[0], SP.hands[1][0], k2), lerp(onX[1], SP.hands[1][1], k2)];
         F.hand = F.f > 0 ? ['fist', 'fist'] : ['fist', 'flat'];
-        return { F, X: mixX(XA, XL, k), c, saw: { grip: F.hands[rIdx(F)], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
+        return { F, X: Xm, c, saw: { grip: F.hands[rIdx(F)], ang: lerp(hangAng(1), CUT_ANG, k) } }; }
       if (t < c.drop) { const st = sawState(c, t); return { F: sawSpec(c, t), X: XL, c, kerf: st, saw: { grip: st.grip, ang: CUT_ANG } }; }
       const k = eio((tp - c.drop) / (c.up1 - c.drop)), F = mixSpec(SP, WB, k);
       const rT = WB.hands[1], lT = WB.hands[0];
-      F.hands[rIdx(F)] = [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)]; F.hands[lIdx(F)] = [lerp(SP.hands[1][0], lT[0], k), lerp(SP.hands[1][1], lT[1], k)];
-      F.hand = F.f > 0 ? ['fist', 'fist'] : ['fist', 'flat'];
+      const Xm = mixX(XL, XB, k), k1 = ss(0, .4, k), onX = last ? cpt(Xm, CBX - 40, 4) : cpt(Xm, CBX, 58 * k);   // one hand: the saw (to my hip); the other: the cross
+      F.hands[rIdx(F)] = last ? [lerp(SP.hands[1][0], onX[0], k1), lerp(SP.hands[1][1], onX[1], k1)] : [lerp(cg[0], rT[0], k), lerp(cg[1], rT[1], k)];
+      F.hands[lIdx(F)] = last ? hangHands(F)[lIdx(F)] : [lerp(SP.hands[1][0], onX[0], k1), lerp(SP.hands[1][1], onX[1], k1)];
+      F.hand = ['fist', 'fist'];
       const saw = last ? null : { grip: F.hands[rIdx(F)], ang: lerp(CUT_ANG, hangAng(1), k) };
-      return { F, X: mixX(XL, XB, k), c, saw };
+      return { F, X: Xm, c, saw };
     }
   }
   if (t < 12) { const [F, a] = walk(tp); const [G2, X] = sawHeld ? carried(F, a, left, true) : holdUp(F, left); return { F: G2, X, saw: sawHeld ? { grip: G2.hands[1], ang: hangAng(1) } : null }; }
   if (t < 18.4) { const [F0] = walk(12, E - 52), k = eio((tp - 12) / .3);
-    const bx = -150 * eio((tp - 12.9) / .7) + 150 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
+    const bx = -150 * eio((tp - 12.9) / .7) + 52 * eio((tp - 17.6) / .7), mv = Pilot.win(tp, 12.85, 18.35, .12, .12) * (1 - Pilot.win(tp, 13.65, 17.55, .12, .12));
     const STx = mv > 0 ? mixSpec(standSpec(E - 52 + bx, FY, SME, 1, .08), walkSpec(E - 52 + bx, FY, SME, 1, (E + bx) / 150, 150, .1, 24), mv) : standSpec(E - 52 + bx, FY, SME, 1, .08);
     const F = mixSpec(F0, STx, k);
     F.ang += .16 * Math.sin(Math.PI * clamp((tp - 12) / .5)) * (tp < 12.5 ? -1 : 0); F.eye = tp < 13.2 ? 'shock' : 'calm';
     const [G2, X] = holdUp(F, left); return { F: G2, X }; }
-  const XLay = { x: E - REST - L * (1 - left), y: FY + 34, a: 0, u0: L * (1 - left), lie: true };
-  const LAY = { ...standSpec(E - 52, FY, SME, 1), hip: [E - 66, FY - 98 * SME], ang: .82, feet: [[E - 104, FY], [E - 30, FY]], tilt: .2 };
-  LAY.hands = [cpt(XLay, L * (1 - left) + 64), cpt(XLay, L * (1 - left) + 22)]; LAY.hand = ['flat', 'flat'];
+  const u0L = L * (1 - left), XLay = { x: E - REST - u0L, y: FY + 34, a: 0, u0: u0L, lie: true };
+  const LAY = { ...standSpec(E - 66, FY, SME, 1), hip: [E - 70, FY - 58 * SME], ang: 1.0, feet: [[E - 110, FY], [E - 26, FY]], tilt: .25 };   // kneeling at the lip, leaning over
+  const onBeam = X => [cpt(X, X.u0 + 40, -PW / 2 - 4), cpt(X, X.u0 + 100, -PW / 2 - 4)];
+  LAY.hands = onBeam(XLay); LAY.hand = ['flat', 'flat'];
   const REACH = { ...LAY, hip: [E - 72, FY - 112 * SME], ang: .5, hands: [[E - 170, FY - 100], [E + 70, FY - 10]], hand: ['fist', 'open'], eye: 'shock', tilt: .4 };
-  if (t < B.tip) { if (t < 18.9) { const ST = standSpec(E - 52, FY, SME, 1, .08), STc = holdUp(ST, left), k = eio((tp - 18.4) / .4);
-      const F = mixSpec(STc[0], LAY, k); F.hand = k > .5 ? ['flat', 'flat'] : ['fist', 'fist']; return { F, X: mixX(STc[1], XLay, eio((t - 18.4) / .26)), lay: true }; }
-    return { F: LAY, X: XLay, lay: true }; }
-  if (t < B.back) { const k = eio((tp - B.tip) / .25), F = mixSpec(LAY, REACH, k); F.hand = REACH.hand; F.eye = 'shock'; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }
+  if (t < 19.45) {
+    if (t < 18.95) {   // tip it forward about its foot (hand sliding down the shaft), then slide it out onto the lip
+      const ST = standSpec(E - 150, FY, SME, 1, .08), STc = holdUp(ST, left), k = eio((tp - 18.4) / .55), k1 = eio(clamp((tp - 18.4) / .38)), k2 = eio(clamp((tp - 18.7) / .25));
+      const pv = [lerp(STc[1].x, E - REST, k2), lerp(FY - 2, FY + 34, k2)], a = lerp(-Math.PI / 2, 0, k1);
+      const X = { x: pv[0] - Math.cos(a) * u0L, y: pv[1] - Math.sin(a) * u0L, a, u0: u0L, lie: k1 > .6 };
+      const F = mixSpec(STc[0], LAY, k), hb = onBeam(X), hs = cpt(X, lerp(CBX - 40, u0L + 100, k1), lerp(4, -PW / 2 - 4, k1));
+      F.hands = [k > .5 ? hb[0] : [lerp(STc[0].hands[0][0], hb[0][0], k * 2), lerp(STc[0].hands[0][1], hb[0][1], k * 2)], hs]; F.hand = k1 > .6 ? ['flat', 'flat'] : ['fist', 'fist'];
+      return { F, X, lay: true }; }
+    if (t < B.tip) return { F: LAY, X: XLay, lay: true };
+    const FXt = fallX(t), F = { ...LAY, hands: onBeam(FXt), eye: 'shock' };   // it starts to tip: my hands go with it…
+    return { F, X: null, lay: true }; }
+  if (t < B.back) { const FXt = fallX(19.45), H0 = { ...LAY, hands: onBeam(FXt) }, k = eio((tp - 19.45) / .2), F = mixSpec(H0, REACH, k); F.hand = REACH.hand; F.eye = 'shock'; if (tp > 20.6) F.eye = 'down'; return { F, X: null }; }   // …and let go
   const BACK = { ...standSpec(E - 52, FY, SME, -1, .04), tilt: -.05, eye: 'calm' }, FWD = { ...standSpec(E - 52, FY, SME, 1, .1), tilt: .3, eye: 'calm' };
-  if (t < 22.45) return { F: mixSpec(REACH, BACK, eio((tp - B.back) / .3)), X: null };
+  const UP = { ...standSpec(E - 52, FY, SME, 1, .06), tilt: .1, eye: 'calm' };
+  if (t < B.back + .25) return { F: mixSpec(REACH, UP, eio((tp - B.back) / .25)), X: null };   // rise…
+  if (t < 22.45) return { F: mixSpec(UP, BACK, eio((tp - B.back - .25) / .18)), X: null };     // …then turn
   return { F: mixSpec(BACK, FWD, eio((tp - 22.45) / .35)), X: null };
 }
 function fallX(t) {
@@ -260,15 +274,17 @@ const PIL = [{ x0: -470, ph: .3 }, { x0: -230, ph: .75 }, { x0: 190, ph: .1 }, {
 const BRIDGE_Y = [BY - 6, BY + 4, BY + 14], PULL = 210;
 function pilState(i, t) {
   const tp = t, P = PIL[i], j = 3 - i, T = j < 3 ? B.bridges[j] : 99, yb = BRIDGE_Y[j] ?? BY;
-  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 300 - 130 * j, xc = E - 46;
+  const xAt = tt => { if (tt <= 9 || j > 2) return P.x0 + 52 * tt; const xa = P.x0 + 468, xb = E - 400 - 150 * j, xc = E - 46;
     if (tt <= 12) return lerp(xa, xb, (tt - 9) / 3); return lerp(xb, xc, clamp((tt - 12) / (T - .35 - 12))); };
   const carry = (tt, x, gy = BY, stride = 118, lean = .27) => { const F = walkSpec(x, gy, SPI, 1, P.ph + x / (stride * SPI), stride, lean, 18); F.tilt = .1; F.eye = 'closed'; const X = carryCross(F, 1, -.5); gripCarry(F, X); return [F, X]; };
   if (j > 2) { if (t >= 12) return null; const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   if (t < T - .35) { const [F, X] = carry(tp, xAt(tp)); return { F, X }; }
   const XB = { x: E - REST, y: yb, a: 0, u0: 0, lie: true };
-  const LAY = { ...standSpec(E - 46, BY, SPI, 1), hip: [E - 54, BY - 102 * SPI], ang: .7, feet: [[E - 92, BY], [E - 22, BY]], tilt: .2 };
-  LAY.hands = [cpt(XB, 66), cpt(XB, 24)]; LAY.hand = ['flat', 'flat'];
-  if (t < T) { const [F0, X0] = carry(T - .35, E - 46), k = eio((tp - T + .35) / .35); return { F: mixSpec(F0, LAY, k), X: mixX(X0, XB, k) }; }
+  const LAY = { ...standSpec(E - 46, BY, SPI, 1), hip: [E - 56, BY - 70 * SPI], ang: .95, feet: [[E - 96, BY], [E - 22, BY]], tilt: .2 };
+  const shaft = X => [cpt(X, 95, -PW / 2 - 3), cpt(X, 30, -PW / 2 - 3)];
+  LAY.hands = shaft(XB); LAY.hand = ['fist', 'fist'];
+  if (t < T) { const [F0, X0] = carry(T - .35, E - 46), k = eio((tp - T + .35) / .35), X = mixX(X0, XB, k), F = mixSpec(F0, LAY, k), on = shaft(X), kh = ss(0, .35, k);
+    F.hands = [0, 1].map(i => [lerp(F0.hands[i][0], on[i][0], kh), lerp(F0.hands[i][1], on[i][1], kh)]); F.hand = ['fist', 'fist']; return { F, X }; }
   const xs0 = E - 24, xs1 = E + G + 70;
   if (t < T + .3) { const F = mixSpec(LAY, standSpec(xs0, yb - PW / 2, SPI, 1, .1), eio((tp - T) / .25)); return { F, B: XB }; }
   if (t < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 4 ? yb - PW / 2 : BY;
@@ -280,9 +296,11 @@ function pilState(i, t) {
   if (t < T + 1.25) { const k = eio(clamp((tp - T - .9) / .35)), [F, X] = PULLS(k);
     const k0 = eio((tp - T - .9) / .1); return { F: k0 < 1 ? mixSpec(walkSpec(xs1, BY, SPI, 1, 0, 170, .1), F, k0) : F, X }; }
   const [Fp, Xp] = PULLS(1), xg = xpAt(1);
-  if (t < T + 1.5) { const k = eio((tp - T - 1.25) / .25), [Fc, Xc] = carry(T + 1.5, xg, BY, 150, .2); return { F: mixSpec(Fp, Fc, k), X: mixX(Xp, Xc, k) }; }
-  const x = lerp(xg, GX + 10, clamp((tp - T - 1.5) / .35)), [F, X] = carry(tp, x, BY, 150, .2);
-  F.alpha = 1 - ss(T + 1.55, T + 1.85, t); F.inGate = x > GX - 110; if (F.alpha <= 0) return null;
+  const XH = { ...Xp, x: Xp.x + 20, y: Xp.y - 70, a: Xp.a - .28 }, HOLD = { ...standSpec(xg + 4, BY, SPI, -1, .06), tilt: .05, hands: [cpt(XH, L - 40), cpt(XH, L - 96)] };   // stand, holding the beam end
+  if (t < T + 1.4) { const k = eio((tp - T - 1.25) / .15); return { F: mixSpec(Fp, HOLD, k), X: mixX(Xp, XH, k) }; }
+  if (t < T + 1.6) { const k = eio((tp - T - 1.4) / .2), [Fc, Xc] = carry(T + 1.6, xg, BY, 150, .2); return { F: mixSpec(HOLD, Fc, k), X: mixX(XH, Xc, k) }; }   // turn and hoist
+  const x = lerp(xg, GX + 10, clamp((tp - T - 1.6) / .3)), [F, X] = carry(tp, x, BY, 150, .2);
+  F.alpha = 1 - ss(T + 1.65, T + 1.88, t); F.inGate = x > GX - 110; if (F.alpha <= 0) return null;
   return { F, X };
 }
 

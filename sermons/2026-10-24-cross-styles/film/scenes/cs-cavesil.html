@@ -413,8 +413,7 @@ function camAt(t) {
   if (t >= 18.2) c = mixCam(c, { x: E + 190, y: 1090, z: .98 }, eio((t - 18.2) / .45));
   if (t >= B.fall) c = mixCam(c, { x: E + 160, y: 1200, z: 1.34 }, eo((t - B.fall) / .09));
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 150, y: 1060, z: 1.0 }, eio((t - B.fall - .65) / .7));
-  if (t >= B.back) { const pc = (CUTS[1].baseX + CUTS[1].u1 + CUTS[2].baseX + CUTS[2].u0) / 2 + 40;   // between pieces 2 and 3
-    c = mixCam(c, { x: pc, y: 1150, z: 1.12 }, eio((t - B.back) / .8)); }                            // travel back down the road: each piece glows where it lies
+  if (t >= B.back) c = mixCam(c, { x: E - 400, y: 1130, z: .98 }, eio((t - B.back) / .8));      // travel back down the road: pieces 2-3 glow where they lie, I stay in frame at the lip looking back
   if (t >= 22.3) c = mixCam(c, { x: E + 190, y: 1110, z: .95 }, eio((t - 22.3) / .75));          // back out to the gap: me at the lip, the outline over the gap
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
@@ -471,7 +470,7 @@ function buildCave() {
   for (let x = ROADX0; x < ROADX1; x += 120 + r() * 220) if (!inGap(x, 30)) DRIPS.push([x, 30 + r() * 70, 10 + r() * 16]);
   face.addPath(pathOf([...lt0, ...LE.filter(p => p[1] > LIP && p[1] <= SLAB), ...under(ROADX0, E + 6, 1).reverse()]));
   face.addPath(pathOf([...RE.filter(p => p[1] > LIP && p[1] <= SLAB).reverse(), ...lt1, ...under(E + G - 6, ROADX1, 1).reverse()]));
-  for (const cx of [-650, 420, 1350, E + G + 640, E + G + 1400]) { const w = 70 + r() * 50;
+  for (const cx of []) { const w = 70 + r() * 50;
     face.addPath(blobPath([[cx - w * 1.4, SLAB - 10], [cx + w * 1.5, SLAB - 10], [cx + w * .7, SLAB + 160], [cx + w * .55, 2000], [cx + w * .9, 2800], [cx - w * .9, 2800], [cx - w * .6, 2000], [cx - w * .7, SLAB + 170]])); }
   CAVE.win = [];
   for (const wx of []) { const w = 230 + r() * 120, h = 150 + r() * 60, y = 1640 + r() * 80;
