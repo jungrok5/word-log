@@ -593,8 +593,8 @@ function guide(t, k, al) {   // the dashed pen outline of my whole cross across 
 }
 function world(t) {
   const q = t12(t);
-  // two unlit lamps from the lab, along the back of the road
-  if (t < B.back) for (const [x, sd] of [[620, 5000], [1780, 5100]]) {   // (gone once the words take the upper third with the verse) const sx = toS([x, 0])[0]; if (sx > -200 && sx < W + 200) drawPost(x, RT + 2, sd); }
+  // two unlit lamps from the lab, along the back of the road (gone once the verse takes the upper third)
+  if (t < B.back) for (const [x, sd] of [[620, 5000], [1780, 5100]]) { const sx = toS([x, 0])[0]; if (sx > -200 && sx < W + 200) drawPost(x, RT + 2, sd); }
   // puddle scribbles on the road (rippling), then the gap
   const vx0 = CAM.x - 600 / CAM.z, vx1 = CAM.x + 600 / CAM.z;
   for (const m of MARKS) { if (m.x < vx0) continue; if (m.x > vx1) break; drawMark(m, (Math.floor(q * 4) + m.ph) % 3, q); }
