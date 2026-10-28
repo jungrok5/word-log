@@ -218,7 +218,7 @@
   K.stand = function (x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - 178 * s], ang: f * lean, feet: [[x - f * 18 * s, gy], [x + f * 22 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: 0 }; };
   /* kneel(x, gy, s, f, lean) — down on the far knee (shin flat behind, toes tucked), near foot planted forward, knee up.
      Hip at x. Lean ~.25 upright (prayer, waiting); ~1.0 bent over the ground in front (planting, reaching down). */
-  K.kneel = function (x, gy, s, f, lean = .25) { return { s, f, gy, hip: [x, gy - 104 * s], ang: f * lean, feet: [[x - f * 92 * s, gy], [x + f * 62 * s, gy]], toes: [-.5, null], hands: [null, null], hand: ['fist', 'fist'], tilt: .1, eye: 'calm', sway: 0 }; };
+  K.kneel = function (x, gy, s, f, lean = .25) { return { s, f, gy, hip: [x, gy - 96 * s], ang: f * lean, feet: [[x - f * 92 * s, gy - 18 * s], [x + f * 62 * s, gy]], toes: [2.3, null], hands: [null, null], hand: ['fist', 'fist'], tilt: .1, eye: 'calm', sway: 0 }; };
   /* crouch(x, gy, s, f, lean) — a deep squat, both feet down (the lay-it-down pose of the worked example) */
   K.crouch = function (x, gy, s, f, lean = 1.2) { return { s, f, gy, hip: [x - f * 14 * s, gy - 92 * s], ang: f * lean, feet: [[x - f * 52 * s, gy], [x + f * 22 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: -.5, eye: 'calm', sway: 0 }; };
   /* hangHands(F, swing) — the two hanging-hand points for pose F (swing px fore/aft, ± for a walk) */
@@ -234,7 +234,8 @@
     const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = hangHands(A), hB = hangHands(B);
     const pick = k < .5 ? A : B;
     return { ...pick, s: lerp(A.s, B.s, k), gy: lerp(A.gy, B.gy, k), hip: l2(A.hip, B.hip), ang: lerp(A.ang, B.ang, k), feet: [l2(A.feet[0], B.feet[0]), l2(A.feet[1], B.feet[1])],
-      hands: [0, 1].map(i => l2(A.hands[i] || hA[i], B.hands[i] || hB[i])), hand: pick.hand.slice(), tilt: lerp(A.tilt || 0, B.tilt || 0, k), sway: lerp(A.sway || 0, B.sway || 0, k) };
+      hands: [0, 1].map(i => l2(A.hands[i] || hA[i], B.hands[i] || hB[i])), hand: pick.hand.slice(), tilt: lerp(A.tilt || 0, B.tilt || 0, k), sway: lerp(A.sway || 0, B.sway || 0, k),
+      ...(A.toes || B.toes ? { toes: [0, 1].map(i => (A.toes?.[i] ?? B.toes?.[i]) == null ? null : lerp(A.toes?.[i] ?? 0, B.toes?.[i] ?? 0, k)) } : {}) };
   };
   /* turn(A, B, k) — mix two poses facing opposite ways with a horizontal squash through the flip (a card turn) */
   K.turn = function (A, B, k) { const F = K.mix(A, B, k); if (k > 0 && k < 1) F.sq = Math.max(.3, Math.abs(Math.cos(Math.PI * k))); return F; };
@@ -494,15 +495,15 @@
     if (grow <= 0) return;
     const h = (o.h || 220) * eo(grow), sw = (o.sway ?? 1) * Math.sin(t * 1.3) * 6 * grow, gl = o.glow ?? grow;
     const tip = [x + sw, y - h], c1 = [x - 10, y - h * .45];
-    if (gl > 0) K.glow(ctx, tip[0], tip[1], 130 + 90 * gl, .55 * gl);
-    ctx.save(); ctx.strokeStyle = '#06111d'; ctx.lineCap = 'round'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(c1[0], c1[1], tip[0], tip[1]); ctx.stroke();
+    if (gl > 0) K.glow(ctx, tip[0], tip[1] - 10, 160 + 120 * gl, .6 * gl);
+    ctx.save(); ctx.strokeStyle = '#06111d'; ctx.lineCap = 'round'; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(c1[0], c1[1], tip[0], tip[1]); ctx.stroke();
     ctx.strokeStyle = 'rgba(150,205,255,.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 3, y - 4); ctx.quadraticCurveTo(c1[0] + 3, c1[1], tip[0] + 3, tip[1]); ctx.stroke();
-    const leaves = [[.3, -1, 70], [.48, 1, 84], [.66, -1, 62], [.8, 1, 50]];
+    const leaves = [[.22, -1, 112], [.4, 1, 132], [.58, -1, 104], [.74, 1, 82], [.86, -1, 58]];
     for (const [u, side, len] of leaves) { const k = clamp((grow - u * .7) / .3); if (k <= 0) continue;
       const px = (1 - u) * (1 - u) * x + 2 * u * (1 - u) * c1[0] + u * u * tip[0], py = (1 - u) * (1 - u) * y + 2 * u * (1 - u) * c1[1] + u * u * tip[1];
       const an = side > 0 ? -.55 + .05 * Math.sin(t * 1.7 + u * 9) : Math.PI + .55 + .05 * Math.sin(t * 1.5 + u * 7);
-      ctx.fillStyle = C.leafD; K.leafShape(ctx, px, py, len * k, 15 * k, an + .12); ctx.fillStyle = C.leaf; K.leafShape(ctx, px, py, len * .82 * k, 11 * k, an); }
-    const pr = 13 * clamp((grow - .35) / .4); if (pr > 0) {
+      ctx.fillStyle = C.leafD; K.leafShape(ctx, px, py, len * k, 26 * k, an + .12); ctx.fillStyle = u > .55 && gl > .3 ? '#e9e2c4' : C.leaf; K.leafShape(ctx, px, py, len * .82 * k, 19 * k, an); }
+    const pr = 22 * clamp((grow - .35) / .4); if (pr > 0) {
       ctx.fillStyle = C.woodD; ctx.beginPath(); ctx.ellipse(tip[0], tip[1] - pr * .6, pr * .95, pr * 1.3, sw * .02, 0, TAU); ctx.fill();
       const pg = ctx.createRadialGradient(tip[0] - pr * .3, tip[1] - pr, 1, tip[0], tip[1] - pr * .6, pr * 1.4); pg.addColorStop(0, C.light); pg.addColorStop(.45, C.gold); pg.addColorStop(1, C.gate);
       ctx.fillStyle = pg; ctx.beginPath(); ctx.ellipse(tip[0], tip[1] - pr * .7, pr * .8, pr * 1.15, sw * .02, 0, TAU); ctx.fill(); }

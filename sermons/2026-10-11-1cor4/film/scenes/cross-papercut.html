@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600;700&display=swap">
 </head>
 <body>
-<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script><script src="kit-papercut.js"></script>
 <script>
 /* 잘라 낸 건 다리였다 — ⑥ 붉은 전지 오림 (red paper-cut, folk window-flower grammar).
    Every thing is a piece of red paper cut with scissors and laid on a dark indigo backing: no outlines, no gradients;
@@ -17,301 +17,30 @@
    piece lies on the road as a cut-out. The chasm is a cut-away of the road sheet (the backing shows); the gate's light is
    the backing lit from behind, showing through a cut lattice. At the end the scraps come back ("scraps have a future"):
    they fly to the chasm and fill a dashed scissor-guide outline — together with what I kept, exactly a bridge.
-   Figures are jointed cut-outs (head, torso, skirt, 2×arm, 2×leg pinned at rivets), posed on 12 fps steps; camera moves on ones. */
+   Figures are jointed cut-outs (head, torso, skirt, 2×arm, 2×leg pinned at rivets), posed on 12 fps steps; camera moves on ones.
+   The medium (paper pieces, sprites, sheets, the jointed figure rig, light, flecks, captions, the curtain) is styles/papercut →
+   kit-papercut.js; this file keeps the story: the road and chasm layout, the timelines, the saw, the camera. */
 const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
 const W = 1080, H = 1920, TAU = Math.PI * 2;
-const C = {
-  back: '#10132a', back2: '#161b36', cloud: '#1b2142', mt: '#1c2550', mt2: '#222d5f', hill: '#29366c', hill2: '#212c5b',
-  road: '#33427a', roadD: '#2a3768', cliff1: '#212a57', cliff2: '#171e40', gate: '#b8171f',
-  me: '#de2a22', pil: '#c41b23', xred: '#9b1220', gold: '#ebc472', saw: '#8f95a6', wood: '#5a1916',
-  light: '#fff1cc', light2: '#f6b866', ink: '#f7ecd8',
-};
+const PC = Papercut, C = PC.C;
+const { shade, t12, frac, pathOf, paper, capsule, holes, diamond, crescentPts, drawCross, drawSheet, drawFig, frame, shoulderOf, walkSpec, standSpec, hangHands, mixSpec, cpt, mixX, rotAbout, hangGrip, rIdx, lIdx, mixCam, layer } = PC;
 const L = 520, PW = 34, CBX = L - 130, CBW = 32, CBH = 118, CBHL = 50;   // cross: post length, width; crossbar (from foot), thickness, half-length upright / lying
 const FY = 1300, BY = 1252, RT = 1212;                                    // front lane (me), back lane (the others), road's far edge
 const REST = 26, G = L - 2 * REST;                                        // a full cross rests 26 px on each lip: the chasm is G wide
-const shade = (hex, k) => { const c = Pilot.hex(hex); return `rgb(${c[0] * k | 0},${c[1] * k | 0},${c[2] * k | 0})`; };
-const t12 = t => Math.floor(t * 12 + 1e-6) / 12;                          // jointed figures pose on 12 fps steps
-const frac = x => x - Math.floor(x);
-
-// ---------------- paper helpers (world coordinates, drawn every frame) ----------------
-const pathOf = (pts, closed = true) => { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) p.lineTo(pts[i][0], pts[i][1]); if (closed) p.closePath(); return p; };
-// a hand-cut piece: tight paper shadow, fill, light cut-face upper-left, dark lower-right, optional inset slit (double outline)
-function paper(ctx, p, col, o = {}) {
-  const sh = o.sh ?? 1;
-  if (sh > 0) { ctx.fillStyle = 'rgba(6,3,12,.42)'; ctx.save(); ctx.translate(2.4 * sh, 3.4 * sh); ctx.fill(p); ctx.restore();
-    ctx.fillStyle = 'rgba(6,3,12,.22)'; ctx.save(); ctx.translate(4.2 * sh, 6 * sh); ctx.fill(p); ctx.restore(); }
-  ctx.fillStyle = col; ctx.fill(p);
-  ctx.save(); ctx.clip(p);
-  if (o.inset) { ctx.lineJoin = 'round'; ctx.strokeStyle = o.slit || C.back; ctx.lineWidth = 2 * (o.inset + 1.6); ctx.stroke(p); ctx.strokeStyle = col; ctx.lineWidth = 2 * o.inset; ctx.stroke(p); }
-  ctx.lineWidth = 2.6; ctx.translate(1.4, 1.4); ctx.strokeStyle = 'rgba(255,214,196,.30)'; ctx.stroke(p);
-  ctx.translate(-2.8, -2.8); ctx.strokeStyle = 'rgba(30,0,8,.42)'; ctx.stroke(p);
-  ctx.restore();
-}
-function capsule(a, b, wa, wb, n = 7) {   // a tapered limb with round ends
-  const dx = b[0] - a[0], dy = b[1] - a[1], an = Math.atan2(dy, dx), pts = [];
-  for (let i = 0; i <= n; i++) { const q = an + Math.PI / 2 + Math.PI * i / n; pts.push([a[0] + Math.cos(q) * wa / 2, a[1] + Math.sin(q) * wa / 2]); }
-  for (let i = 0; i <= n; i++) { const q = an - Math.PI / 2 + Math.PI * i / n; pts.push([b[0] + Math.cos(q) * wb / 2, b[1] + Math.sin(q) * wb / 2]); }
-  return pts;
-}
-function holes(ctx, list, col = C.back) { ctx.fillStyle = col; const p = new Path2D(); for (const h of list) { p.moveTo(h[0][0], h[0][1]); for (let i = 1; i < h.length; i++) p.lineTo(h[i][0], h[i][1]); p.closePath(); } ctx.fill(p); }
-const diamond = (x, y, rx, ry) => [[x, y - ry], [x + rx, y], [x, y + ry], [x - rx, y]];
-function crescentPts(cx, cy, r, a0, a1, t, n = 10) { const o = [], q = [];
-  for (let i = 0; i <= n; i++) { const u = i / n, a = a0 + (a1 - a0) * u, k = Math.sin(Math.PI * u); o.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); q.push([cx + Math.cos(a) * (r - t * k), cy + Math.sin(a) * (r - t * k)]); }
-  return o.concat(q.reverse()); }
-function sawEdge(x0, x1, y, h, sp, seed, dir = -1) {   // a sawtooth (grass / ridge) edge as a polyline
-  const r = rng(seed), o = []; for (let x = x0, i = 0; x <= x1; x += sp / 2, i++) o.push([x, y + (i % 2 ? dir * h * (.6 + .8 * r()) : 0)]); return o; }
-
-// ---------------- prebuilt paper: grain, crosses, background sheets ----------------
 const TX = {};
-function grainTile(N = 512) {
-  const c = Pilot.canvas(N, N), g = c.getContext('2d'), d = g.createImageData(N, N), r = rng(7);
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    const f = (Pilot.noise(x / 64, y / 64) - .5) * 1.0 + (Pilot.noise(x / 16 + 9, y / 16) - .5) * .5 + (Pilot.noise(x / 4, y / 4 + 3) - .5) * .25;
-    const v = 128 + f * 40 + (r() > .994 ? -30 : 0), i = (y * N + x) * 4; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
-  g.putImageData(d, 0, 0);
-  g.lineCap = 'round';
-  for (let k = 0; k < 520; k++) { const x = r() * N, y = r() * N, a = r() * TAU, l = 10 + r() * 28; g.globalAlpha = .1 + r() * .14; g.strokeStyle = k % 3 ? '#fff' : '#000'; g.lineWidth = .8 + r() * .5;
-    for (const [ox, oy] of [[0, 0], [-N, 0], [N, 0], [0, -N], [0, N]]) { g.beginPath(); g.moveTo(x + ox, y + oy); g.quadraticCurveTo(x + ox + Math.cos(a + .4) * l / 2, y + oy + Math.sin(a + .4) * l / 2, x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l); g.stroke(); } }
-  return c;
-}
-// texture a sprite as paper: soft-light grain, light/dark cut faces, then restore its alpha (holes stay holes)
-function finish(c, seed = 0, edge = 2) {
-  const g = c.getContext('2d'), w = c.width, h = c.height, m = Pilot.canvas(w, h); m.getContext('2d').drawImage(c, 0, 0);
-  g.save(); const pat = g.createPattern(TX.grain, 'repeat'); pat.setTransform(new DOMMatrix([1, 0, 0, 1, (seed * 137) % 512, (seed * 71) % 512]));
-  g.globalCompositeOperation = 'soft-light'; g.fillStyle = pat; g.fillRect(0, 0, w, h);
-  const r = Pilot.canvas(w, h), rg = r.getContext('2d');
-  rg.drawImage(m, 0, 0); rg.globalCompositeOperation = 'destination-out'; rg.drawImage(m, edge, edge); rg.globalCompositeOperation = 'source-in'; rg.fillStyle = 'rgba(255,214,190,.5)'; rg.fillRect(0, 0, w, h);
-  g.globalCompositeOperation = 'source-atop'; g.drawImage(r, 0, 0);
-  rg.globalCompositeOperation = 'source-over'; rg.clearRect(0, 0, w, h); rg.drawImage(m, 0, 0); rg.globalCompositeOperation = 'destination-out'; rg.drawImage(m, -edge, -edge);
-  rg.globalCompositeOperation = 'source-in'; rg.fillStyle = 'rgba(40,0,8,.5)'; rg.fillRect(0, 0, w, h); g.drawImage(r, 0, 0);
-  g.globalCompositeOperation = 'destination-in'; g.drawImage(m, 0, 0); g.restore(); return c;
-}
-function shadowOf(c, blur = 5) { const s = Pilot.canvas(c.width + 24, c.height + 24), g = s.getContext('2d'); g.filter = `blur(${blur}px)`; g.drawImage(c, 12, 12); g.filter = 'none';
-  g.globalCompositeOperation = 'source-in'; g.fillStyle = 'rgba(6,3,12,.62)'; g.fillRect(0, 0, s.width, s.height); return s; }
-// a cross cut from one sheet: post along +x (foot at x=0, top at x=L), crossbar near the top; diamond lace down the middle,
-// a four-petal rosette at the crossing, a slit a few px inside the outline. lying = crossbar foreshortened (lying flat).
-const KX = 2, CPAD = 14;
-function crossSprite(col, lying, seed) {
-  const hb = lying ? CBHL : CBH, w = (L + 2 * CPAD) * KX, h = (2 * hb + 2 * CPAD) * KX, c = Pilot.canvas(w, h), g = c.getContext('2d');
-  g.setTransform(KX, 0, 0, KX, CPAD * KX, (hb + CPAD) * KX);
-  const out = [[0, -PW / 2], [CBX - CBW / 2, -PW / 2], [CBX - CBW / 2, -hb], [CBX + CBW / 2, -hb], [CBX + CBW / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
-    [CBX + CBW / 2, PW / 2], [CBX + CBW / 2, hb], [CBX - CBW / 2, hb], [CBX - CBW / 2, PW / 2], [0, PW / 2]];
-  const p = pathOf(out); g.fillStyle = col; g.fill(p);
-  // flared, notched ends (top and crossbar tips): small swallow-tail cuts
-  g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000';
-  const notch = (pts) => { g.beginPath(); g.moveTo(...pts[0]); for (const q of pts.slice(1)) g.lineTo(...q); g.closePath(); g.fill(); };
-  notch([[L + 1, -6], [L - 9, 0], [L + 1, 6]]);
-  notch([[CBX - 6, -hb - 1], [CBX, -hb + (lying ? 5 : 9)], [CBX + 6, -hb - 1]]); notch([[CBX - 6, hb + 1], [CBX, hb - (lying ? 5 : 9)], [CBX + 6, hb + 1]]);
-  // inset slit
-  g.save(); g.clip(p); g.globalCompositeOperation = 'destination-out'; g.lineJoin = 'miter'; g.strokeStyle = '#000'; g.lineWidth = 2 * (4.2 + 1.5); g.stroke(p);
-  g.globalCompositeOperation = 'source-over'; g.strokeStyle = col; g.lineWidth = 2 * 4.2; g.stroke(p); g.restore();
-  // lace: diamonds down the post, small ones on the crossbar, a rosette at the crossing
-  g.globalCompositeOperation = 'destination-out';
-  for (let x = 22; x < L - 14; x += 26) { if (Math.abs(x - CBX) < 30) continue; g.beginPath(); for (const [a, b] of diamond(x, 0, 6.5, 4.6)) g.lineTo(a, b); g.closePath(); g.fill(); }
-  for (let y = 30; y < hb - 10; y += lying ? 18 : 24) for (const sgn of [-1, 1]) { g.beginPath(); for (const [a, b] of diamond(CBX, sgn * y, 4, lying ? 3.4 : 5.4)) g.lineTo(a, b); g.closePath(); g.fill(); }
-  for (let k = 0; k < 4; k++) { const a = k * TAU / 4 + TAU / 8; g.beginPath(); g.ellipse(CBX + Math.cos(a) * 6.5, Math.sin(a) * 6.5 * (lying ? .6 : 1), 3.6, 2.2, a, 0, TAU); g.fill(); }
-  g.beginPath(); g.arc(CBX, 0, 1.8, 0, TAU); g.fill();
-  g.setTransform(1, 0, 0, 1, 0, 0); finish(c, seed, 2.4);
-  return { c, sh: shadowOf(c, 4), hb };
-}
-// draw cross material [u0, u1] (local x along the post) with the foot origin at (x, y), angle a
-function drawCross(ctx, X, u0, u1, x, y, a, alpha = 1, shadow = 1) {
-  if (u1 - u0 < .5 || alpha <= 0) return;
-  ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.globalAlpha = alpha;
-  const sx = (u0 + CPAD) * KX, sw = (u1 - u0) * KX, hb = X.hb, dh = 2 * hb + 2 * CPAD;
-  const left = u0 <= .5 ? -CPAD : u0, right = u1 >= L - .5 ? L + CPAD : u1;
-  if (shadow) { ctx.save(); ctx.rotate(-a); ctx.translate(3 * shadow, 4.5 * shadow); ctx.rotate(a);
-    ctx.drawImage(X.sh, (left + CPAD) * KX + 12, 0, (right - left) * KX, X.sh.height, left - 6 / KX * 0, -hb - CPAD - 12 / KX, right - left, dh + 24 / KX); ctx.restore(); }
-  ctx.drawImage(X.c, (left + CPAD) * KX, 0, (right - left) * KX, dh * KX, left, -hb - CPAD, right - left, dh);
-  ctx.restore();
-}
+const carryCross = (F, left, a0) => PC.carry(F, PC.CROSS, left, a0), gripCarry = (F, X) => PC.gripCarry(F, X, L);   // PC.CROSS = this film's cross (L 520, PW 34, …)
 
 // ---------------- background sheets (built once E — the chasm's near lip — is known) ----------------
 let E = 1600, GX = 0, GAY = 0, ROADX0 = -1500, ROADX1 = 0;
-function sheet(x0, y0, x1, y1, draw, seed, K = 1) {
-  const c = Pilot.canvas((x1 - x0) * K, (y1 - y0) * K), g = c.getContext('2d'); g.setTransform(K, 0, 0, K, -x0 * K, -y0 * K); g.lineJoin = 'round'; draw(g);
-  g.setTransform(1, 0, 0, 1, 0, 0); finish(c, seed, 2); return { c, x0, y0, x1, y1, K, sh: null };
-}
-function fillPts(g, pts, col) { g.fillStyle = col; g.beginPath(); g.moveTo(...pts[0]); for (const p of pts.slice(1)) g.lineTo(...p); g.closePath(); g.fill(); }
-function cutPts(g, list) { g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000'; g.beginPath(); for (const h of list) { g.moveTo(...h[0]); for (const p of h.slice(1)) g.lineTo(...p); g.closePath(); } g.fill(); g.restore(); }
-function cutSlit(g, pts, w) { g.save(); g.globalCompositeOperation = 'destination-out'; g.strokeStyle = '#000'; g.lineWidth = w; g.lineCap = 'round'; g.beginPath(); g.moveTo(...pts[0]); for (const p of pts.slice(1)) g.lineTo(...p); g.stroke(); g.restore(); }
-function swirlPts(cx, cy, r, turns, rot, dir = 1) { const o = [], n = Math.ceil(turns * 30); for (let i = 0; i <= n; i++) { const u = i / n, a = rot + dir * u * turns * TAU, rr = r * (1 - u * .85); o.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); } return o; }
-
 function buildSheets() {
   ROADX1 = E + G + 1500;
-  // clouds (sky layer, parallax .15): dark scroll clouds, cut swirls
-  TX.cloud = sheet(-900, 260, 1500, 760, g => {
-    const r = rng(31);
-    for (let k = 0; k < 6; k++) { const cx = -800 + k * 430 + r() * 120, cy = 420 + r() * 220, rx = 150 + r() * 90;
-      const pts = []; for (let i = 0; i <= 40; i++) { const a = Math.PI + Math.PI * i / 40; pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * rx * .42 - Math.abs(Math.sin(a * 3)) * 26]); }
-      fillPts(g, pts, C.cloud); cutSlit(g, swirlPts(cx - rx * .35, cy - 22, 26, 1.5, 0), 4); cutSlit(g, swirlPts(cx + rx * .3, cy - 30, 20, 1.4, Math.PI, -1), 3.5);
-      cutSlit(g, [[cx - rx * .8, cy - 6], [cx + rx * .8, cy - 6]], 3); }
-  }, 3);
-  // far mountains (parallax .35): sawtooth ridges, two tones
-  TX.mt = sheet(-1000, 600, 1700, 1260, g => {
-    const r = rng(41);
-    for (const [col, base, amp, seed] of [[C.mt, 880, 190, 1], [C.mt2, 980, 140, 2]]) {
-      const top = []; for (let x = -1000; x <= 1700; x += 6) { const n = Pilot.fbm(x / 420 + seed * 7, seed, 3); top.push([x, base - amp * n * 1.4 + amp * .3]); }
-      const saw = []; top.forEach((p, i) => saw.push([p[0], p[1] - (i % 2 ? 9 + 6 * r() : 0)]));
-      fillPts(g, saw.concat([[1700, 1260], [-1000, 1260]]), col);
-      // crescent rows (rock strata) and a slit along the ridge
-      const hs = []; for (let x = -980; x < 1700; x += 34) for (let k = 1; k < 4; k++) { const yy = top[clamp(Math.round((x + 1000) / 6), 0, top.length - 1)][1] + 40 * k + (k % 2) * 10; if (yy < 1240) hs.push(crescentPts(x + (k % 2) * 17, yy, 11, .25, Math.PI - .25, 4)); }
-      cutPts(g, hs);
-      cutSlit(g, top.map(p => [p[0], p[1] + 16]), 2.2);
-    }
-  }, 5);
-  // mid hills with bare paper trees (parallax .65)
-  TX.hill = sheet(-1100, 900, 2500, 1290, g => {
-    const r = rng(53), top = []; for (let x = -1100; x <= 2500; x += 5) top.push([x, 1100 - 70 * Pilot.fbm(x / 300 + 3, 2, 3) + 20]);
-    const saw = top.map((p, i) => [p[0], p[1] - (i % 2 ? 7 + 4 * r() : 0)]);
-    fillPts(g, saw.concat([[2500, 1290], [-1100, 1290]]), C.hill);
-    const hs = []; for (let x = -1080; x < 2500; x += 26) hs.push(diamond(x, top[clamp(Math.round((x + 1100) / 5), 0, top.length - 1)][1] + 40, 5, 3.5));
-    cutPts(g, hs);
-    // trees: trunk + forked branches, each tip a small plum hole
-    for (let x = -1000; x < 2450; x += 240 + r() * 200) {
-      const y0 = top[clamp(Math.round((x + 1100) / 5), 0, top.length - 1)][1] + 8, h = 110 + r() * 70;
-      g.fillStyle = C.hill2; g.strokeStyle = C.hill2; g.lineCap = 'round';
-      const br = (x0, y0, a, l, w, d) => { const x1 = x0 + Math.cos(a) * l, y1 = y0 + Math.sin(a) * l; g.lineWidth = w; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
-        if (d > 0) { br(x1, y1, a - .45 - r() * .2, l * .68, w * .62, d - 1); br(x1, y1, a + .4 + r() * .2, l * .62, w * .62, d - 1); } else { g.beginPath(); g.arc(x1, y1, 6, 0, TAU); g.fill(); } };
-      br(x, y0, -Math.PI / 2 + (r() - .5) * .2, h * .45, 11, 3);
-    }
-  }, 7);
-  // the road sheet: walking surface from RT down; sawtooth grass on its far edge; lace rows; the chasm cut out of it
-  const y0 = RT - 30, y1 = 2300;
-  TX.road = sheet(ROADX0, y0, ROADX1, y1, g => {
-    const r = rng(61), top = sawEdge(ROADX0, ROADX1, RT, 16, 12, 9);
-    fillPts(g, top.concat([[ROADX1, y1], [ROADX0, y1]]), C.road);
-    // a slit just inside the grass line, two rows of crescents and a diamond band low on the sheet
-    cutSlit(g, [[ROADX0, RT + 12], [ROADX1, RT + 12]], 2.4);
-    const hs = [];
-    for (let x = ROADX0; x < ROADX1; x += 30) { hs.push(crescentPts(x, 1392, 12, .3, Math.PI - .3, 4.4)); hs.push(crescentPts(x + 15, 1428, 12, .3, Math.PI - .3, 4.4)); }
-    for (let x = ROADX0; x < ROADX1; x += 22) hs.push(diamond(x, 1480, 6, 4));
-    for (let x = ROADX0; x < ROADX1; x += 60) for (let k = 0; k < 4; k++) hs.push(crescentPts(x + (k % 2) * 30, 1560 + k * 44, 18, .3, Math.PI - .3, 5));
-    cutPts(g, hs);
-    cutSlit(g, [[ROADX0, 1455], [ROADX1, 1455]], 2.2); cutSlit(g, [[ROADX0, 1505], [ROADX1, 1505]], 2.2);
-    // the chasm: a ragged vertical cut-away (lips slightly overhang, walls step inward as they go down)
-    const lip = (x, dir, seed) => { const q = rng(seed), o = []; for (let y = RT - 40; y <= y1 + 10; y += 14) o.push([x + dir * (y < RT + 30 ? 0 : (6 + q() * 16 + (y - RT) * .05)), y]); return o; };
-    const L1 = lip(E, 1, 71), L2 = lip(E + G, -1, 73);
-    cutPts(g, [L1.concat(L2.slice().reverse())]);
-  }, 11);
-  // inside the chasm: rock layers stepping down into the dark (behind the road sheet)
-  TX.chasm = sheet(E - 40, RT - 10, E + G + 40, 2300, g => {
-    const r = rng(81);
-    for (const [col, inset, yTop] of [[C.cliff1, 20, RT + 60], [C.cliff2, 60, RT + 230]]) {
-      const lw = [], rw = []; for (let y = yTop; y <= 2300; y += 18) { lw.push([E + inset + r() * 22 + (y - yTop) * .1, y]); rw.push([E + G - inset - r() * 22 - (y - yTop) * .1, y]); }
-      fillPts(g, [[E - 40, yTop - 20], ...lw, [E - 40, 2300]], col); fillPts(g, [[E + G + 40, yTop - 20], ...rw, [E + G + 40, 2300]], col);
-      const hs = []; for (let y = yTop + 40; y < 2280; y += 46) { hs.push(crescentPts(E + inset * .5 + 4, y, 10, -.9, .9, 4)); hs.push(crescentPts(E + G - inset * .5 - 4, y + 20, 10, Math.PI - .9, Math.PI + .9, 4)); }
-      cutPts(g, hs);
-    }
-  }, 13);
-  // the gate on the far side: a plain arch (two posts, a round arch with diamond lace); its doors are a lattice of cut holes
+  TX.cloud = PC.clouds(-900, 260, 1500, 760);                  // sky layer, parallax .15
+  TX.mt = PC.mountains(-1000, 600, 1700, 1260);                // far mountains, parallax .35
+  TX.hill = PC.hills(-1100, 900, 2500, 1290);                  // mid hills with bare trees, parallax .65
+  TX.road = PC.road(ROADX0, ROADX1, RT, 2300, { gap: [E, E + G] });   // the road sheet with the chasm cut out of it
+  TX.chasm = PC.chasm(E, E + G, RT, 2300);                     // inside the chasm (behind the road sheet)
   GX = E + G + 380; GAY = BY + 4 - 330;
-  TX.gate = sheet(GX - 160, RT - 520, GX + 160, BY + 8, g => {
-    const gy = BY + 4, x = GX, ay = GAY, arc = (r, a0, a1, n = 36) => { const o = []; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; o.push([x + Math.cos(a) * r, ay + Math.sin(a) * r]); } return o; };
-    fillPts(g, [[x - 134, gy], ...arc(134, Math.PI, TAU), [x + 134, gy], [x + 98, gy], ...arc(98, 0, -Math.PI), [x - 98, gy]], C.gate);
-    fillPts(g, [[x - 146, gy], [x - 146, gy - 34], [x - 90, gy - 34], [x - 90, gy]], C.gate); fillPts(g, [[x + 90, gy], [x + 90, gy - 34], [x + 146, gy - 34], [x + 146, gy]], C.gate);
-    const hs = []; for (let i = 0; i < 15; i++) { const a = Math.PI + Math.PI * (i + .5) / 15; hs.push(diamond(x + Math.cos(a) * 116, ay + Math.sin(a) * 116, 6, 6)); }
-    for (let yy = ay + 20; yy < gy - 50; yy += 26) { hs.push(diamond(x - 116, yy, 5, 7)); hs.push(diamond(x + 116, yy, 5, 7)); }
-    cutPts(g, hs); cutSlit(g, [[x - 146, gy - 40], [x + 146, gy - 40]].map(p => p), 0.1);
-    for (const sgn of [-1, 1]) {   // two arched door leaves, ajar in the middle
-      const r = 94, inner = sgn * 15, outer = sgn * 94, leaf = [[x + inner, gy], [x + outer, gy], [x + outer, ay]];
-      const a0 = sgn < 0 ? Math.PI : 0, a1 = sgn < 0 ? Math.PI * 1.5 - Math.asin(15 / r) * 0 : -Math.PI / 2;
-      for (let i = 1; i <= 24; i++) { const a = a0 + (a1 - a0) * i / 24, px = x + Math.cos(a) * r; if (sgn * (px - x) < 15) break; leaf.push([px, ay + Math.sin(a) * r]); }
-      leaf.push([x + inner, ay - Math.sqrt(r * r - 15 * 15)]);
-      fillPts(g, leaf, C.gate);
-      const hl = [];
-      for (let yy = ay - 70; yy < gy - 150; yy += 22) for (let xx = 26; xx < 86; xx += 18) { const px = x + sgn * (xx + ((yy / 22 | 0) % 2) * 9), dx = px - x;
-        if (Math.abs(dx) > 84 || Math.abs(dx) < 24) continue; if (yy < ay && (yy - 12) < ay - Math.sqrt(Math.max(0, (r - 14) ** 2 - dx * dx))) continue; hl.push(diamond(px, yy, 7, 9)); }
-      cutPts(g, hl);
-      const cx = x + sgn * 55, cy = gy - 90; g.save(); g.globalCompositeOperation = 'destination-out'; g.fillStyle = '#000';
-      for (let k = 0; k < 8; k++) { const an = k * TAU / 8; g.beginPath(); g.ellipse(cx + Math.cos(an) * 17, cy + Math.sin(an) * 17, 9, 4.2, an, 0, TAU); g.fill(); }
-      g.beginPath(); g.arc(cx, cy, 5.5, 0, TAU); g.fill(); g.restore();
-    }
-  }, 17);
-}
-function drawSheet(ctx, s) {   // only the visible part
-  const m = ctx.getTransform(), inv = m.inverse(), p0 = inv.transformPoint(new DOMPoint(0, 0)), p1 = inv.transformPoint(new DOMPoint(W, H));
-  const x0 = Math.max(s.x0, Math.min(p0.x, p1.x) - 4), x1 = Math.min(s.x1, Math.max(p0.x, p1.x) + 4), y0 = Math.max(s.y0, Math.min(p0.y, p1.y) - 4), y1 = Math.min(s.y1, Math.max(p0.y, p1.y) + 4);
-  if (x1 <= x0 || y1 <= y0) return;
-  ctx.drawImage(s.c, (x0 - s.x0) * s.K, (y0 - s.y0) * s.K, (x1 - x0) * s.K, (y1 - y0) * s.K, x0, y0, x1 - x0, y1 - y0);
-}
-
-// ---------------- jointed cut-out figure ----------------
-// spec: { s, f (+1 faces right), col, gy, hip:[x,y], ang (torso lean, + = toward +x), feet:[far, near], hands:[far, near] (targets or null),
-//         hand:[type far, type near] ('fist' | 'flat' | 'open'), tilt (head nod), eye ('calm' | 'strain' | 'shock' | 'down'), sway, farFront, alpha }
-function ik(a, t, l1, l2, pick) {
-  let dx = t[0] - a[0], dy = t[1] - a[1], d = Math.hypot(dx, dy) || 1e-6; const dd = clamp(d, Math.abs(l1 - l2) + .5, l1 + l2 - .5);
-  const tx = a[0] + dx / d * dd, ty = a[1] + dy / d * dd, an = Math.atan2(ty - a[1], tx - a[0]), b = Math.acos(clamp((l1 * l1 + dd * dd - l2 * l2) / (2 * l1 * dd), -1, 1));
-  const j1 = [a[0] + Math.cos(an + b) * l1, a[1] + Math.sin(an + b) * l1], j2 = [a[0] + Math.cos(an - b) * l1, a[1] + Math.sin(an - b) * l1];
-  return [pick(j1, j2), [tx, ty]];
-}
-function frame(F) {   // torso frame: P(a, b) = hip + forward·a + up·b (scaled)
-  const up = [Math.sin(F.ang), -Math.cos(F.ang)], fw = [F.f * Math.cos(F.ang), F.f * Math.sin(F.ang)], s = F.s;
-  return { up, fw, P: (a, b) => [F.hip[0] + fw[0] * a * s + up[0] * b * s, F.hip[1] + fw[1] * a * s + up[1] * b * s] };
-}
-const shoulderOf = F => frame(F).P(4, 136);
-function drawFig(ctx, F, mid, back) {
-  const s = F.s, f = F.f, col = F.col, far = shade(col, .74), { up, fw, P } = frame(F);
-  const al = F.alpha ?? 1; if (al <= 0) return; ctx.save(); ctx.globalAlpha = al;
-  const sh = P(4, 136), shF = P(-3, 134);
-  const elbowPick = (a, b) => (a[1] - f * a[0] * .35) > (b[1] - f * b[0] * .35) ? a : b, kneePick = (a, b) => f * a[0] > f * b[0] ? a : b;
-  const arm = (S0, T, c, type, k) => {
-    if (!T) T = [S0[0] - f * 8 * s, S0[1] + 140 * s];
-    const [el, hd] = ik(S0, T, 78 * s, 74 * s, elbowPick);
-    paper(ctx, pathOf(capsule(S0, el, 19 * s, 15 * s)), c, { inset: 2.2 * s, sh: .8 });
-    paper(ctx, pathOf(capsule(el, hd, 15 * s, 11 * s)), c, { inset: 2 * s, sh: .8 });
-    const an = Math.atan2(hd[1] - el[1], hd[0] - el[0]);
-    let pts;
-    if (type === 'flat') pts = [[-4, -7], [10, -8], [24, -5], [28, 0], [22, 4], [-2, 6], [-8, 2]].map(([u, v]) => [hd[0] + f * u * s, hd[1] + v * s - 4 * s]);
-    else if (type === 'open') pts = [[-6, -8], [16, -9], [26, -4], [18, -2], [27, 2], [16, 5], [-2, 9], [-8, 2]].map(([u, v]) => [hd[0] + (Math.cos(an) * u - Math.sin(an) * v) * s, hd[1] + (Math.sin(an) * u + Math.cos(an) * v) * s]);
-    else { pts = []; for (let i = 0; i < 10; i++) { const q = i / 10 * TAU; pts.push([hd[0] + Math.cos(q) * 12.5 * s, hd[1] + Math.sin(q) * 11 * s]); }
-      pts.splice(7, 0, [hd[0] + (Math.cos(an - 1.9) * 15) * s, hd[1] + (Math.sin(an - 1.9) * 15) * s]); }   // a thumb bump
-    paper(ctx, pathOf(pts), c, { sh: .8 });
-    if (type === 'fist') { ctx.strokeStyle = C.back; ctx.lineWidth = 1.6 * s; ctx.beginPath(); for (let i = 0; i < 3; i++) { const q = an + .5 + i * .45; ctx.moveTo(hd[0] + Math.cos(q) * 4 * s, hd[1] + Math.sin(q) * 4 * s); ctx.lineTo(hd[0] + Math.cos(q) * 10 * s, hd[1] + Math.sin(q) * 10 * s); } ctx.stroke(); }
-  };
-  const leg = (T, c) => {
-    const hp = P(-2, -2), ank = [T[0], T[1] - 9 * s];
-    const [kn, an] = ik(hp, ank, 96 * s, 90 * s, kneePick);
-    paper(ctx, pathOf(capsule(hp, kn, 24 * s, 19 * s)), c, { inset: 2.2 * s, sh: .8 });
-    paper(ctx, pathOf(capsule(kn, an, 19 * s, 13 * s)), c, { inset: 2 * s, sh: .8 });
-    const lift = Math.max(0, F.gy - T[1]), toe = lift > 6 * s ? .35 : 0;   // a lifted foot points its toe down a little
-    const shoe = [[-10, -12], [8, -12], [30, -5], [36, 1], [-11, 1]].map(([u, v]) => { const cu = Math.cos(toe), su = Math.sin(toe); return [an[0] + f * (u * cu - v * su) * s, an[1] + 9 * s + (u * su + v * cu) * s]; });
-    paper(ctx, pathOf(shoe), c, { sh: .8 });
-  };
-  if (back) back();
-  if (!F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist', 0);
-  leg(F.feet[0], far); leg(F.feet[1], shade(col, .9));
-  // skirt: hangs from the hip; sawtooth-cut hem, crescent lace
-  const hemD = Math.max(36 * s, F.gy - F.hip[1] - 44 * s), sw = (F.sway || 0) * s;
-  const skx = (a, b) => [F.hip[0] + f * a * s + sw * b / hemD, F.hip[1] + b];
-  const sk = [skx(-28, -8), skx(27, -8), skx(38, hemD * .55), skx(48, hemD), skx(-46, hemD), skx(-38, hemD * .55)];
-  paper(ctx, pathOf(sk), col, { inset: 3.2 * s });
-  const hs = []; for (let i = 0; i < 8; i++) { const u = -40 + i * 11.5, p = skx(u, hemD - 2); hs.push([[p[0] - 3.5 * s, p[1]], [p[0] + 3.5 * s, p[1]], [p[0] + f * .5, p[1] - 13 * s]]); }
-  for (let i = 0; i < 3; i++) { const p = skx(-22 + i * 22, hemD * .45); hs.push(crescentPts(p[0], p[1], 9 * s, .3, Math.PI - .3, 3.5 * s, 8)); }
-  holes(ctx, hs);
-  // torso: tunic with a belt slit and diamond lace down the chest
-  const tor = [[-26, -6], [-31, 40], [-32, 100], [-25, 138], [-10, 150], [10, 152], [24, 141], [28, 110], [30, 60], [26, -6]].map(([a, b]) => P(a, b));
-  paper(ctx, pathOf(tor), col, { inset: 3.4 * s });
-  const th = [[P(-30, 14), P(-28, 8), P(28, 8), P(27, 14)]]; for (let k = 0; k < 4; k++) { const c0 = P(12, 40 + k * 22); th.push(diamond(c0[0], c0[1], 4.5 * s, 6 * s)); }
-  holes(ctx, th);
-  // head: hooded profile (hood point at the back), face separated by a slit, crescent eye
-  const tilt = F.ang + (F.tilt || 0), hu = [Math.sin(tilt), -Math.cos(tilt)], hf = [f * Math.cos(tilt), f * Math.sin(tilt)], N = P(6, 146);
-  const Hc = [N[0] + hu[0] * 30 * s + hf[0] * 4 * s, N[1] + hu[1] * 30 * s + hf[1] * 4 * s], Q = (a, b) => [Hc[0] + (hf[0] * a + hu[0] * b) * s, Hc[1] + (hf[1] * a + hu[1] * b) * s];
-  const head = [[-22, -40], [-33, -18], [-37, 4], [-34, 22], [-24, 34], [-8, 40], [6, 40], [16, 32], [26, 20], [30, 8], [37, 0], [30, -5], [31, -11], [27, -15], [28, -20], [20, -27], [8, -32], [6, -44], [-14, -46]].map(([a, b]) => Q(a, b));
-  paper(ctx, pathOf(head), col, { inset: 2.6 * s });
-  ctx.strokeStyle = C.back; ctx.lineCap = 'round'; ctx.lineWidth = 3 * s;
-  ctx.beginPath(); const hv = [[14, 31], [4, 22], [0, 6], [2, -12], [8, -28]].map(([a, b]) => Q(a, b)); ctx.moveTo(...hv[0]); for (const p of hv.slice(1)) ctx.lineTo(...p); ctx.stroke();
-  const eye = F.eye || 'calm', E0 = Q(19, 8);
-  if (eye === 'strain') { ctx.lineWidth = 2.6 * s; ctx.beginPath(); ctx.moveTo(...Q(12, 9)); ctx.lineTo(...Q(19, 6)); ctx.lineTo(...Q(25, 9)); ctx.stroke(); ctx.beginPath(); ctx.moveTo(...Q(12, 16)); ctx.lineTo(...Q(24, 13)); ctx.stroke(); }
-  else if (eye === 'down') { ctx.lineWidth = 2.6 * s; ctx.beginPath(); ctx.moveTo(...Q(13, 6)); ctx.quadraticCurveTo(...Q(19, 2), ...Q(25, 6)); ctx.stroke(); }
-  else { const r0 = eye === 'shock' ? 6.5 : 5; holes(ctx, [crescentPts(E0[0], E0[1], r0 * s, Math.atan2(hu[1], hu[0]) - 1.2, Math.atan2(hu[1], hu[0]) + 1.2, 2.4 * s, 8)]);
-    ctx.fillStyle = C.back; ctx.beginPath(); ctx.arc(E0[0] + hf[0] * 1.5 * s, E0[1] + hf[1] * 1.5 * s, (eye === 'shock' ? 2.2 : 2.6) * s, 0, TAU); ctx.fill(); }
-  ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.moveTo(...Q(24, -11)); ctx.lineTo(...Q(30, eye === 'shock' ? -13 : -10)); ctx.stroke();
-  
-  if (mid) mid();
-  if (F.farFront) arm(shF, F.hands[0], far, F.hand?.[0] || 'fist', 0);
-  arm(sh, F.hands[1], col, F.hand?.[1] || 'fist', 1);
-  ctx.restore();
+  TX.gate = PC.gate(GX, BY, RT - 520);                         // the gate on the far side, lattice doors ajar
 }
 
 // ---------------- timeline: my path (integrated once), the cuts ----------------
@@ -361,35 +90,6 @@ function pieceAt(c, t) {   // a cut piece lying where it fell (shifted a little 
   return { x: cx - Math.cos(a) * cu, y: cy - Math.sin(a) * cu, a };
 }
 
-// ---------------- poses ----------------
-function walkSpec(x, gy, s, f, ph, stride, lean, lift = 22) {
-  const feet = [0, 1].map(i => { const p = frac(ph + i * .5); let off, up = 0;
-    if (p < .58) off = stride * (.29 - p); else { const u = (p - .58) / .42; off = -.29 * stride + .58 * stride * eio(u); up = lift * Math.sin(Math.PI * u); }
-    return [x + f * off * s, gy - up * s]; });
-  const hipH = (176 - 5 * Math.abs(Math.sin(TAU * ph))) * s;
-  return { s, f, gy, hip: [x, gy - hipH], ang: f * lean, feet, hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: -f * 7 * Math.sin(TAU * ph), ph };
-}
-function standSpec(x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - 178 * s], ang: f * lean, feet: [[x - f * 18 * s, gy], [x + f * 22 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: 0 }; }
-function hangHands(F, swing = 0) { const fr = frame(F), sh = fr.P(4, 136); return [[sh[0] - F.f * (10 + swing) * F.s, sh[1] + 140 * F.s], [sh[0] - F.f * (10 - swing) * F.s, sh[1] + 140 * F.s]]; }
-function mixSpec(A, B, k) {
-  if (k <= 0) return A; if (k >= 1) return B;
-  const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = hangHands(A), hB = hangHands(B);
-  const pick = k < .5 ? A : B;
-  return { ...pick, s: lerp(A.s, B.s, k), gy: lerp(A.gy, B.gy, k), hip: l2(A.hip, B.hip), ang: lerp(A.ang, B.ang, k), feet: [l2(A.feet[0], B.feet[0]), l2(A.feet[1], B.feet[1])],
-    hands: [0, 1].map(i => l2(A.hands[i] || hA[i], B.hands[i] || hB[i])), hand: pick.hand.slice(), tilt: lerp(A.tilt || 0, B.tilt || 0, k), sway: lerp(A.sway || 0, B.sway || 0, k) };
-}
-// the cross on a figure's shoulder: {x, y, a} = foot origin and angle; the contact point on the post rests on the shoulder
-function carryCross(F, left, a0) {
-  const fr = frame(F), sh = shoulderOf(F), T = [sh[0] + fr.up[0] * 11 * F.s, sh[1] + fr.up[1] * 11 * F.s];
-  const a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
-  const contact = L - Math.min(282, left * L - 36);
-  return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
-}
-const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
-function gripCarry(F, X) { F.hands = [cpt(X, Math.min(L - 16, X.contact + 26)), cpt(X, Math.min(L - 14, X.contact + 80))]; F.hand = ['fist', 'fist']; return F; }
-const mixX = (A, B, k) => k <= 0 ? A : k >= 1 ? B : { ...B, x: lerp(A.x, B.x, k), y: lerp(A.y, B.y, k), a: lerp(A.a, B.a, k), u0: B.u0, lie: k > .62 ? B.lie : A.lie };
-function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
-
 // ---------------- the saw (always in my right hand until I leave it on the road after the last cut) ----------------
 const CUT_ANG = Math.PI - .72, hangAng = f => Math.atan2(.95, .3 * f);
 function sawGeo(grip, ang) { const d = [Math.cos(ang), Math.sin(ang)]; let up = [-d[1], d[0]]; if (up[1] > 0 || (up[1] === 0 && up[0] > 0)) up = [-up[0], -up[1]];
@@ -414,8 +114,6 @@ function sawSpec(c, t) {
   return { s, f, gy: FY, hip: [mx, FY - 84 * s], ang: f * 1.1, feet: [[mx + 74 * s, FY], [mx - 60 * s, FY]], hands: [st.grip, [c.cutX + 44 * s, c.y - PW / 2 - 3]],
     hand: ['fist', 'flat'], tilt: .32, eye: 'calm', sway: 0, farFront: true };
 }
-const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (16 + sw) * F.s, sh[1] + 128 * F.s]; };
-const rIdx = F => F.f > 0 ? 1 : 0, lIdx = F => F.f > 0 ? 0 : 1;
 
 function poseMe(t) {
   const tp = Math.max(0, t12(t)), dx = meX(t) - meX(tp), left = leftAt(t);
@@ -513,7 +211,6 @@ function pilState(i, t) {
 }
 
 // ---------------- camera ----------------
-const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
 function camAt(t) {
   let c = { x: meX(t) + 60 + 90 * ss(4.3, 5.4, t), y: 1050, z: 1.03 };
   c = mixCam({ x: meX(t) + 34, y: 1000, z: 1.62 }, c, eio((t - 1.5) / 1.1));       // the hook: close on me (the saw in my hand), widening to the procession by ~2.6
@@ -530,32 +227,11 @@ function camAt(t) {
   const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 15 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 11 * k * Math.sin(t * 131 + 1) : 0;
   return c;
 }
-function layer(ctx, cm, p, fn) { const z = 1 + (cm.z - 1) * p, cx = cm.x * p, cy = 960 + (cm.y - 960) * p; ctx.save(); ctx.setTransform(z, 0, 0, z, 540 - cx * z + cm.sx * p, 960 - cy * z + cm.sy * p); fn(); ctx.restore(); }
 
 // ---------------- the world ----------------
-function drawFlecks(ctx, t) {
-  for (const q of FLECKS) {
-    const u = t - q.t0; if (u < 0) continue; const al = 1 - ss(q.t0 + 1.2, q.t0 + 1.8, t); if (al <= 0) continue;
-    const tl = (-q.vy + Math.sqrt(q.vy * q.vy + 4 * 700 * (q.land - q.y))) / 1400, uu = Math.min(u, Math.max(0, tl));
-    const x = q.x + q.vx * uu, y = q.y + q.vy * uu + 700 * uu * uu, r = q.r0 + q.vr * uu;
-    ctx.globalAlpha = al; ctx.fillStyle = q.col; ctx.beginPath();
-    for (let i = 0; i < 3; i++) { const a = r + i * TAU / 3 + (i === 1 ? .5 : 0); ctx.lineTo(x + Math.cos(a) * q.sz, y + Math.sin(a) * q.sz * .7); } ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-function crossOutline(x, y) {   // the lying cross's outline (for the dashed scissor guide)
-  const hb = CBHL; return [[0, -PW / 2], [CBX - CBW / 2, -PW / 2], [CBX - CBW / 2, -hb], [CBX + CBW / 2, -hb], [CBX + CBW / 2, -PW / 2], [L, -PW / 2], [L, PW / 2],
-    [CBX + CBW / 2, PW / 2], [CBX + CBW / 2, hb], [CBX - CBW / 2, hb], [CBX - CBW / 2, PW / 2], [0, PW / 2]].map(([a, b]) => [x + a, y + b]);
-}
-function archPath(r) { const p = new Path2D(), gy = BY + 4; p.moveTo(GX - r, gy); p.lineTo(GX - r, GAY); p.arc(GX, GAY, r, Math.PI, TAU); p.lineTo(GX + r, gy); p.closePath(); return p; }
 function guide(ctx, t, a0, k, al) {   // the dashed scissor guide: my whole cross across the chasm
-  const ol = crossOutline(E - REST, FY + 34), x1 = E - REST - 4 + (L + 8) * k;
-  ctx.save(); ctx.globalAlpha = al; ctx.beginPath(); ctx.rect(E - REST - 10, FY - 200, x1 - (E - REST - 10), 400); ctx.clip();
-  ctx.fillStyle = 'rgba(235,196,114,.22)'; ctx.fill(pathOf(ol));
-  const glow = ss(24.15, 24.45, t) * (1 - .5 * ss(24.7, 25.5, t));
-  ctx.setLineDash([14, 9]); ctx.lineDashOffset = -t * 18; ctx.lineWidth = 4.5; ctx.strokeStyle = `rgba(242,214,150,${.8 + .2 * glow})`; ctx.stroke(pathOf(ol)); ctx.setLineDash([]);
-  if (glow > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.lineWidth = 12; ctx.strokeStyle = `rgba(255,210,140,${.25 * glow})`; ctx.stroke(pathOf(ol)); }
-  ctx.restore();
+  const x1 = E - REST - 4 + (L + 8) * k, glow = ss(24.15, 24.45, t) * (1 - .5 * ss(24.7, 25.5, t));
+  PC.scissorGuide(ctx, t, PC.crossOutline(E - REST, FY + 34), [E - REST - 10, FY - 200, x1 - (E - REST - 10), 400], al, glow);
 }
 function world(ctx, t) {
   // road sheet with the chasm (rock layers behind it), and the dark below it
@@ -563,15 +239,11 @@ function world(ctx, t) {
   ctx.fillStyle = C.road; ctx.fillRect(ROADX0, 2290, E + 30 - ROADX0, 3000); ctx.fillRect(E + G - 30, 2290, ROADX1 - E - G + 30, 3000);
   ctx.fillStyle = C.back; ctx.fillRect(E + 40, 2290, G - 80, 3000);
   // the gate: light behind its cut lattice (the backing, lit), light spilling out
-  const lg = ctx.createRadialGradient(GX, BY - 180, 20, GX, BY - 180, 280); lg.addColorStop(0, C.light); lg.addColorStop(.5, C.light2); lg.addColorStop(1, 'rgba(236,140,60,0)');
-  ctx.fillStyle = lg; ctx.fillRect(GX - 280, BY - 470, 560, 480);
-  ctx.fillStyle = C.light; ctx.fill(archPath(97));
+  PC.gateLight(ctx, GX, BY);
   const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean);
   for (const P of pils) if (P.F && P.F.inGate) drawFig(ctx, P.F, P.X && P.X.lie ? () => drawCross(ctx, TX.xLie, P.X.u0, L, P.X.x, P.X.y, P.X.a) : null, P.X && !P.X.lie ? () => drawCross(ctx, TX.xUp, P.X.u0, L, P.X.x, P.X.y, P.X.a, P.F.alpha) : null);
   drawSheet(ctx, TX.gate);
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; const sp = ctx.createRadialGradient(GX, BY - 170, 10, GX, BY - 120, 300);
-  sp.addColorStop(0, 'rgba(255,214,150,.28)'); sp.addColorStop(1, 'rgba(255,170,90,0)'); ctx.fillStyle = sp; ctx.fillRect(GX - 320, BY - 520, 640, 560);
-  ctx.fillStyle = 'rgba(255,200,130,.16)'; ctx.beginPath(); ctx.moveTo(GX - 20, BY + 2); ctx.lineTo(GX + 20, BY + 2); ctx.lineTo(GX + 150, BY + 60); ctx.lineTo(GX - 170, BY + 60); ctx.fill(); ctx.restore();
+  PC.gateSpill(ctx, GX, BY);
   // back lane: a bridge (only ever one, its owner's), then the others
   for (const P of pils) if (P.B) drawCross(ctx, TX.xLie, 0, L, P.B.x, P.B.y, P.B.a);
   pils.slice().sort((a, b) => (a.F ? a.F.hip[0] : 0) - (b.F ? b.F.hip[0] : 0)).forEach(P => {
@@ -588,9 +260,7 @@ function world(ctx, t) {
     drawSaw(ctx, [lerp(g0[0], SAWLIE.grip[0], k), lerp(g0[1], SAWLIE.grip[1], k)], lerp(CUT_ANG, SAWLIE.ang, k)); }
   // the pieces I cut, lying where they fell (front lane); they glow once I look back, and fly into the gap one by one
   for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .2 + (2 - c.k) * .15, B.back + .6 + (2 - c.k) * .15, t) * (1 - ss(FILL[c.k][1] + .2, FILL[c.k][1] + .9, t));
-    if (hl > 0) { const cu = (c.u0 + c.u1) / 2, cx = p.x + Math.cos(p.a) * cu, cy = p.y + Math.sin(p.a) * cu, R = 140, g = ctx.createRadialGradient(cx, cy, 10, cx, cy, R);
-      const pulse = .8 + .2 * Math.sin((t - B.back) * 5 + c.k);
-      g.addColorStop(0, `rgba(255,214,140,${.5 * hl * pulse})`); g.addColorStop(1, 'rgba(255,190,110,0)'); ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, 2 * R, 2 * R); ctx.restore(); }
+    if (hl > 0) { const cu = (c.u0 + c.u1) / 2, pulse = .8 + .2 * Math.sin((t - B.back) * 5 + c.k); PC.glow(ctx, p.x + Math.cos(p.a) * cu, p.y + Math.sin(p.a) * cu, 140, .5 * hl * pulse); }
     drawCross(ctx, TX.gLie, c.u0, c.u1, p.x, p.y, p.a); }
   // me and my cross (and the saw in my right hand)
   const M = poseMe(t), F = M.F; F.col = C.me;
@@ -604,38 +274,11 @@ function world(ctx, t) {
   // my cross over the edge: tips, falls (clipped to the chasm so it drops in between the lips)
   const FX = fallX(t);
   if (FX && (FX.alpha ?? 1) > 0) { ctx.save(); if (FX.clip) { ctx.beginPath(); ctx.rect(E + 2, -4000, G - 4, 9000); ctx.clip(); } drawCross(ctx, TX.gLie, FX.u0, L, FX.x, FX.y, FX.a, FX.alpha ?? 1); ctx.restore(); }
-  drawFlecks(ctx, t);
+  PC.drawFlecks(ctx, t, FLECKS);
 }
 
-// ---------------- words ----------------
-const SERIF = "'Noto Serif KR',serif", SANS = "'Noto Sans KR',sans-serif";
-function captionPlates(ctx, t) {
-  for (const [a, b, s, src] of S.lines) {
-    const al = Pilot.win(t, a, b, .35, .45); if (al <= 0) continue;
-    const lines = s.split('\n'), size = lines.length > 1 ? 54 : 62, y = 440, lh = size * 1.55;
-    ctx.font = `700 ${size}px ${SERIF}`; let w = Math.max(...lines.map(l => ctx.measureText(Pilot.tr(l)).width));
-    let top = y - size * 1.08 - 26, bot = y + (lines.length - 1) * lh + size * .38 + 26;
-    if (src) { ctx.font = `400 28px ${SANS}`; w = Math.max(w, ctx.measureText(src).width); bot = y + (lines.length > 1 ? size * 1.55 : 0) + 76 + 22; }
-    const hw = w / 2 + 64, drop = 14 * (1 - eo(clamp((t12(t) - a) / .17))), x0 = 540 - hw, x1 = 540 + hw, mY = (top + bot) / 2;
-    const pts = [[x0, top + drop], [x1, top + drop], [x1 - 26, mY + drop], [x1, bot + drop], [x0, bot + drop], [x0 + 26, mY + drop]];
-    ctx.save(); ctx.globalAlpha = al * .82; paper(ctx, pathOf(pts), '#0b0d1f', { sh: 1.2 }); ctx.restore();
-  }
-}
-function endPlate(ctx, t) {
-  const k = eo((t - (B.end - .15)) / .4); if (k <= 0) return;
-  const yb = lerp(-60, H + 60, k), r = rng(5), edge = []; for (let x = -20, i = 0; x <= W + 20; x += 14, i++) edge.push([x, yb + (i % 2 ? 16 + 6 * r() : 0)]);
-  paper(ctx, pathOf([[-20, -20], [W + 20, -20], ...edge.reverse()]), C.back2, { sh: 2 });
-  // red paper border strips with sawtooth, above and below the card
-  for (const [y, dir] of [[560, -1], [1210, 1]]) { const sy = y - (H - yb) * 1.0; if (sy > yb) continue;
-    const st = [[120, sy - 9], [W - 120, sy - 9], ...sawEdge(W - 120, 120, sy + 9, 12, 16, 3, 1).reverse().map(p => [p[0], p[1]]).reverse()];
-    const top = [[120, sy - 6], [W - 120, sy - 6], [W - 120, sy + 6], [120, sy + 6]];
-    paper(ctx, pathOf(top), C.gate, { sh: 1 }); holes(ctx, [...Array(28)].map((_, i) => diamond(150 + i * 28.7, sy, 4.5, 3)));
-    const teeth = []; for (let x = 128; x < W - 128; x += 16) teeth.push([[x, sy + dir * 6], [x + 8, sy + dir * 18], [x + 16, sy + dir * 6]]);
-    ctx.fillStyle = C.gate; for (const q of teeth) { ctx.beginPath(); ctx.moveTo(...q[0]); ctx.lineTo(...q[1]); ctx.lineTo(...q[2]); ctx.fill(); } }
-}
 
 // ---------------- frame ----------------
-let GRAIN = null;
 function draw(ctx, t) {
   const cm = camAt(t);
   ctx.fillStyle = C.back; ctx.fillRect(0, 0, W, H);
@@ -643,23 +286,19 @@ function draw(ctx, t) {
   layer(ctx, cm, .35, () => drawSheet(ctx, TX.mt));
   layer(ctx, cm, .65, () => drawSheet(ctx, TX.hill));
   layer(ctx, cm, 1, () => world(ctx, t));
-  endPlate(ctx, t);
-  // paper grain over everything, locked to the world (it moves with the camera, never crawls)
-  ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .55;
-  GRAIN.setTransform(new DOMMatrix([cm.z, 0, 0, cm.z, 540 - cm.x * cm.z, 960 - cm.y * cm.z])); ctx.fillStyle = GRAIN; ctx.fillRect(0, 0, W, H); ctx.restore();
-  if (t < B.end) { captionPlates(ctx, t);
-    Story.captions(ctx, t, S.lines, { font: SERIF, weight: 700, color: C.ink, srcColor: '#e3d3b8', y: 440, shadow: 'rgba(4,4,14,.85)', shadowBlur: 14 }); }
-  Story.endCard(ctx, t, S.endCard, B.end, { font: SERIF, color: C.ink, srcColor: '#ddcdb3', y: 860, titleShadow: 'rgba(0,0,0,.5)' });
+  PC.curtain(ctx, t, B.end);                                   // the end: a dark sheet drops, red border strips
+  PC.grain(ctx, cm);                                           // paper grain over everything, locked to the world
+  PC.captions(ctx, t, S.lines, B.end);
+  PC.endCard(ctx, t, S.endCard, B.end);
 }
 
 async function init() {
-  TX.grain = grainTile();
+  PC.init();
   buildTimeline(); buildSheets();
-  TX.gUp = crossSprite(C.gold, false, 3); TX.gLie = crossSprite(C.gold, true, 4);
-  TX.xUp = crossSprite(C.xred, false, 5); TX.xLie = crossSprite(C.xred, true, 6);
-  GRAIN = Pilot.canvas(1, 1).getContext('2d').createPattern(TX.grain, 'repeat');
+  TX.gUp = PC.crossSprite(C.gold, false, 3); TX.gLie = PC.crossSprite(C.gold, true, 4);
+  TX.xUp = PC.crossSprite(C.xred, false, 5); TX.xLie = PC.crossSprite(C.xred, true, 6);
 }
-Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 60px 'Noto Serif KR'", "600 60px 'Noto Serif KR'", "400 28px 'Noto Sans KR'", "500 34px 'Noto Sans KR'"], init, draw });
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: PC.FONTS, init, draw });
 </script>
 </body>
 </html>

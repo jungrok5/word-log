@@ -205,7 +205,8 @@
     return [mid, [root[0] + dx, root[1] + dy]];
   };
   // rig(pose) → joints in local y-up px (x forward of the hip's ground point, y up from the ground). Pose (all optional):
-  //   walk: distance walked (px; phase = walk / (4·stride)) · walkAmt 0..1 · march: in-place steps (cycles) · marchAmt 0..1
+  //   walk: distance walked (px; phase = walk / (4·stride) — one cycle = two steps) · walkAmt 0..1 · armSwing 0..1 (default walkAmt;
+  //   set 0 to let the arms hang after stopping mid-stride) · march: in-place steps (cycles) · marchAmt 0..1
   //   kneel 0..1 (right knee down, left foot forward) · lean (rad, + = forward) · bounce (px up) · look (rad, + = up)
   //   reach / reachFar: [x, y] grip point (local px) for the near / far hand · reachAmt / reachFarAmt 0..1
   //   cheer 0..1 (both arms up) · swing (rad, extra arm swing) · face: +1 right … −1 left (in between = squash turn)
@@ -227,7 +228,8 @@
     let hip = [0, hipY], fN = legFoot(ph, 0), fF = legFoot(ph + .5, 1);
     if (kn > 0) {   // kneel: hip down and a little back, near foot forward flat, far knee on the ground (toes behind)
       hip = [lerp(hip[0], -10, kn), lerp(hip[1], 250, kn)];
-      fN = [lerp(fN[0], 175, kn), lerp(fN[1], 14, kn)]; fF = [lerp(fF[0], -210, kn), lerp(fF[1], 40, kn)];
+      const st = Math.sin(Math.PI * kn) * 40;                         // each foot steps (lifts) on its way, never slides
+      fN = [lerp(fN[0], 175, kn), lerp(fN[1], 14, kn) + st]; fF = [lerp(fF[0], -210, kn), lerp(fF[1], 40, kn) + st];
     }
     const [kN, aN] = M.ik2(hip, fN, B.thigh, B.shin, 1), [kF, aF] = M.ik2(hip, fF, B.thigh, B.shin, 1);
     // torso
@@ -239,9 +241,9 @@
     // arms: FK rest/swing pose → optional blend to a grip point → IK with fixed lengths (the hand lands on the grip)
     const arm = (side, grip, amt) => {
       const s0 = [sh[0] + (side ? -8 : 0), sh[1] - 6];
-      const sw = (P.swing || 0) + (-Math.cos(2 * Math.PI * (ph + (side ? .5 : 0))) * .42 * wa), ch = P.cheer || 0;
-      let ua = lerp(-Math.PI / 2 + sw, side ? 1.25 : .35, ch);   // upper-arm angle (y-up); cheer: far arm up, near arm forward-up (clear of the face)
-      const fa = ua + lerp(.32 + .25 * Math.max(0, sw), .15, ch);                                              // forearm bends forward
+      const sw = (P.swing || 0) + (-Math.cos(2 * Math.PI * (ph + (side ? .5 : 0))) * .42 * (P.armSwing ?? wa)), ch = P.cheer || 0;
+      let ua = lerp(-Math.PI / 2 + sw, side ? 1.25 : -.1, ch);   // upper-arm angle (y-up); cheer: far arm up, near arm forward-up (clear of the face)
+      const fa = ua + lerp(.32 + .25 * Math.max(0, sw), side ? .15 : .9, ch);                                  // forearm bends forward
       const el = [s0[0] + Math.cos(ua) * B.ua, s0[1] + Math.sin(ua) * B.ua];
       let hand = [el[0] + Math.cos(fa) * (B.fa + B.hand * .5), el[1] + Math.sin(fa) * (B.fa + B.hand * .5)];
       if (grip && amt > 0) hand = [lerp(hand[0], grip[0], eio(amt)), lerp(hand[1], grip[1], eio(amt))];
@@ -293,14 +295,14 @@
     };
     const shoe = (a, k, far) => {   // sneaker at ankle a, heel back, toe forward along the ground (tilts with the shin when lifted)
       const tilt = clamp((a[1] - BODY.ankle) / 60, 0, 1) * -.35, c = Math.cos(tilt), s = Math.sin(tilt), P = (x, y) => [a[0] + x * c - y * s, a[1] - 10 + x * s + y * c];
-      const pts = [P(-30, -4), P(70, -4), P(76, 14), P(52, 30), P(-4, 34), P(-30, 22)];
+      const pts = [P(-34, -4), P(86, -4), P(94, 16), P(72, 40), P(18, 46), P(-34, 32)];
       ctx.fillStyle = far ? '#e6e9f0' : C.shoe; ctx.strokeStyle = L; ctx.lineWidth = LW; M.poly(ctx, pts); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle = C.shoe2; ctx.lineWidth = 6; ctx.beginPath(); const q0 = P(4, 10), q1 = P(40, 22); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke();
-      ctx.strokeStyle = L; ctx.lineWidth = 3; ctx.beginPath(); const z0 = P(-28, 4), z1 = P(72, 4); ctx.moveTo(z0[0], z0[1]); ctx.lineTo(z1[0], z1[1]); ctx.stroke();
+      ctx.strokeStyle = C.shoe2; ctx.lineWidth = 6; ctx.beginPath(); const q0 = P(30, 12), q1 = P(70, 28); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke();
+      ctx.strokeStyle = L; ctx.lineWidth = 3; ctx.beginPath(); const z0 = P(-32, 6), z1 = P(88, 6); ctx.moveTo(z0[0], z0[1]); ctx.lineTo(z1[0], z1[1]); ctx.stroke();
     };
     const leg = (k, a, far) => { const j = far ? C.jeans2 : C.jeans;
       shoe(a, k, far);
-      cap([[r.hip[0], r.hip[1], 84], [k[0], k[1], 80], [a[0], a[1] + 4, 100, 1]], 0, j);   // wide leg, flat hem over the shoe
+      cap([[r.hip[0], r.hip[1], 84], [k[0], k[1], 80], [a[0] - 6, a[1] + 18, 92, 1]], 0, j);   // wide leg, flat hem over the shoe
       // seam + hem
       ctx.strokeStyle = far ? 'rgba(40,60,110,.35)' : 'rgba(40,60,110,.28)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(k[0], k[1]); ctx.lineTo(a[0] + 10, a[1] + 22); ctx.stroke();
     };

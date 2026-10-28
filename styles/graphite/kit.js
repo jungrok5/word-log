@@ -275,8 +275,8 @@
   K.stand = function (x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - 178 * s], ang: f * lean, feet: [[x - f * 18 * s, gy], [x + f * 22 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: 0 }; };
   /* crouch(x, gy, s, f, k = 1) — bent over the ground in front (lay down / pick up), k = depth 0..1; set hands yourself */
   K.crouch = function (x, gy, s, f, k = 1) { return { ...K.stand(x, gy, s, f), hip: [x + f * 18 * s * k, gy - lerp(178, 82, k) * s], ang: f * lerp(.05, 1.12, k), feet: [[x - f * 44 * s, gy], [x + f * 44 * s, gy]], tilt: .3 * k }; };
-  /* kneel(x, gy, s, f, lean = .35) — on the far knee, near foot planted in front; lean .1 upright … 1.1 bowed to the ground
-     (at lean > .8 the hip drops so the hands can reach the soil: K.reachGround) */
+  /* kneel(x, gy, s, f, lean = .35) — on the far knee, near foot planted in front; lean .1 upright … .75 bowed (the sleeves
+     root low, so .75 already reaches the soil: K.reachGround; past .8 the hip drops and the sheet lies flat — avoid) */
   K.kneel = function (x, gy, s, f, lean = .35) { return { s, f, gy, hip: [x, gy - (lean > .8 ? 84 : 104) * s], ang: f * lean, feet: [[x - f * 92 * s, gy], [x + f * 62 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .2, eye: 'down', sway: 0 }; };
   /* reachGround(F, d = 120) → a ground point the near mitten really reaches (≤ 146·s from the shoulder root on the front
      edge), at most d·s in front of the hip — null if too far: bow deeper */
@@ -379,6 +379,19 @@
     const ground = R4(a, RN + 28, b, PY1); fillG(g, ground, C.mid, .9, 1); fillG(g, ground, C.dark, .45, 0);
     hatch(g, ground, -.07, 9, 90, PAT.black[1], .6, 19 + (a | 0)); hatch(g, ground, -.12, 13, 120, PAT.chalk[0], .45, 190 + (a | 0), { w: 3.4 });
     smudge(g, R4(a, RN + 120, b, PY1), C.black, .3, 30, 24);
+  };
+  /* field(g, x0, x1, top, bottom, seed = 1300) — open ground to stand, kneel and plant on (a garden, a meadow): a dark
+     pencilled soil with white-pencil furrows getting wider toward the viewer, grass tufts and a few white flowers along
+     its far edge, a darker smudge low down. */
+  K.field = function (g, x0, x1, top, bottom, seed = 1300) {
+    const r = rng(seed), soil = R4(x0, top, x1, bottom);
+    fillG(g, soil, C.mid, .9, 1); fillG(g, soil, C.dark, .45, 0);
+    hatch(g, soil, -.06, 9, 90, PAT.black[1], .6, seed + 1); hatch(g, soil, -.1, 13, 120, PAT.chalk[0], .45, seed + 4, { w: 3.4 });
+    for (let k = 0, y = top + 16; y < bottom; k++, y += 14 + k * 7) strokeG(g, HD.seg([x0, y], [x1, y + (r() - .5) * 10], 8), seed + 10 + k, PAT.chalk[1], { w: 2.4 + k * .3 });
+    strokeG(g, HD.seg([x0, top + 1], [x1, top - 1], 6), seed + 2, PAT.light, { w: 4 });
+    for (let x = x0 + 10; x < x1 - 10; x += 30 + 40 * r()) tuft(g, x, top + 4, 34 + r() * 50, 5 + Math.floor(r() * 4), 1.5, seed + 100 + (x | 0), .5);
+    for (let x = x0 + 40; x < x1 - 40; x += 90 + 160 * r()) flower(g, x, top - 18 - r() * 30, 3 + r() * 3, seed + 900 + (x | 0));
+    smudge(g, R4(x0, top + 260, x1, bottom), C.black, .35, 30, seed + 3);
   };
   /* gap(g, Gp) — a charcoal-black cut through the ground, ragged walls lit at the rim in white pencil.
      Gp = { e (left lip x), w (width), top (road far edge y), bottom, seed 81 } → fills Gp.lw / Gp.rw (the walls). */
