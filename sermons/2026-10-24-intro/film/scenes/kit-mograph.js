@@ -191,7 +191,7 @@
   // light-blue wide jeans, white sneakers. Pass { colors: { … } } to codeActor to recolour.
   M.FIG = { line: '#2b1d1a', skin: '#ffe3d2', skin2: '#f4c3ab', blush: '#ff9e9e', hair: '#7b4526', hair2: '#9c6038', eye: '#3a2218',
     hood: '#f7f1e6', hood2: '#e2d7c6', cord: '#4f8fd6', cuff: '#5b9be0', jeans: '#a8c7ec', jeans2: '#88aad8', shoe: '#ffffff', shoe2: '#5b9be0', clip: '#ffffff' };
-  // body lengths in sprite px (figure 820 px tall, ground at y 960 of a 640 × 1000 frame)
+  // body lengths in sprite px (figure 820 px tall, ground at y 960 of an 800 × 1000 frame, anchor x 380)
   const BODY = { thigh: 210, shin: 205, ankle: 14, torso: 235, neck: 18, head: 70, ua: 165, fa: 155, hand: 28, hipW: 10, stride: 80, lift: 46 };
   M.BODY = BODY;
   // 2-bone IK: joint for a chain root → end with bone lengths l1, l2 (target pulled in if out of reach). bend = +1 / −1 picks
@@ -205,10 +205,11 @@
     return [mid, [root[0] + dx, root[1] + dy]];
   };
   // rig(pose) → joints in local y-up px (x forward of the hip's ground point, y up from the ground). Pose (all optional):
-  //   walk: distance walked (px; phase = walk / (4·stride)) · walkAmt 0..1 · march: in-place steps (cycles) · marchAmt 0..1
+  //   walk: distance walked (px; phase = walk / (4·stride) — one cycle = two steps) · walkAmt 0..1 · armSwing 0..1 (default walkAmt;
+  //   set 0 to let the arms hang after stopping mid-stride) · march: in-place steps (cycles) · marchAmt 0..1
   //   kneel 0..1 (right knee down, left foot forward) · lean (rad, + = forward) · bounce (px up) · look (rad, + = up)
   //   reach / reachFar: [x, y] grip point (local px) for the near / far hand · reachAmt / reachFarAmt 0..1
-  //   cheer 0..1 (both arms up) · swing (rad, extra arm swing) · face: +1 right … −1 left (in between = squash turn)
+  //   cheer 0..1 (both arms thrown forward-up — a profile figure can't raise them overhead without crossing its face) · swing (rad, extra arm swing) · face: +1 right … −1 left (in between = squash turn)
   M.rig = function (P = {}) {
     const B = BODY, wa = P.walkAmt ?? (P.walk != null ? 1 : 0), ma = P.marchAmt ?? (P.march != null ? 1 : 0), kn = eio(P.kneel || 0);
     const S = B.stride, ph = (P.walk || 0) / (4 * S);
@@ -227,7 +228,8 @@
     let hip = [0, hipY], fN = legFoot(ph, 0), fF = legFoot(ph + .5, 1);
     if (kn > 0) {   // kneel: hip down and a little back, near foot forward flat, far knee on the ground (toes behind)
       hip = [lerp(hip[0], -10, kn), lerp(hip[1], 250, kn)];
-      fN = [lerp(fN[0], 175, kn), lerp(fN[1], 14, kn)]; fF = [lerp(fF[0], -210, kn), lerp(fF[1], 40, kn)];
+      const st = Math.sin(Math.PI * kn) * 40;                         // each foot steps (lifts) on its way, never slides
+      fN = [lerp(fN[0], 150, kn), lerp(fN[1], 14, kn) + st]; fF = [lerp(fF[0], -210, kn), lerp(fF[1], 40, kn) + st];
     }
     const [kN, aN] = M.ik2(hip, fN, B.thigh, B.shin, 1), [kF, aF] = M.ik2(hip, fF, B.thigh, B.shin, 1);
     // torso
@@ -239,9 +241,9 @@
     // arms: FK rest/swing pose → optional blend to a grip point → IK with fixed lengths (the hand lands on the grip)
     const arm = (side, grip, amt) => {
       const s0 = [sh[0] + (side ? -8 : 0), sh[1] - 6];
-      const sw = (P.swing || 0) + (-Math.cos(2 * Math.PI * (ph + (side ? .5 : 0))) * .42 * wa), ch = P.cheer || 0;
-      let ua = lerp(-Math.PI / 2 + sw + .12 * (side ? -1 : 1) * 0, Math.PI / 2 - .35 + (side ? -.25 : .1), ch);   // upper-arm angle (y-up)
-      const fa = ua + lerp(.32 + .25 * Math.max(0, sw), .15, ch);                                              // forearm bends forward
+      const sw = (P.swing || 0) + (-Math.cos(2 * Math.PI * (ph + (side ? .5 : 0))) * .42 * (P.armSwing ?? wa)), ch = P.cheer || 0;
+      let ua = lerp(-Math.PI / 2 + sw, side ? .45 : -.1, ch);   // upper-arm angle (y-up); cheer: both arms forward-up, hands open (clear of the face)
+      const fa = ua + lerp(.32 + .25 * Math.max(0, sw), side ? .55 : .9, ch);                                  // forearm bends forward
       const el = [s0[0] + Math.cos(ua) * B.ua, s0[1] + Math.sin(ua) * B.ua];
       let hand = [el[0] + Math.cos(fa) * (B.fa + B.hand * .5), el[1] + Math.sin(fa) * (B.fa + B.hand * .5)];
       if (grip && amt > 0) hand = [lerp(hand[0], grip[0], eio(amt)), lerp(hand[1], grip[1], eio(amt))];
@@ -256,7 +258,7 @@
   // (for walking: screen x = x0 + walk · place().s, so the planted foot stays put).
   M.codeActor = function (o = {}) {
     const fps = o.fps || 12, dur = o.dur || window.SCRIPT.DUR, C = Object.assign({}, M.FIG, o.colors || {});
-    const A = { fps, n: Math.ceil(dur * fps), w: 640, h: 1000, ax: 320, ay: 960, figH: 820, colors: C, lineInk: o.lineInk };
+    const A = { fps, n: Math.ceil(dur * fps), w: 800, h: 1000, ax: 380, ay: 960, figH: 820, colors: C, lineInk: o.lineInk };
     const rigs = M.lru(64), frames = M.lru(48);
     A.fidx = t => clamp(Math.floor((((t % dur) + dur) % dur) * fps + 1e-6), 0, A.n - 1);
     A.tOfFrame = f => f / fps;
@@ -282,25 +284,25 @@
     const L = C.line, LW = 5;
     ctx.save(); ctx.translate(ax, ay); ctx.scale(r.face, -1);     // local y-up, facing +x
     ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    const cap = (pts, w, fill) => {   // tapered capsule chain: pts [[x, y, width], …] — outline pass then fill pass
+    const cap = (pts, w, fill) => {   // tapered capsule chain: pts [[x, y, width, flat?], …] (flat = no round end) — outline pass then fill pass
       for (const pass of [0, 1]) { ctx.strokeStyle = pass ? fill : L;
         for (let i = 0; i < pts.length - 1; i++) { const [x0, y0, w0] = pts[i], [x1, y1, w1] = pts[i + 1], a = Math.atan2(y1 - y0, x1 - x0), nx = -Math.sin(a), ny = Math.cos(a);
           const e = pass ? 0 : LW;
           ctx.fillStyle = pass ? fill : L; ctx.beginPath();
           ctx.moveTo(x0 + nx * (w0 / 2 + e), y0 + ny * (w0 / 2 + e)); ctx.lineTo(x1 + nx * (w1 / 2 + e), y1 + ny * (w1 / 2 + e));
           ctx.lineTo(x1 - nx * (w1 / 2 + e), y1 - ny * (w1 / 2 + e)); ctx.lineTo(x0 - nx * (w0 / 2 + e), y0 - ny * (w0 / 2 + e)); ctx.closePath(); ctx.fill();
-          for (const [x, y, ww] of [[x0, y0, w0], [x1, y1, w1]]) { ctx.beginPath(); ctx.arc(x, y, ww / 2 + e, 0, TAU); ctx.fill(); } } }
+          for (const [x, y, ww, flat] of [pts[i], pts[i + 1]]) if (!flat) { ctx.beginPath(); ctx.arc(x, y, ww / 2 + e, 0, TAU); ctx.fill(); } } }
     };
     const shoe = (a, k, far) => {   // sneaker at ankle a, heel back, toe forward along the ground (tilts with the shin when lifted)
       const tilt = clamp((a[1] - BODY.ankle) / 60, 0, 1) * -.35, c = Math.cos(tilt), s = Math.sin(tilt), P = (x, y) => [a[0] + x * c - y * s, a[1] - 10 + x * s + y * c];
-      const pts = [P(-30, -4), P(70, -4), P(76, 14), P(52, 30), P(-4, 34), P(-30, 22)];
+      const pts = [P(-34, -4), P(86, -4), P(94, 16), P(72, 40), P(18, 46), P(-34, 32)];
       ctx.fillStyle = far ? '#e6e9f0' : C.shoe; ctx.strokeStyle = L; ctx.lineWidth = LW; M.poly(ctx, pts); ctx.fill(); ctx.stroke();
-      ctx.strokeStyle = C.shoe2; ctx.lineWidth = 6; ctx.beginPath(); const q0 = P(4, 10), q1 = P(40, 22); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke();
-      ctx.strokeStyle = L; ctx.lineWidth = 3; ctx.beginPath(); const z0 = P(-28, 4), z1 = P(72, 4); ctx.moveTo(z0[0], z0[1]); ctx.lineTo(z1[0], z1[1]); ctx.stroke();
+      ctx.strokeStyle = C.shoe2; ctx.lineWidth = 6; ctx.beginPath(); const q0 = P(30, 12), q1 = P(70, 28); ctx.moveTo(q0[0], q0[1]); ctx.lineTo(q1[0], q1[1]); ctx.stroke();
+      ctx.strokeStyle = L; ctx.lineWidth = 3; ctx.beginPath(); const z0 = P(-32, 6), z1 = P(88, 6); ctx.moveTo(z0[0], z0[1]); ctx.lineTo(z1[0], z1[1]); ctx.stroke();
     };
     const leg = (k, a, far) => { const j = far ? C.jeans2 : C.jeans;
       shoe(a, k, far);
-      cap([[r.hip[0], r.hip[1], 84], [k[0], k[1], 80], [a[0], a[1] + 16, 96]], 0, j);
+      cap([[r.hip[0], r.hip[1], 84], [k[0], k[1], 80], [a[0] - 6, a[1] + 18, 92, 1]], 0, j);   // wide leg, flat hem over the shoe
       // seam + hem
       ctx.strokeStyle = far ? 'rgba(40,60,110,.35)' : 'rgba(40,60,110,.28)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(k[0], k[1]); ctx.lineTo(a[0] + 10, a[1] + 22); ctx.stroke();
     };
