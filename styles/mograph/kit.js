@@ -229,7 +229,7 @@
     if (kn > 0) {   // kneel: hip down and a little back, near foot forward flat, far knee on the ground (toes behind)
       hip = [lerp(hip[0], -10, kn), lerp(hip[1], 250, kn)];
       const st = Math.sin(Math.PI * kn) * 40;                         // each foot steps (lifts) on its way, never slides
-      fN = [lerp(fN[0], 175, kn), lerp(fN[1], 14, kn) + st]; fF = [lerp(fF[0], -210, kn), lerp(fF[1], 40, kn) + st];
+      fN = [lerp(fN[0], 150, kn), lerp(fN[1], 14, kn) + st]; fF = [lerp(fF[0], -210, kn), lerp(fF[1], 40, kn) + st];
     }
     const [kN, aN] = M.ik2(hip, fN, B.thigh, B.shin, 1), [kF, aF] = M.ik2(hip, fF, B.thigh, B.shin, 1);
     // torso
