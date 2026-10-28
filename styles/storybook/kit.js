@@ -377,23 +377,24 @@
        gap        { x, w } a ravine cut through the embankment down to dark water (near lip x, width w) — or omit
        gate       { x } a round stone arch in a hillside, warm lantern light pouring out, the lantern on its hooked pole — or omit
        clearOK    x => bool — false where no fern/bush may stand on the far edge (where figures kneel)
+       moon       [x, y] on the far sheet (parallax .15; default [640, 250]); screen x ≈ 540 + (x − .15·cam.x)·1.06
        FY BY RT LIP WATER   layout overrides (K.Y) */
   K.buildWorld = function (o = {}) {
     ({ FY, BY, RT, LIP, WATER } = Object.assign({}, K.Y, o));
     ROADX0 = o.x0 ?? -1600; ROADX1 = o.x1 ?? 3000;
     if (o.gap) { E = o.gap.x; G = o.gap.w; } else { E = null; G = 0; }
     if (o.gate) { GX = o.gate.x; GAY = BY + 4 - 300; } else GX = null;
-    const clearOK = o.clearOK || (() => true);
+    const clearOK = o.clearOK || (() => true), MOON = o.moon || [640, 250];
     // far (parallax .15): the sky, the moon, misty light columns, pale far trunks
     SH.far = sheet(-900, -250, 1500, 1320, g => {
       const r = rng(11), sg = g.createLinearGradient(0, -250, 0, 1320); sg.addColorStop(0, C.sky0); sg.addColorStop(.5, C.sky1); sg.addColorStop(1, C.sky2);
       g.fillStyle = sg; g.fillRect(-900, -250, 2400, 1570);
-      const mg = g.createRadialGradient(640, 250, 40, 640, 250, 700); mg.addColorStop(0, 'rgba(200,240,232,.38)'); mg.addColorStop(1, 'rgba(200,240,232,0)'); g.fillStyle = mg; g.fillRect(-900, -250, 2400, 1570);
+      const [MX, MY] = MOON, mg = g.createRadialGradient(MX, MY, 40, MX, MY, 700); mg.addColorStop(0, 'rgba(200,240,232,.38)'); mg.addColorStop(1, 'rgba(200,240,232,0)'); g.fillStyle = mg; g.fillRect(-900, -250, 2400, 1570);
       g.save(); g.globalAlpha = .5; g.fillStyle = TX.chalkPat; g.fillRect(-900, -250, 2400, 1570); g.restore();
       for (let x = -860; x < 1480; x += 110 + r() * 170) { g.save(); g.globalAlpha = .1 + r() * .07; paint(g, trunk(x, 22 + r() * 44, -260, 1300, x), '#d6f2ea', .4); g.restore(); }
-      const halo = g.createRadialGradient(640, 250, 50, 640, 250, 210); halo.addColorStop(0, 'rgba(240,255,248,.55)'); halo.addColorStop(1, 'rgba(240,255,248,0)'); g.fillStyle = halo; g.fillRect(380, 0, 520, 520);
-      paint(g, smooth(rough(ell(640, 250, 60, 58, 22), 5, 4, 8)), C.moon, .35);
-      for (let x = -880; x < 1480; x += 50 + r() * 60) { if (Math.abs(x - 640) < 80) continue; const w = 14 + r() * 22;
+      const halo = g.createRadialGradient(MX, MY, 50, MX, MY, 210); halo.addColorStop(0, 'rgba(240,255,248,.55)'); halo.addColorStop(1, 'rgba(240,255,248,0)'); g.fillStyle = halo; g.fillRect(MX - 260, MY - 250, 520, 520);
+      paint(g, smooth(rough(ell(MX, MY, 60, 58, 22), 5, 4, 8)), C.moon, .35);
+      for (let x = -880; x < 1480; x += 50 + r() * 60) { if (Math.abs(x - MX) < 80) continue; const w = 14 + r() * 22;
         paint(g, trunk(x, w, -260, 1300, x * .1, (r() - .5) * 8), r() < .5 ? C.far : C.far2, .6);
         g.save(); g.globalAlpha = .9; branch(g, x, 200 + r() * 500, -Math.PI / 2 + (r() < .5 ? -.9 : .9), 70 + r() * 60, 4, C.far2, x + 900); g.restore(); }
     });
@@ -539,12 +540,12 @@
     const pts = []; for (let i = 0; i <= 8; i++) { const u = i / 8; pts.push([x + Math.sin(u * 2.3 + 1) * 10 * grow + sw * u * u, y - h * u]); }
     g.save(); g.strokeStyle = C.stem; g.lineWidth = 9; g.lineCap = 'round'; g.stroke(smooth(pts, false));
     for (let i = 2; i <= 7; i++) { const k = clamp((grow - i / 10) / .25); if (k <= 0) continue;
-      const [px, py] = pts[i], side = i % 2 ? 1 : -1, Lf = (54 + 14 * Math.sin(i * 1.7)) * k * (1.15 - i * .05), an = -Math.PI / 2 + side * (.8 + .06 * Math.sin(t * 1.4 + i));
+      const [px, py] = pts[i], side = i % 2 ? 1 : -1, Lf = (84 + 18 * Math.sin(i * 1.7)) * k * (1.2 - i * .06), an = -Math.PI / 2 + side * (.8 + .06 * Math.sin(t * 1.4 + i));
       g.save(); g.translate(px, py); g.rotate(an + Math.PI / 2);
       const lp = smooth([[0, 0], [Lf * .34, -Lf * .4], [0, -Lf], [-Lf * .34, -Lf * .4]]);
-      g.fillStyle = i % 3 ? C.leaf : C.leaf2; g.fill(lp); g.fillStyle = 'rgba(14,40,90,.35)'; g.save(); g.clip(lp); g.fillRect(-Lf, -Lf, Lf, 2 * Lf); g.restore();
+      g.fillStyle = i % 3 ? C.leaf2 : '#7fb4e6'; g.fill(lp); g.fillStyle = 'rgba(14,40,90,.35)'; g.save(); g.clip(lp); g.fillRect(-Lf, -Lf, Lf, 2 * Lf); g.restore();
       g.restore(); }
-    const br = 18 * clamp((grow - .3) / .4); if (br > 0) {
+    const br = 26 * clamp((grow - .3) / .4); if (br > 0) {
       const bud = smooth([[tip[0], tip[1] - br * 1.9], [tip[0] + br * .9, tip[1] - br * .9], [tip[0] + br * .7, tip[1]], [tip[0] - br * .7, tip[1]], [tip[0] - br * .9, tip[1] - br * .9]]);
       g.fillStyle = C.gold; g.fill(bud); g.save(); g.clip(bud); g.fillStyle = C.woodD; g.fillRect(tip[0] + br * .15, tip[1] - br * 2, br, br * 2.2);
       g.fillStyle = '#fff3c8'; g.beginPath(); g.ellipse(tip[0] - br * .3, tip[1] - br * 1.1, br * .22, br * .45, -.3, 0, TAU); g.fill(); g.restore(); }
@@ -552,7 +553,7 @@
     return tip;
   };
   /* sproutGlow(ctx, tip, k) — the lantern-gold light of the bud (draw after figures(), unchalked) */
-  K.sproutGlow = function (ctx, tip, k) { if (k <= 0) return; K.soft(ctx, tip[0], tip[1] - 14, 150 + 110 * k, .55 * k); K.halo(ctx, tip[0], tip[1] - 14, 70 + 50 * k, .8 * k); };
+  K.sproutGlow = function (ctx, tip, k) { if (k <= 0) return; K.soft(ctx, tip[0], tip[1] - 20, 200 + 140 * k, .6 * k); K.halo(ctx, tip[0], tip[1] - 20, 100 + 70 * k, .85 * k); };
 
   // ------------------------------------------------------------------ the frame's layers
   /* layer(ctx, cm, p, fn) — draw fn in world coordinates at parallax p; cm = { x, y, z, sx, sy } */

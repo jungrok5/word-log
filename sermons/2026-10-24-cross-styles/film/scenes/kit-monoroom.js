@@ -242,9 +242,10 @@
       const G = { ...F }; G.f = k < .5 ? A.f : Bs.f; G.headF = k < .3 ? A.f : Bs.f; G.sx = .68 + .32 * Math.abs(Math.cos(Math.PI * k)); return G;
     }
     /* turn the head toward a world point (sets headF and tilt; up is negative tilt) */
-    function lookAt(F, p, max = .5) {
-      const { hc } = headFrame(F), dx = p[0] - hc[0]; F.headF = dx === 0 ? F.f : Math.sign(dx);
-      F.tilt = clamp(.75 * Math.atan2(p[1] - hc[1], Math.abs(dx)) - F.headF * F.ang * .5, -max, max); return F;
+    function lookAt(F, p, max = .5) {   // the head turns round only when the point is clearly behind (not just below the chin)
+      const { hc } = headFrame(F), dx = p[0] - hc[0], dy = p[1] - hc[1];
+      F.headF = dx * F.f < -40 * F.s && Math.abs(dx) > Math.abs(dy) * .6 ? -F.f : F.f;
+      F.tilt = clamp(.75 * Math.atan2(dy, Math.max(1, dx * F.headF)) - F.headF * F.ang * .5, -max, max); return F;
     }
 
     /* ---------------- long things (a plank, a pole, a cross): geometry in beam-local units u (along, 0 = foot) and v (across).

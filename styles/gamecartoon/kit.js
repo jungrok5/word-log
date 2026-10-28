@@ -429,7 +429,6 @@
   K.flash = function (ctx, t, t0, dur = .14) { if (t >= t0 && t < t0 + dur) { ctx.save(); ctx.fillStyle = `rgba(255,250,235,${.55 * (1 - (t - t0) / dur)})`; ctx.fillRect(0, 0, W, H); ctx.restore(); } };
   // grade(ctx, warm): storm-cool → golden (a soft-light orange wash, warm 0..1);  vignette(ctx): the plum vignette (last world pass)
   K.grade = function (ctx, warm) { ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.globalAlpha = .35 * warm; ctx.fillStyle = '#ffb040'; ctx.fillRect(0, 0, W, H); ctx.restore(); };
-  let VIG = null;
   K.vignette = ctx => ctx.drawImage(VIG, 0, 0);
 
   // ---------------- words ----------------

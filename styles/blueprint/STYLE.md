@@ -93,7 +93,7 @@ object between the arms) → cool `glow` over them → annotations (dimensions, 
 - **Turning** = animate facing f from 1 to −1 over .25 s (the figure squashes through its edge-on frame).
 
 ## Performance (1080×1920, Chromium headless, 4 shared CPUs)
-- `init` ≈ .3 s (880² texture with fbm). Per frame: ① 18.6 ms after the kit vs 19.9 ms before (median of 5 interleaved
+- Page ready (init: 880² fbm texture + first frame) ≈ .4 s. Per frame: ① 18.6 ms after the kit vs 19.9 ms before (median of 5 interleaved
   runs, 122 seeks); template 14.5 ms. Hatching and the 1080×1920 texture draw are the main costs; `detail` adds one
   clipped `sheet` (≈ 2 ms).
 

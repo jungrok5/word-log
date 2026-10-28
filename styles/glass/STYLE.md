@@ -91,7 +91,7 @@ Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: G.FONTS, init, draw });
 - **Ambient while waiting**: cloud shadows drift across the window (`cloud`), breathing on 12 fps (a 1 px stepped bob).
 
 ## Performance (1080×1920, Chromium headless, 4 shared CPUs)
-- `init` ≈ .4 s + the world canvas (≈ .3–.5 s at scale 1.5). Per frame: ⑦ 47.0 ms after the kit vs 47.5 ms before
+- Page ready (init + world canvas at scale 1.5 + first frame) ≈ .6 s. Per frame: ⑦ 47.0 ms after the kit vs 47.5 ms before
   (median of 5 interleaved runs, 122 seeks); template 43 ms. The cost is per-piece texture fills (`piece` clips +
   multiplies a pattern) — build everything static into `world()` once; draw only moving pieces per frame.
 
