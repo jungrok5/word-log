@@ -346,8 +346,11 @@
   K.crouch = function (x, gy, s, f, k = 1) { return { ...K.stand(x, gy, s, f), hip: [x + f * 18 * s * k, gy - lerp(178, 82, k) * s], ang: f * lerp(.05, 1.12, k), feet: [[x - f * 44 * s, gy], [x + f * 44 * s, gy]], tilt: .3 * k }; };
   /* kneel(x, gy, s, f, lean = .35) — on the far knee (shin flat behind), near foot planted in front, torso leaning to the
      ground in front (plant, tend, pray: lean .1 upright … .7 bowed). The ground point in front is K.reachGround(F). */
-  K.kneel = function (x, gy, s, f, lean = .35) { return { s, f, gy, hip: [x, gy - 104 * s], ang: f * lean, feet: [[x - f * 92 * s, gy], [x + f * 62 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .2, eye: 'down', sway: 0 }; };
-  K.reachGround = (F, d = 74) => [F.hip[0] + F.f * d * F.s, F.gy - 8 * F.s];   // a point on the ground within reach in front
+  K.kneel = function (x, gy, s, f, lean = .35) { return { s, f, gy, hip: [x, gy - (lean > .8 ? 84 : 104) * s], ang: f * lean, feet: [[x - f * 92 * s, gy], [x + f * 62 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .2, eye: 'down', sway: 0 }; };
+  /* reachGround(F, d = 120) → a ground point the near hand can really reach (≤ 146·s from the shoulder), as far as d·s in
+     front of the hip — or null if the shoulder is too high: bow deeper (kneel lean ≥ 1.0) until it is not. */
+  K.reachGround = function (F, d = 120) { const sh = K.shoulderOf(F), y = F.gy - 8 * F.s, dy = y - sh[1], R = 146 * F.s; if (dy > R) return null;
+    const dx = Math.sqrt(R * R - dy * dy), x = F.f > 0 ? Math.min(sh[0] + dx, F.hip[0] + d * F.s) : Math.max(sh[0] - dx, F.hip[0] - d * F.s); return [x, y]; };
   /* lookUp(F, k) — head tilted back by k (0..1) with the eye up (look at a light, a sky); returns F */
   K.lookUp = function (F, k = 1) { F.tilt = (F.tilt || 0) - .45 * k; if (k > .3) F.eye = 'up'; return F; };
   /* hangHands(F, swing) → the two hanging hand points (arms down the sides, swing px fore/aft) */

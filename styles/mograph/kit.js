@@ -209,7 +209,7 @@
   //   set 0 to let the arms hang after stopping mid-stride) · march: in-place steps (cycles) · marchAmt 0..1
   //   kneel 0..1 (right knee down, left foot forward) · lean (rad, + = forward) · bounce (px up) · look (rad, + = up)
   //   reach / reachFar: [x, y] grip point (local px) for the near / far hand · reachAmt / reachFarAmt 0..1
-  //   cheer 0..1 (both arms up) · swing (rad, extra arm swing) · face: +1 right … −1 left (in between = squash turn)
+  //   cheer 0..1 (both arms thrown forward-up — a profile figure can't raise them overhead without crossing its face) · swing (rad, extra arm swing) · face: +1 right … −1 left (in between = squash turn)
   M.rig = function (P = {}) {
     const B = BODY, wa = P.walkAmt ?? (P.walk != null ? 1 : 0), ma = P.marchAmt ?? (P.march != null ? 1 : 0), kn = eio(P.kneel || 0);
     const S = B.stride, ph = (P.walk || 0) / (4 * S);
@@ -242,8 +242,8 @@
     const arm = (side, grip, amt) => {
       const s0 = [sh[0] + (side ? -8 : 0), sh[1] - 6];
       const sw = (P.swing || 0) + (-Math.cos(2 * Math.PI * (ph + (side ? .5 : 0))) * .42 * (P.armSwing ?? wa)), ch = P.cheer || 0;
-      let ua = lerp(-Math.PI / 2 + sw, side ? 1.25 : -.1, ch);   // upper-arm angle (y-up); cheer: far arm up, near arm forward-up (clear of the face)
-      const fa = ua + lerp(.32 + .25 * Math.max(0, sw), side ? .15 : .9, ch);                                  // forearm bends forward
+      let ua = lerp(-Math.PI / 2 + sw, side ? .45 : -.1, ch);   // upper-arm angle (y-up); cheer: both arms forward-up, hands open (clear of the face)
+      const fa = ua + lerp(.32 + .25 * Math.max(0, sw), side ? .55 : .9, ch);                                  // forearm bends forward
       const el = [s0[0] + Math.cos(ua) * B.ua, s0[1] + Math.sin(ua) * B.ua];
       let hand = [el[0] + Math.cos(fa) * (B.fa + B.hand * .5), el[1] + Math.sin(fa) * (B.fa + B.hand * .5)];
       if (grip && amt > 0) hand = [lerp(hand[0], grip[0], eio(amt)), lerp(hand[1], grip[1], eio(amt))];

@@ -95,7 +95,7 @@ function sceneGrid(ctx, t, u) {   // push in, then dive into the gold window on 
 // ---------------- ② drafting sheet: drawn in, kneels, plants ----------------
 function sceneDraft(ctx, t, u) {
   ctx.drawImage(MG.paperSheet(), 0, 0);
-  const x = 470, y = 1480, fh = 900, p = D.place(x, y, fh), sx = p.X(SEED[0]);
+  const x = 420, y = 1480, fh = 900, p = D.place(x, y, fh), sx = p.X(SEED[0]);
   const gp = []; for (let k = -2; k <= 11; k++) gp.push([k * 110, y]);
   MG.guides(ctx, [540, 640], gp, .5 * ss(.1, .7, u));
   ctx.save(); ctx.strokeStyle = MG.BLUE; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W * eio(ss(0, .8, u)), y); ctx.stroke(); ctx.restore();
@@ -103,7 +103,7 @@ function sceneDraft(ctx, t, u) {
   if (t >= B.plant) {   // the seed, ringed by a compass, with its dimension
     seed(ctx, sx, y, 1.2, ss(B.plant + 1.2, B.plant + 1.6, t) > 0 ? '#8a5a2b' : '#f3ecdc', MG.BLUE);
     MG.compass(ctx, [sx, y - 10], 92, t - B.plant + .1);
-    MG.dimension(ctx, sx + 130, y - 140, y, '씨앗 1', ss(B.plant + .5, B.plant + .9, t));
+    MG.dimension(ctx, sx + 80, y - 140, y, '씨앗 1', ss(B.plant + .5, B.plant + .9, t));
     MG.sparkBurst(ctx, sx, y - 12, (t - B.plant) / .45, 12, 160, 3, [MG.BLUE, '#fff']);
   }
 }
@@ -111,8 +111,8 @@ function sceneDraft(ctx, t, u) {
 // ---------------- ③ bubbles: waiting ----------------
 function sceneBubble(ctx, t, u) {
   MG.bubbleSky(ctx, u);
-  const x = 470, y = 1500, fh = 900, s = fh / D.figH, sx = D.place(x, y, fh).X(SEED[0]);
-  MG.lightCross(ctx, t, x + 60, y);
+  const x = 420, y = 1500, fh = 900, s = fh / D.figH, sx = D.place(x, y, fh).X(SEED[0]);
+  MG.lightCross(ctx, t, x + 80, y);
   MG.bubblesBack(ctx, u);
   accentGlow(ctx, sx, y - 20, 150, .35 + .4 * MG.beatPulse(t));   // the buried seed keeps a heartbeat
   mound(ctx, sx, y + 2, s, '#c98ad8');
@@ -132,7 +132,7 @@ function sceneStage(ctx, t, u) {
   mound(ctx, sx, y + 2, s, '#7a3b1e');
   D.draw(ctx, t, x, y, fh);
   sprout(ctx, sx, y - 20 * s, 470 * s, g, 'color', t);
-  MG.pop(ctx, t, B.sprout + .25, '쑥!', sx + 40, y - 560 * s, 170, { face: '#fff36b', face2: '#ffc21a', depth: .12, rot: .08, burst: [24, 360, 21, ['#fff', '#ffe14d']] });
+  MG.pop(ctx, t, B.sprout + .25, '쑥!', sx + 30, y - 660 * s, 170, { face: '#fff36b', face2: '#ffc21a', depth: .12, rot: .08, burst: [24, 360, 21, ['#fff', '#ffe14d']] });
 }
 
 // ---------------- ⑤ manga: she stands and looks ----------------
@@ -162,14 +162,14 @@ function sceneManga(ctx, t, u) {
 // ---------------- ⑥ keyboard: happy steps → '싹!' ----------------
 const K = () => scAt('keys');
 const keyCam = t => { const u = t - K().at; return MG.keyCam(13.4 - .9 * eio(ss(0, 3.6, u)), .2 * Math.sin(u * .9)); };
-const WORD = MG.jamoLayout('싹', { y: 330 }), ASSEMBLE = () => B.end - 1.4;
+const WORD = MG.jamoLayout('싹', { y: 280, size: 260 }), ASSEMBLE = () => B.end - 1.4;
 let HITS = [], FLY = [];
 function sceneKeys(ctx, t, u) {
   const cam = keyCam(t), fh = MG.KB.figu * cam.ppu, A = MG.KB.anchor;
   ctx.drawImage(MG.keyboardBG(), 0, 0);
   MG.drawKeyboard(ctx, cam, MG.keyState(t, HITS, FLY, WORD.jamo));
   MG.hitSparks(ctx, t, HITS);
-  const sp = cam.P(3.1, MG.KB.CAPTOP, 1.2);   // the sprout grows out between the keys, behind her and to the right
+  const sp = cam.P(2.3, MG.KB.CAPTOP, 1.4);   // the sprout grows out between the keys, behind her and to the right
   accentGlow(ctx, sp[0], sp[1] - 40, 220, .55 + .3 * MG.beatPulse(t));
   sprout(ctx, sp[0], sp[1], 3.4 * cam.ppu, 1, 'color', t);
   D.shadow(ctx, t, A[0], A[1] + 4, fh, 'rgba(0,0,0,.55)', .13);
