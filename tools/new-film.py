@@ -58,8 +58,10 @@ for f in os.listdir(sc):
     if f.startswith('script') and f.endswith('.js'):
         p = os.path.join(sc, f); body = open(p, encoding='utf-8').read()
         if 'added by new-film.py' not in body: open(p, 'a', encoding='utf-8').write(TAIL)
+fonts = {'Noto Serif KR': 'NotoSerifKR[wght].ttf', 'Noto Sans KR': 'NotoSansKR[wght].ttf'}
+if 'mograph' in a.style: fonts['Do Hyeon'] = 'DoHyeon-Regular.ttf'   # its chunky 3-D type (install locally for stills/export)
 json.dump({'title': a.title or meta.get('title', ''), 'source': 'ko', 'scenes': scenes, 'audio': 'scenes/soundtrack.wav', 'poster': 12,
-           'fonts': {'local': {'Noto Serif KR': 'NotoSerifKR[wght].ttf', 'Noto Sans KR': 'NotoSansKR[wght].ttf'}}},
+           'fonts': {'local': fonts}},
           open(os.path.join(film, 'film.json'), 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
 print('→', film, '·', ', '.join(x['id'] for x in scenes))
 print('next: write scenes/script.js, then draw your image in each scene (see styles/<slug>/STYLE.md)')

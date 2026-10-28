@@ -24,5 +24,6 @@
  "inkwash":      [["2026-10-24-cross-styles", "cs-inkwash", 0.5], ["2026-10-24-cross-styles", "cs-inkwash", 14.8], ["2026-10-24-cross-styles", "cs-inkwash", 18.9]],
  "graphite":     [["2026-10-24-cross-styles", "cs-graphite", 0.5], ["2026-10-24-cross-styles", "cs-graphite", 14.8], ["2026-10-24-cross-styles", "cs-graphite", 18.9]],
  "ukiyoe":       [["2026-10-11-1cor4", "cross-ukiyoe", 3.7], ["2026-10-11-1cor4", "cross-ukiyoe", 14.8], ["2026-10-11-1cor4", "cross-ukiyoe", 19.7]],
- "papercut":     [["2026-10-11-1cor4", "cross-papercut", 0.5], ["2026-10-11-1cor4", "cross-papercut", 7], ["2026-10-11-1cor4", "cross-papercut", 22.4]]
+ "papercut":     [["2026-10-11-1cor4", "cross-papercut", 0.5], ["2026-10-11-1cor4", "cross-papercut", 7], ["2026-10-11-1cor4", "cross-papercut", 22.4]],
+ "mograph":     [["2026-10-24-intro", "intro-class", 17.6], ["2026-10-24-intro", "intro-class", 5], ["2026-10-24-intro", "intro-class", 22]]
 }

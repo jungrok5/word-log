@@ -33,6 +33,7 @@ pitfalls, performance), `template.html` + `script.example.js` (a minimal new sce
 | `graphite` | 흑연·목탄 밤 그림책 (흰 색연필, 손전등 빛 하나) | [잘라 낸 건 다리였다 cs-graphite](../sermons/2026-10-24-cross-styles/film/scenes/cs-graphite.html) | 밤·두려움을 다정하게, 잃은 것을 찾는 빛, 어린아이 같은 믿음, 위로 |
 | `ukiyoe` | 우키요에 목판화 (판 어긋난 색면·먹선, 보카시 하늘, 종이로 남긴 빛, 베니 붉은색 하나) | [잘라 낸 건 다리였다 cross-ukiyoe](../sermons/2026-10-11-1cor4/film/scenes/cross-ukiyoe.html) | 순례·길·행렬, 기다림과 인내, 사람보다 큰 풍경, 바다의 힘, 민담 같은 비유 |
 | `papercut` | 붉은 전지 오림 (남색 바탕 위 붉은 종이, 오려 낸 무늬, 금색 종이 하나) | [잘라 낸 건 다리였다 cross-papercut](../sermons/2026-10-11-1cor4/film/scenes/cross-papercut.html) | 여럿 중 하나(나만 다른 종이), 잘라 냄·잃음·남은 조각, 뒤에서 비치는 빛, 우화·축복 |
+| `mograph` | 모션그래픽 (박자마다 세계가 바뀌는 「word-log 교실」: 창 격자·무대·도면·3D 키보드·비눗방울·만화·만화경, 입체 글자) | [채널 소개 intro-class](../sermons/2026-10-24-intro/film/scenes/intro-class.html) | 채널·시리즈 소개, 한 진리를 여러 렌즈로, 단계·목록, 기쁨·초대, 한글 단어가 조립되는 순간 |
 
 Previews: the first four — https://jungrok5.github.io/word-log/previews/2026-10-18-1cor5/ · the 2026-10 styles (same story in each) —
 https://jungrok5.github.io/word-log/previews/2026-10-24-cross-styles/ and https://jungrok5.github.io/word-log/previews/2026-10-11-1cor4/ ·
