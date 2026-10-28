@@ -74,7 +74,7 @@ const dWalk = t => { t = Math.min(t, 4.4); return t < 3.5 ? t : 3.5 + (t - 3.5) 
 const bx = t => XS + (XK - XS) * dWalk(t) / 3.95;
 function poseBear(t) {
   const tp = Math.max(0, t12(t));
-  const WALK = tt => { const x = bx(tt), F = K.walkSpec(x, FY, SB, 1, (x - XS) / (78 * SB), 78, .12, 14, 4); F.tilt = .05; return F; };
+  const WALK = tt => { const x = bx(tt), F = K.walkSpec(x, FY, SB, 1, (x - XS) / (78 * SB), 78, .12, 14, 4); F.tilt = .05; F.hands = [null, K.hangGrip(F, 8 * Math.sin(TAU * F.ph))]; F.hand = ['fist', 'grip']; return F; };   // the seed in the near paw
   const KNEEL = K.kneelSpec(XK, FY, SB, 1, { eye: 'down', tilt: .3 });
   const holdSeed = F => { const sh = K.shoulderOf(F); F.hands = [null, [sh[0] + 34 * SB, sh[1] + 52 * SB]]; F.hand = ['fist', 'grip']; return F; };
   const PLANT = { ...K.crouchSpec(XK, FY, SB, 1, { hipH: 58, lean: 1.05, tilt: -.2, eye: 'down' }), feet: KNEEL.feet };

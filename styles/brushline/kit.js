@@ -274,9 +274,8 @@
   /* a brush cloud: one stroke of three round puffs (middle one biggest) over a dry flat base, width w, at world (x, y);
      drift it in the scene (≈ 6–12 px/s) for the "waiting" beat. seed; o = { w: brush width (7), col } */
   K.cloud = function (x, y, w, seed, o = {}) {
-    const R = [.2, .3, .22], tot = (R[0] + R[1] + R[2]) * 2 * .82, pts = [[x - w / 2, y]]; let cx = x - w / 2;
-    R.forEach((r, i) => { const rr = r * w / tot, c = cx + rr * .9; for (let k = 0; k <= 14; k++) { const a = Math.PI + Math.PI * k / 14; pts.push([c + Math.cos(a) * rr, y - rr * .25 + Math.sin(a) * rr * .8]); } cx = c + rr * .74; });
-    pts.push([x + w / 2, y]);
+    const R = [.2, .3, .22], tot = (R[0] + R[1] + R[2]) * 2, pts = []; let cx = x - w / 2;   // puffs chained end to start (no backtracking)
+    R.forEach(r => { const rr = r * w / tot, c = cx + rr, lift = (rr - R[1] * w / tot) * .5; for (let k = 0; k <= 14; k++) { const a = Math.PI + Math.PI * k / 14; pts.push([c + Math.cos(a) * rr, y + lift + Math.sin(a) * rr * .8]); } cx = c + rr; });
     K.brW(pts, seed, { w: o.w ?? 7, ts: 20, te: 40, dry: .4, col: o.col }); K.brW([[x - w * .46, y + 4], [x + w * .4, y + 6]], seed + 1, { w: (o.w ?? 7) * .7, ts: 10, te: 30, dry: .5, col: o.col }); };
   /* a lit DOORWAY at the end of the line: a brushed arch (radius r, centre ay, standing on gy), the warm dab glowing
      inside, the leaf swung open toward us, wisps of light rising above. o = { x, gy, ay, r: 112, seed: 4300, light: 1 } */

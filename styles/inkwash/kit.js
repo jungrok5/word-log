@@ -346,7 +346,7 @@
   K.crouch = function (x, gy, s, f, k = 1) { return { ...K.stand(x, gy, s, f), hip: [x + f * 18 * s * k, gy - lerp(178, 82, k) * s], ang: f * lerp(.05, 1.12, k), feet: [[x - f * 44 * s, gy], [x + f * 44 * s, gy]], tilt: .3 * k }; };
   /* kneel(x, gy, s, f, lean = .35) — on the far knee (shin flat behind), near foot planted in front, torso leaning to the
      ground in front (plant, tend, pray: lean .1 upright … .7 bowed). The ground point in front is K.reachGround(F). */
-  K.kneel = function (x, gy, s, f, lean = .35) { return { s, f, gy, hip: [x, gy - (lean > .8 ? 96 : 104) * s], ang: f * lean, feet: [[x - f * 92 * s, gy], [x + f * 62 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .2, eye: 'down', sway: 0 }; };
+  K.kneel = function (x, gy, s, f, lean = .35) { return { s, f, gy, hip: [x, gy - (lean > .8 ? 84 : 104) * s], ang: f * lean, feet: [[x - f * 92 * s, gy], [x + f * 62 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .2, eye: 'down', sway: 0 }; };
   /* reachGround(F, d = 120) → a ground point the near hand can really reach (≤ 146·s from the shoulder), as far as d·s in
      front of the hip — or null if the shoulder is too high: bow deeper (kneel lean ≥ 1.0) until it is not. */
   K.reachGround = function (F, d = 120) { const sh = K.shoulderOf(F), y = F.gy - 8 * F.s, dy = y - sh[1], R = 146 * F.s; if (dy > R) return null;
