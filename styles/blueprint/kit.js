@@ -48,6 +48,8 @@
   // setCam({cx, cy, z}): call once per frame before drawing anything. K.cam is the current camera.
   K.setCam = c => { CAM = c; };
   Object.defineProperty(K, 'cam', { get: () => CAM });
+  // KX, KY: the current oblique shear (read-only; set with init) — a camera aimed at a point in lane d uses cx = x + KX·d, cy = y + KY·d
+  Object.defineProperty(K, 'KX', { get: () => KX }); Object.defineProperty(K, 'KY', { get: () => KY });
   // P(x, y, d = 0) → [px, py] screen point of a world point in metres.  P3([x, y, d]) the same for a 3-vector.
   K.P = (x, y, d = 0) => [AX + (x + KX * d - CAM.cx) * CAM.z, AY - (y + KY * d - CAM.cy) * CAM.z];
   K.P3 = q => K.P(q[0], q[1], q[2]);
@@ -99,11 +101,12 @@
     gr.addColorStop(0, 'rgba(5,12,32,0)'); gr.addColorStop(1, 'rgba(5,12,32,.5)'); v.fillStyle = gr; v.fillRect(0, 0, W, H);
   };
   function texM() { const a = CAM.z / TPPM; return [a, AX + (TX0 - CAM.cx) * CAM.z, AY - (TY1 - CAM.cy) * CAM.z]; }
+  function patSync() { const m = texM(); if (PAT) PAT.setTransform(new DOMMatrix([m[0], 0, 0, m[0], m[1], m[2]])); return m; }
   // sheet(g): the first thing every frame — paper texture locked to the drawing (moves and scales with the camera) and the
   // faint drafting grid every .5 m (every 2.5 m a little stronger).
   K.sheet = function (g) {
     if (!PAT) { PAT = g.createPattern(TEX, 'repeat'); GPAT = g.createPattern(GRAIN, 'repeat'); }
-    const [a, e, f] = texM(); PAT.setTransform(new DOMMatrix([a, 0, 0, a, e, f]));
+    const [a, e, f] = patSync();
     g.fillStyle = K.SHEET; g.fillRect(0, 0, W, H);
     g.imageSmoothingEnabled = true; g.drawImage(TEX, e, f, TN * a, TN * a);
     const x0 = CAM.cx - AX / CAM.z, x1 = CAM.cx + (W - AX) / CAM.z, y0 = CAM.cy - (H - AY) / CAM.z, y1 = CAM.cy + AY / CAM.z;
@@ -113,6 +116,28 @@
       for (let y = Math.ceil(y0 / st) * st; y <= y1; y += st) { const Y = AY - (y - CAM.cy) * CAM.z; g.moveTo(0, Y); g.lineTo(W, Y); }
       g.strokeStyle = `rgba(215,232,255,${al})`; g.lineWidth = 1; g.stroke();
     }
+  };
+  // detail(g, c, r, cam, paint, o): a DETAIL CALLOUT — a paper circle at screen c (radius r px) showing the drawing again
+  // through another camera centred on c (e.g. a 6× close-up of what is under the ground), a double ring, a leader line to o.at (screen
+  // point on the main drawing, ringed there too) and a label (o.label, e.g. '상세 A'). paint(g) draws inside with the kit
+  // as usual (P/line/hatch… all use the detail camera). o.k 0..1 opens it (ring draws on, contents fade in), o.alpha.
+  K.detail = function (g, c, r, cam, paint, o = {}) {
+    const k = o.k ?? 1; if (k <= 0) return;
+    const main = CAM, a = (o.alpha ?? 1);
+    if (o.at) { const at = o.at, dx = c[0] - at[0], dy = c[1] - at[1], l = Math.hypot(dx, dy) || 1, e = [c[0] - dx / l * r, c[1] - dy / l * r];
+      line(g, [at, e], K.THIN, K.INK, { k: ss(0, .5, k), alpha: .85 * a, nib: false });
+      g.save(); g.globalAlpha *= a * ss(0, .3, k); g.strokeStyle = K.INK; g.lineWidth = LW(K.THIN); g.beginPath(); g.arc(at[0], at[1], o.atR || 26, 0, 7); g.stroke(); g.restore(); }
+    const kc = ss(.3, 1, k);
+    if (kc > 0) {
+      g.save(); g.globalAlpha *= a * kc; g.beginPath(); g.arc(c[0], c[1], r, 0, 7); g.clip();
+      const ax = AX, ay = AY; AX = c[0]; AY = c[1];          // the detail camera's point sits at the circle's centre
+      CAM = cam; K.sheet(g); paint(g); CAM = main; AX = ax; AY = ay; patSync();
+      g.restore();
+    }
+    g.save(); g.globalAlpha *= a; g.strokeStyle = K.INK; g.lineWidth = LW(K.DET);
+    g.beginPath(); g.arc(c[0], c[1], r, -Math.PI / 2, -Math.PI / 2 + 6.2832 * ss(.2, .9, k)); g.stroke();
+    g.lineWidth = LW(K.HAIR); g.beginPath(); g.arc(c[0], c[1], r + 8, -Math.PI / 2, -Math.PI / 2 + 6.2832 * ss(.3, 1, k)); g.stroke(); g.restore();
+    if (o.label) label(g, o.label, c[0], c[1] + r + 44, { alpha: a * kc, size: o.labelSize || 30, weight: 700, patch: true });
   };
   // paper(): the sheet as a fill/stroke style (a pattern locked to the drawing). Fill a shape with it to make it opaque
   // paper (figures, door leaves, label patches): it hides what is behind and still looks like the sheet. Valid after sheet().
@@ -317,18 +342,18 @@
   };
   // carryHands(X): grips for a shouldered cross — near hand on the crossbar's lower arm, far hand on the shaft
   K.carryHands = X => [add(X.C, mul(X.bar, -.36)), add(X.C, mul(X.u, .26))];
-  // carry(F, L, mode): other holds → { X, hands }.  'front': level in front of the body at waist height, both hands
-  // .25 m apart (a plank, a gift);  'upright': standing on the ground beside the near foot, gripped at shoulder height
-  // (a staff, a planted cross);  'shoulder': = shoulder(F, L, false) with carryHands.
+  // carry(F, L, mode): other holds → { X, hands }.  'front': level, pointing ahead from the belly at waist height, both
+  // hands on the near end .22 m apart (a plank, a gift; draw it in o.mid so the near arm is over it);  'upright': standing on the ground beside the near foot, gripped at shoulder height
+  // (a staff, a planted cross);  'shoulder': = shoulder(F, L, false), the near hand on the shaft (for a cross use carryHands).
   K.carry = function (F, L, mode = 'shoulder') {
     const f = F.f;
-    if (mode === 'front') { const c = [F.sh[0] + .3 * f, F.hip[1] + .1, F.sh[2] - .2], u = [f, 0, 0];
-      const X = { foot: add(c, mul(u, -L * .35)), top: add(c, mul(u, L * .65)), bar: [0, 1, 0], L };
-      return { X, hands: [add(c, [.14 * f, .02, 0]), add(c, [-.12 * f, .02, .1])] }; }
+    if (mode === 'front') { const c = [F.sh[0] + .22 * f, F.hip[1] + .12, F.sh[2] - .2], u = [f, 0, 0];   // held out ahead, never through the body
+      const X = { foot: add(c, mul(u, -.04)), top: add(c, mul(u, L - .04)), bar: [0, 1, 0], L };
+      return { X, hands: [add(c, [.26 * f, .02, 0]), add(c, [.04 * f, .02, .1])] }; }
     if (mode === 'upright') { const b = [F.sh[0] + .32 * f, 0, F.sh[2] - .22];
       const X = { foot: b, top: add(b, [0, L, 0]), bar: [f, 0, 0], L };
       return { X, hands: [add(b, [0, F.sh[1] - .1, 0]), add(b, [0, F.sh[1] - .32, .06])] }; }
-    const X = K.shoulder(F, L, false); return { X, hands: K.carryHands(X) };
+    const X = K.shoulder(F, L, false); return { X, hands: [add(X.C, mul(X.u, .2)), null] };   // one hand on the shaft ahead of the shoulder
   };
   // mixX(A, B, k): in-between two placements of a long object (pick-up / set-down)
   K.mixX = (A, Bx, k) => ({ foot: mix3(A.foot, Bx.foot, k), top: mix3(A.top, Bx.top, k), bar: nrm(mix3(A.bar, Bx.bar, k)), L: lerp(A.L, Bx.L, k) });
@@ -394,15 +419,15 @@
   // ---------------------------------------------------------------- the ground: road, section cut, gap, lit gate
   // road(g, segs, o): the road band seen in oblique — near edge line (OUT) with a section-hatched cut .5 m deep below it,
   // a far edge, a dashed centre lane and chainage ticks every metre. segs = [[x0, x1], …] (leave a hole for a gap).
-  //   o.d0 near edge depth (−1.6), o.d1 far edge (3.9), o.lane dashed lane depth (1.15), o.deep cut depth (.5)
+  //   o.d0 near edge depth (−1.6), o.d1 far edge (3.9), o.lane dashed lane depth (1.15; false = none), o.deep cut depth (.5)
   K.road = function (g, segs, o = {}) {
-    const d0 = o.d0 ?? -1.6, d1 = o.d1 ?? 3.9, ln = o.lane ?? 1.15, dp = o.deep ?? .5;
+    const d0 = o.d0 ?? -1.6, d1 = o.d1 ?? 3.9, ln = o.lane === undefined ? 1.15 : o.lane, dp = o.deep ?? .5;
     for (const [x0, x1] of segs) {
       hatch(g, [P(x0, 0, d0), P(x1, 0, d0), P(x1, -dp, d0), P(x0, -dp, d0)], .12, .42);
       line(g, [P(x0, -dp, d0), P(x1, -dp, d0)], K.HAIR, K.INK, { alpha: .45 });
       line(g, [P(x0, 0, d0), P(x1, 0, d0)], K.OUT);
       line(g, [P(x0, 0, d1), P(x1, 0, d1)], K.DET, K.INK, { alpha: .75 });
-      if (ln != null) line(g, [P(x0, 0, ln), P(x1, 0, ln)], K.HAIR, K.INK, { alpha: .4, dash: [30, 9, 5, 9] });
+      if (ln != null && ln !== false) line(g, [P(x0, 0, ln), P(x1, 0, ln)], K.HAIR, K.INK, { alpha: .4, dash: [30, 9, 5, 9] });
       for (let x = Math.ceil(x0); x <= x1; x++) line(g, [P(x, 0, d0), P(x, -.1, d0)], K.HAIR, K.INK, { alpha: .6 });   // chainage ticks
     }
   };

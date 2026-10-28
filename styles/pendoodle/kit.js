@@ -178,7 +178,7 @@
   /* ================================================================ camera (world → screen) */
   K.cam = { x: 0, y: 1000, z: 1, sx: 0, sy: 0 }; K.M = null; K.pz = 1; K.fd = 0;
   // c = { x, y (world point at frame centre), z (zoom), sx, sy (shake px) }. K.pz = z^.45 — pens thicken a little on a push
-  K.setCam = function (c) { K.cam = c; K.M = { a: c.z, b: 0, c: 0, d: c.z, e: W / 2 - c.x * c.z + c.sx, f: H / 2 - c.y * c.z + c.sy }; K.pz = Math.pow(c.z, .45); };
+  K.setCam = function (c) { K.cam = c; K.M = { a: c.z, b: 0, c: 0, d: c.z, e: W / 2 - c.x * c.z + (c.sx || 0), f: H / 2 - c.y * c.z + (c.sy || 0) }; K.pz = Math.pow(c.z, .45); };
   K.toS = p => [K.M.a * p[0] + K.M.e, K.M.d * p[1] + K.M.f];   // a world point → screen
   K.mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
   // the hit shake: decaying jitter after t0 for d s → [sx, sy] px (assign to cam.sx / cam.sy)
@@ -508,10 +508,10 @@
   K.farU = X => X.contact - X.gf; K.nearU = X => Math.max((X.u0 || 0) + 12, X.contact - X.gn);
   // both wingtips grip a shouldered object (held: the near wing is busy with something else)
   K.gripCarry = function (F, X, held) { F.hands = [K.cpt(X, K.farU(X)), held ? null : K.cpt(X, K.nearU(X))]; F.hand = ['grip', 'grip']; return F; };
-  // IN FRONT (held across the chest, both wings on it, like a plank or a banner pole): the object's middle at the near
-  // wing's reach; a = angle (0 = level); returns X (draw it in drawBird's mid() callback, set F.hands from it)
-  K.holdFront = function (F, len, a = 0) { const M = birdM(F), c = HD.pt(M, 30, 10), d = [Math.cos(a), Math.sin(a)];
-    const X = { x: c[0] - d[0] * len / 2, y: c[1] - d[1] * len / 2, a, lie: true }; F.hands = [K.cpt(X, len / 2 + 30 * F.s), K.cpt(X, len / 2 - 26 * F.s)]; F.hand = ['grip', 'grip']; return X; };
+  // IN FRONT (held across the chest with both wings, like a plank, a banner pole, a tray): the object starts just behind
+  // the chest and runs forward along the facing; a = tilt (0 level, − tip up). Returns X (draw it in drawBird's mid()).
+  K.holdFront = function (F, len, a = 0) { const c = HD.pt(birdM(F), 6, 6), aa = F.f > 0 ? a : Math.PI - a, d = [Math.cos(aa), Math.sin(aa)];
+    const X = { x: c[0] - d[0] * 24 * F.s, y: c[1] - d[1] * 24 * F.s, a: aa, lie: true }; F.hands = [K.cpt(X, 70 * F.s), K.cpt(X, 36 * F.s)]; F.hand = ['grip', 'grip']; return X; };
   // UPRIGHT (planted like a staff, foot on the ground beside the figure, the near wing gripping it at shoulder height)
   K.holdUpright = function (F, len, lean = .06) { const x = F.hip[0] + F.f * 46 * F.s, X = { x, y: F.gy, a: -Math.PI / 2 + F.f * lean, lie: true };
     F.hands = [F.hands[0], K.cpt(X, F.gy - F.hip[1] + 10 * F.s)]; F.hand = [F.hand[0], 'grip']; return X; };

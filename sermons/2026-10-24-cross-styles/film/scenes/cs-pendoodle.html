@@ -7,121 +7,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&display=swap">
 </head>
 <body>
-<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script><script src="kit-pendoodle.js"></script>
 <script>
-/* ---- hand-drawn toolkit (shared by the lab-* hand-drawn scenes; inlined at build time) ----
-   Lines are variable-width ribbons built from densely sampled polylines: a static hand wobble per stroke (seeded),
-   a boil displacement per drawing (3 drawings cycled on 8–12 fps), pressure along the length, tapered ends, ragged
-   edges. Ink is laid on a white layer that is multiplied onto a paper whose tooth is a real height field, so ink drops
-   out in the valleys and pencil only catches the peaks. */
-const TAU = Math.PI * 2;
-const { clamp, lerp, ss, eo, eio, rng, noise, fbm } = Pilot;
-const W = 1080, H = 1920;
-const S = window.SCRIPT, B = S.beat;
-const HD = {};
-HD.hash = (i, s = 0) => { let h = (Math.imul(i | 0, 374761393) + Math.imul(s | 0, 668265263)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
-HD.t12 = t => Math.floor(t * 12 + 1e-6) / 12;
-HD.spline = (P, step = 3, closed = false) => {
-  const n = P.length; if (n < 2) return P.map(p => p.slice());
-  const get = i => closed ? P[((i % n) + n) % n] : P[clamp(i, 0, n - 1)];
-  const out = [], segs = closed ? n : n - 1;
-  for (let i = 0; i < segs; i++) {
-    const p0 = get(i - 1), p1 = get(i), p2 = get(i + 1), p3 = get(i + 2);
-    const L = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]), m = Math.max(1, Math.ceil(L / step));
-    for (let j = 0; j < m; j++) { const t = j / m, t2 = t * t, t3 = t2 * t;
-      out.push([0, 1].map(k => .5 * ((2 * p1[k]) + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3))); }
-  }
-  out.push(closed ? out[0].slice() : P[n - 1].slice()); return out;
-};
-HD.seg = (a, b, step = 4) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), m = Math.max(1, Math.ceil(L / step)), o = [];
-  for (let i = 0; i <= m; i++) o.push([lerp(a[0], b[0], i / m), lerp(a[1], b[1], i / m)]); return o; };
-HD.poly = (P, closed = false, step = 4) => { const o = []; const n = P.length, m = closed ? n : n - 1; for (let i = 0; i < m; i++) { const sg = HD.seg(P[i], P[(i + 1) % n], step); if (i) sg.shift(); o.push(...sg); } return o; };
-HD.arc = (cx, cy, rx, ry, a0, a1, step = 4, rot = 0) => { const L = Math.abs(a1 - a0) * Math.max(rx, ry), m = Math.max(2, Math.ceil(L / step)), o = [], c = Math.cos(rot), s = Math.sin(rot);
-  for (let i = 0; i <= m; i++) { const a = lerp(a0, a1, i / m), x = Math.cos(a) * rx, y = Math.sin(a) * ry; o.push([cx + x * c - y * s, cy + x * s + y * c]); } return o; };
-HD.normals = pts => pts.map((p, i) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; });
-HD.lengths = pts => { const s = [0]; for (let i = 1; i < pts.length; i++) s.push(s[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])); return s; };
-// hand wobble: perpendicular low-frequency displacement
-HD.wob = (pts, seed, amp, wl = 120) => { if (!amp || pts.length < 2) return pts; const N = HD.normals(pts), Sx = HD.lengths(pts), oy = (seed * 17.37) % 997;
-  return pts.map((p, i) => { const d = (noise(Sx[i] / wl, oy) - .5) * 2 * amp; return [p[0] + N[i][0] * d, p[1] + N[i][1] * d]; }); };
-// one boiled drawing: a new wobble + a tiny drift, per drawing index f
-HD.boil = (pts, seed, f, amp, wl = 90) => { if (!amp) return pts; const s = (seed * 31 + f * 977) | 0, dx = (HD.hash(s, 1) - .5) * amp, dy = (HD.hash(s, 2) - .5) * amp;
-  return HD.wob(pts, s, amp, wl).map(p => [p[0] + dx, p[1] + dy]); };
-HD.xf = (pts, m) => pts.map(p => [m.a * p[0] + m.c * p[1] + m.e, m.b * p[0] + m.d * p[1] + m.f]);   // apply a DOMMatrix-like
-HD.mat = (x, y, rot = 0, sx = 1, sy = sx) => { const c = Math.cos(rot), s = Math.sin(rot); return { a: c * sx, b: s * sx, c: -s * sy, d: c * sy, e: x, f: y }; };
-HD.mul = (A, Bm) => ({ a: A.a * Bm.a + A.c * Bm.b, b: A.b * Bm.a + A.d * Bm.b, c: A.a * Bm.c + A.c * Bm.d, d: A.b * Bm.c + A.d * Bm.d, e: A.a * Bm.e + A.c * Bm.f + A.e, f: A.b * Bm.e + A.d * Bm.f + A.f });
-HD.pt = (m, x, y) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f];
-// variable-width ribbon (round caps where the end is wide)
-HD.ribbon = (pts, wf) => {
-  const n = pts.length, N = HD.normals(pts), Sx = HD.lengths(pts), L = Sx[n - 1] || 1, Lf = [], Rt = [], ws = [];
-  for (let i = 0; i < n; i++) { const w = Math.max(0, wf(Sx[i] / L, Sx[i], i, L)) / 2; ws.push(w); Lf.push([pts[i][0] + N[i][0] * w, pts[i][1] + N[i][1] * w]); Rt.push([pts[i][0] - N[i][0] * w, pts[i][1] - N[i][1] * w]); }
-  const p = new Path2D(); p.moveTo(Lf[0][0], Lf[0][1]); for (let i = 1; i < n; i++) p.lineTo(Lf[i][0], Lf[i][1]);
-  const ae = Math.atan2(N[n - 1][1], N[n - 1][0]); if (ws[n - 1] > .4) p.arc(pts[n - 1][0], pts[n - 1][1], ws[n - 1], ae, ae + Math.PI, true); else p.lineTo(Rt[n - 1][0], Rt[n - 1][1]);
-  for (let i = n - 1; i >= 0; i--) p.lineTo(Rt[i][0], Rt[i][1]);
-  const a0 = Math.atan2(N[0][1], N[0][0]); if (ws[0] > .4) p.arc(pts[0][0], pts[0][1], ws[0], a0 + Math.PI, a0, true);
-  p.closePath(); return p;
-};
-// an ink line: o = { w, ts, te (taper lengths px), mn (tip width fraction), press, pw (pressure wavelength), rough, seed, col, dry }
-HD.ink = (ctx, pts, o = {}) => {
-  if (!pts || pts.length < 2) return;
-  const w = o.w ?? 8, ts = o.ts ?? w * 2.5, te = o.te ?? w * 3.5, mn = o.mn ?? .2, press = o.press ?? .3, pw = o.pw ?? 70, rough = o.rough ?? .08, seed = o.seed ?? 1, mnE = o.mnE ?? mn;
-  const wf = (u, s, i, L) => { const k = Math.min(1, mn + (1 - mn) * ss(0, ts, s)) * Math.min(1, mnE + (1 - mnE) * ss(0, te, L - s));
-    return w * k * (1 + press * (noise(s / pw, seed * 3.7 % 500) - .5) * 2) * (1 + rough * (HD.hash(i, seed) - .5) * 2); };
-  ctx.fillStyle = o.col || '#151312'; ctx.fill(HD.ribbon(pts, wf));
-  if (o.blob) { ctx.beginPath(); ctx.arc(pts[0][0], pts[0][1], w * o.blob, 0, TAU); ctx.fill(); }   // a marker resting a moment at the start
-  if (o.dry) {   // dry-brush streaks in the tail: thin paper-white lines along the stroke
-    const N = HD.normals(pts), Sx = HD.lengths(pts), L = Sx[Sx.length - 1], r = rng(seed * 7 + 3);
-    ctx.save(); ctx.strokeStyle = o.paper || '#fff'; ctx.lineCap = 'round';
-    for (let k = 0; k < (o.dryN || 4); k++) { const f = (r() - .5) * .7, u0 = 1 - o.dry * (.3 + .7 * r()); ctx.lineWidth = (o.dryW || 1) * (.5 + r() * .7); ctx.globalAlpha = .55 + r() * .45; ctx.beginPath(); let st = false;
-      for (let i = 0; i < pts.length; i++) { const u = Sx[i] / L; if (u < u0) continue; const ww = wf(u, Sx[i], i, L) * f; const x = pts[i][0] + N[i][0] * ww, y = pts[i][1] + N[i][1] * ww; if (!st) { ctx.moveTo(x, y); st = true; } else ctx.lineTo(x, y); }
-      ctx.stroke(); }
-    ctx.restore();
-  }
-};
-// a closed hand shape: fill (paper white or colour) — the outline is drawn separately with HD.ink
-HD.fillPts = (ctx, pts, col) => { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (const p of pts) ctx.lineTo(p[0], p[1]); ctx.closePath(); ctx.fill(); };
-HD.pathOf = pts => { const p = new Path2D(); p.moveTo(pts[0][0], pts[0][1]); for (const q of pts) p.lineTo(q[0], q[1]); p.closePath(); return p; };
-
-// ---- paper: a tooth height field (full frame) → paper colour, ink dropout (white specks), pencil deposit masks ----
-HD.tooth = (seed = 1, s1 = 6, s2 = 2.2, fib = 0) => {
-  const T = new Float32Array(W * H), r = rng(seed), ox = r() * 500, oy = r() * 500;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    let v = .62 * noise(x / s1 + ox, y / s1 + oy) + .38 * noise(x / s2 + oy, y / s2 + ox);
-    T[y * W + x] = v; }
-  if (fib) { // fibres: thin streaks raised a little
-    for (let k = 0; k < fib; k++) { let x = r() * W, y = r() * H, a = r() * TAU; const l = 8 + r() * 30;
-      for (let i = 0; i < l; i++) { a += (r() - .5) * .3; x += Math.cos(a); y += Math.sin(a); const xi = x | 0, yi = y | 0; if (xi >= 0 && yi >= 0 && xi < W && yi < H) T[yi * W + xi] = Math.min(1, T[yi * W + xi] + .18); } } }
-  return T;
-};
-// paper canvas: base colour, low-frequency mottling, embossed tooth (light from top-left), fine grain, edge falloff
-HD.paper = (T, o = {}) => {
-  const c = Pilot.canvas(W, H), g = c.getContext('2d'), d = g.createImageData(W, H), D = d.data, base = o.base || [250, 249, 245];
-  const mot = o.mott ?? 6, emb = o.emb ?? 26, gr = o.grain ?? 4, vig = o.vig ?? 0, r = rng(o.seed || 9), mscale = o.mscale || 260;
-  const tint = o.tint || [0, 0, 0];
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x, x0 = Math.max(0, x - 1), y0 = Math.max(0, y - 1), x1 = Math.min(W - 1, x + 1), y1 = Math.min(H - 1, y + 1);
-    const sh = (T[y0 * W + x0] - T[y1 * W + x1]) * emb, m = (noise(x / mscale + 40, y / mscale + 7) - .5) * 2 * mot;
-    const dx = (x / W - .5), dy = (y / H - .5), v = -vig * (dx * dx * 1.4 + dy * dy) * 4;
-    const n = (r() - .5) * gr, k = sh + m + n + v;
-    D[i * 4] = base[0] + k + tint[0] * m / (mot || 1); D[i * 4 + 1] = base[1] + k + tint[1] * m / (mot || 1); D[i * 4 + 2] = base[2] + k + tint[2] * m / (mot || 1); D[i * 4 + 3] = 255; }
-  g.putImageData(d, 0, 0); return c;
-};
-// a full-frame canvas of colour `col` whose alpha follows the tooth: mode 'peak' (pencil catches the peaks) or 'valley' (ink misses the valleys)
-HD.toothMask = (T, col, mode = 'valley', thr = .35, soft = .18, amax = 1) => {
-  const c = Pilot.canvas(W, H), g = c.getContext('2d'), d = g.createImageData(W, H), D = d.data, rgb = Pilot.hex(col);
-  for (let i = 0; i < W * H; i++) { const v = mode === 'peak' ? (T[i] - thr) / soft : (thr - T[i]) / soft, a = clamp(v) * amax;
-    D[i * 4] = rgb[0]; D[i * 4 + 1] = rgb[1]; D[i * 4 + 2] = rgb[2]; D[i * 4 + 3] = a * 255; }
-  g.putImageData(d, 0, 0); return c;
-};
-// layers: a white canvas you draw ink on, then multiply onto the frame
-HD.layer = () => { const c = Pilot.canvas(W, H), g = c.getContext('2d'); g.lineJoin = 'round'; g.lineCap = 'round'; return { c, g }; };
-HD.clearWhite = (g, x = 0, y = 0, w = W, h = H) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.fillStyle = '#fff'; g.fillRect(x, y, w, h); g.restore(); };
-HD.dropout = (g, mask, a = 1, x = 0, y = 0, w = W, h = H) => { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = a; g.drawImage(mask, x, y, w, h, x, y, w, h); g.restore(); };
-HD.multiply = (ctx, c, x = 0, y = 0, w = W, h = H, a = 1) => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'multiply'; ctx.globalAlpha = a; ctx.drawImage(c, x, y, w, h, x, y, w, h); ctx.restore(); };
-
-// walk: distance along x with a slowing stop (speed 1 → 0 over the last `dec` fraction), from a lookup table
-HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for (let i = 1; i <= n; i++) { const u = i / n; s += 1 - ss(1 - dec, 1, u); tab.push(s); }
-  return t => { if (t <= 0) return x0 + (t / T) * n * (x1 - x0) / tab[n]; if (t >= T) return x1; const f = t / T * n, i = Math.floor(f), k = f - i; return x0 + (x1 - x0) * lerp(tab[i], tab[Math.min(n, i + 1)], k) / tab[n]; }; };
-
 /* cs-pendoodle — 잘라 낸 건 다리였다, drawn as a black ballpoint doodle on off-white paper (from lab-pendoodle, ref 14).
    Same look as the approved lab: thin semi-opaque pen lines that boil (3 drawings on 8 fps), scribble-filled round birds,
    rain falling on twos, puddle scribbles that ripple, broken hatched reflections, hand-lettered words (Nanum Pen).
@@ -130,43 +17,21 @@ HD.walker = (x0, x1, T, dec = .3) => { const n = 400, tab = [0]; let s = 0; for 
    The medium carries the turn: the gap is a slot of dense cross-hatching through the puddled road; at the hit the doodle
    shakes and bursts into emphasis ticks; the cut pieces get highlighted again, fly back with pen speed lines and fill the
    dashed pen outline of my whole cross. Everything is redrawn in screen space each frame (the camera never scales the pen). */
-const INK = 'rgba(34,31,40,.9)', INKS = '#221f28', INKP = 'rgba(58,54,64,.72)';
+/* The STYLE (paper, pen, boil, highlighter, the bird rig, rain, puddles, the gap, the doorway, lamps, words) is the
+   house-style kit styles/pendoodle (vendored as kit-pendoodle.js); this file keeps only the story: the cross, the saw,
+   the timeline, the poses, the camera and the order things are drawn in. */
+const K = PenDoodle, HD = K.HD, TAU = Math.PI * 2;
+const { clamp, lerp, ss, eo, eio, rng, noise, fbm } = Pilot;
+const W = 1080, H = 1920;
+const S = window.SCRIPT, B = S.beat;
+const { penS, penW, pathS, whiteS, hiS, hiLine, toS, cpt, rotAbout, mixX, farU, nearU, attach, gripCarry, walkSpec, standSpec, mixSpec, drawBird } = K;
 const L = 460, PW = 28, CBX = L - 118, CBW = 26, CBH = 96, CBHL = 38;   // cross: post length/width, crossbar position (from foot), thickness, half-length upright / lying
 const FY = 1300, BY = 1222, RT = 1100, LYY = FY + 24;   // RT: the road's far edge (the road goes on behind the hole)                   // front lane (me), back lane (others), road's far edge, where a lying cross sits
 const REST = 22, G = L - 2 * REST;                                        // a full cross rests 22 on each lip: the gap is G wide
 const SME = 1.6, SPI = 1.28;                                               // me a little bigger than the others
-const t12 = HD.t12, frac = x => x - Math.floor(x), bf = t => Math.floor(t * 8 + 1e-6) % 3;
-const TX = {};
+const t12 = K.t12, frac = K.frac, bf = K.bf;
 const PINU = 96;   // where the free hand pins the beam while I saw (from the cut)
-
-// ---------------- camera + pen in screen space ----------------
-let CAM = { x: 0, y: 1000, z: 1, sx: 0, sy: 0 }, CMX = null, PZ = 1, FD = 0, G_ = null, HLg = null, HLc = null, INKL = null;
-function setCam(c) { CAM = c; CMX = { a: c.z, b: 0, c: 0, d: c.z, e: 540 - c.x * c.z + c.sx, f: 960 - c.y * c.z + c.sy }; PZ = Math.pow(c.z, .45); }
-const toS = p => [CMX.a * p[0] + CMX.e, CMX.d * p[1] + CMX.f];
-function penS(pts, seed, o = {}) {
-  if (!pts || pts.length < 2) return;
-  const q = o.raw ? pts : HD.boil(HD.wob(pts, seed, o.wob ?? 1.5, 90), seed, FD, o.boil ?? 1.3, 60);
-  HD.ink(G_, q, { ts: 5, te: 9, mn: .45, press: .22, pw: 50, rough: .1, seed, col: INK, ...o, w: (o.w ?? 3.8) * (o.fix ? 1 : PZ) });
-}
-const penW = (pts, seed, o) => penS(pts.map(toS), seed, o);
-function pathS(g, pts) { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (const p of pts) g.lineTo(p[0], p[1]); g.closePath(); }
-function whiteS(pts) { G_.fillStyle = '#fff'; pathS(G_, pts); G_.fill();   // paper-white fill: hides what is behind, also the highlighter
-  HLg.save(); HLg.globalCompositeOperation = 'destination-out'; HLg.globalAlpha = 1; HLg.fillStyle = '#000'; pathS(HLg, pts); HLg.fill(); HLg.restore(); }
-function hatchS(pts, tile, ax, ay) { G_.save(); pathS(G_, pts); G_.clip(); G_.drawImage(tile, Math.round(ax - tile.width / 2), Math.round(ay - tile.height / 2)); G_.restore(); }
-function hiS(pts, a = .5, rgb = '255,222,70') { HLg.fillStyle = `rgba(${rgb},${a})`; pathS(HLg, pts); HLg.fill(); }
-function hiLine(pts, w, a = .3, rgb = '255,222,70') { HLg.save(); HLg.strokeStyle = `rgba(${rgb},${a})`; HLg.lineWidth = w; HLg.lineCap = 'round'; HLg.lineJoin = 'round';
-  HLg.beginPath(); HLg.moveTo(pts[0][0], pts[0][1]); for (const p of pts) HLg.lineTo(p[0], p[1]); HLg.stroke(); HLg.restore(); }
 const mulM = HD.mul, xf = HD.xf;
-const rotAboutM = (cx, cy, a) => mulM(HD.mat(cx, cy, a), HD.mat(-cx, -cy));
-
-// scribble hatching tiles (pen lines back and forth until nearly solid), clipped into shapes in screen space
-function hatchTile(w, h, passes, alpha, seed, lw = 3.2) {
-  const c = Pilot.canvas(w, h), g = c.getContext('2d'), r = rng(seed), cx = w / 2, cy = h / 2, R = Math.hypot(w, h) / 2 + 10;
-  for (let p = 0; p < passes.length; p++) { const [a, sp] = passes[p], ca = Math.cos(a), sa = Math.sin(a);
-    for (let s = -R; s < R; s += sp * (.8 + .5 * r())) { const p0 = [cx - ca * R - sa * s, cy - sa * R + ca * s], p1 = [cx + ca * R - sa * s, cy + sa * R + ca * s];
-      HD.ink(g, HD.wob(HD.seg(p0, p1, 6), seed + p * 97 + (s * 3 | 0), 1.2, 30), { w: lw, ts: 3, te: 3, mn: .6, press: .25, seed: seed + 31 + (s | 0), col: `rgba(34,31,40,${alpha})` }); } }
-  return c;
-}
 
 // ---------------- the cross (local: foot at u=0, top at u=L, v across) ----------------
 function crossOutline(lying) { const hb = lying ? CBHL : CBH;
@@ -181,10 +46,10 @@ const GRAIN = [[24, 96, -.22], [70, 150, .2], [150, 236, -.12], [214, 300, .25],
 // X = { x, y, a } foot origin + angle. o = { lying, mine, alpha, seed }
 function drawCross(X, u0, u1, o = {}) {
   if (u1 - u0 < 1) return;
-  const S = mulM(CMX, HD.mat(X.x, X.y, X.a)), lying = !!o.lying, sd = o.seed || 300;
+  const S = mulM(K.M, HD.mat(X.x, X.y, X.a)), lying = !!o.lying, sd = o.seed || 300;
   const P = clipU(crossOutline(lying), u0, u1), dense = HD.poly(P, true, 3);
-  const scr = HD.boil(HD.wob(xf(dense, S), sd, 1.2, 80), sd, FD, 1.1, 60);
-  const al = o.alpha ?? 1; G_.save(); G_.globalAlpha = al;
+  const scr = HD.boil(HD.wob(xf(dense, S), sd, 1.2, 80), sd, K.fd, 1.1, 60);
+  const al = o.alpha ?? 1; K.g.save(); K.g.globalAlpha = al;
   if (lying) {   // a plank lying flat: show its thickness as a second line under the near edge
     const th = 9, side = xf([[u0, PW / 2], [u1, PW / 2], [u1, PW / 2 + th], [u0, PW / 2 + th]], S);
     whiteS(side); penS(HD.poly([xf([[u0 + 2, PW / 2 + th]], S)[0], xf([[u1 - 2, PW / 2 + th]], S)[0]], false, 3), sd + 7, { w: 3.2 });
@@ -192,8 +57,8 @@ function drawCross(X, u0, u1, o = {}) {
   }
   whiteS(scr);
   if (o.mine) { hiS(scr.map(p => [p[0] + 3, p[1] - 2]), .58 * al);
-    const a = xf([[Math.max(u0, 6), 0], [Math.min(u1, L - 6), 0]], S); if (u1 - u0 > 20) hiLine(a, PW * CAM.z * .55, .22 * al); }
-  HD.ink(G_, scr, { w: 3.9 * PZ, ts: 4, te: 4, mn: .7, press: .2, seed: sd + 1, col: INK });
+    const a = xf([[Math.max(u0, 6), 0], [Math.min(u1, L - 6), 0]], S); if (u1 - u0 > 20) hiLine(a, PW * K.cam.z * .55, .22 * al); }
+  HD.ink(K.g, scr, { w: 3.9 * K.pz, ts: 4, te: 4, mn: .7, press: .2, seed: sd + 1, col: K.INK });
   // wood grain: a few short pen lines along the post (fixed in u, so cut pieces line up again)
   for (const [a, b, v] of GRAIN) { const ua = Math.max(a, u0 + 6), ub = Math.min(b, u1 - 6); if (ub - ua < 10) continue;
     if (ua < CBX + CBW / 2 + 4 && ub > CBX - CBW / 2 - 4) continue;
@@ -202,10 +67,9 @@ function drawCross(X, u0, u1, o = {}) {
     for (let u = Math.ceil((u0 + 8) / 22) * 22; u < u1 - 8; u += 22) { if (Math.abs(u - CBX) < CBW / 2 + 6) continue;
       penS(xf(HD.seg([u, PW * .1], [u + 8, PW * .42], 2), S), sd + 40 + u, { w: 2.2, mn: .35 }); }
   }
-  G_.restore();
+  K.g.restore();
   return scr;
 }
-const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
 
 // ---------------- the saw (doodled: toothed blade, D handle) ----------------
 const CUT_ANG = Math.PI - .72, BLADE = 128;
@@ -215,102 +79,12 @@ function drawSaw(grip, ang, seed = 1400) {
   const { d, up, heel } = sawGeo(grip, ang), P = (u, v) => toS([heel[0] + d[0] * u + up[0] * v, heel[1] + d[1] * u + up[1] * v]);
   const blade = [P(0, 26), P(BLADE, 15)]; for (let u = BLADE; u >= 0; u -= 8) blade.push(P(u, (u / 8 | 0) % 2 ? 3.5 : -3.5));
   whiteS(blade); penS(blade.concat([blade[0]]), seed, { w: 3.4, boil: .8, wob: .6 });
-  penS(HD.arc(...P(BLADE - 16, 12), 4.5 * CAM.z, 4.5 * CAM.z, 0, TAU, 2), seed + 1, { w: 2.6, boil: .5, wob: .3 });
+  penS(HD.arc(...P(BLADE - 16, 12), 4.5 * K.cam.z, 4.5 * K.cam.z, 0, TAU, 2), seed + 1, { w: 2.6, boil: .5, wob: .3 });
   const h = [P(-2, 32), P(-30, 40), P(-44, 18), P(-34, -4), P(-4, 2)], hs = HD.spline(h, 3, true);
   whiteS(hs); penS(hs, seed + 2, { w: 3.6, ts: 3, te: 3, mn: .7 });
   penS(HD.spline([P(-11, 26), P(-27, 31), P(-34, 18), P(-27, 8), P(-11, 11)], 2, true), seed + 3, { w: 3, ts: 3, te: 3, mn: .7 });
   for (let i = 0; i < 4; i++) penS(HD.seg(P(-6 - i * 9, 36 - i * 2), P(-12 - i * 9, 33 - i * 2), 2), seed + 4 + i, { w: 2.2 });
-  penS(HD.arc(...P(4, 22), 2.4 * CAM.z, 2.4 * CAM.z, 0, TAU, 1), seed + 9, { w: 2.6 }); penS(HD.arc(...P(4, 6), 2.4 * CAM.z, 2.4 * CAM.z, 0, TAU, 1), seed + 10, { w: 2.6 });
-}
-
-// ---------------- the birds ----------------
-// local coordinates are the lab bird's (hip/body centre at 0,0; y down); feet stand at y = 72; scaled by s, mirrored by f
-const BODYL = HD.spline([[-12, -56], [26, -40], [40, -8], [24, 24], [-10, 32], [-44, 18], [-78, 2], [-50, -26]], 2.5, true);
-const HEADL = HD.arc(16, -78, 40, 38, 0, TAU, 2.5);
-const WROOT = [[-10, -22], [4, -12]], CONTACT = [-32, -58], NECK = [6, -46], HIPH = 72;
-function birdM(F) { const c = Math.cos(F.ang), s = Math.sin(F.ang); return { a: c * F.f * F.s, b: s * F.f * F.s, c: -s * F.s, d: c * F.s, e: F.hip[0], f: F.hip[1] }; }
-function wing(F, M, k, me, sd) {
-  const R = HD.pt(M, ...WROOT[k]), reach = 74 * F.s;
-  let T = F.hands[k] || HD.pt(M, WROOT[k][0] + 8, WROOT[k][1] + 48);
-  let dx = T[0] - R[0], dy = T[1] - R[1], len = Math.hypot(dx, dy) || 1;
-  if (len > reach * 1.2) { T = [R[0] + dx / len * reach * 1.2, R[1] + dy / len * reach * 1.2]; len = reach * 1.2; }
-  const u = [dx / Math.hypot(dx, dy), dy / Math.hypot(dx, dy)], p = [-u[1], u[0]], s = F.s, sg = F.f * (u[0] >= 0 ? 1 : -1);
-  const bend = Math.max(0, reach - len) * .35 * sg, at = (a, b) => [R[0] + u[0] * a + p[0] * b, R[1] + u[1] * a + p[1] * b];
-  const wr = 13 * s, wm = 11 * s, wt = 6 * s;
-  const shape = HD.spline([at(-4 * s, wr), at(len * .5, wm + bend), at(len - 5 * s, wt), at(len + 3 * s, 0), at(len - 5 * s, -wt), at(len * .5, -wm + bend), at(-4 * s, -wr), at(-10 * s, 0)], 3, true);
-  const scr = HD.boil(shape.map(toS), sd + k * 11, FD, 1, 40);
-  HD.ink(G_, scr, { w: 13 * PZ, ts: 2, te: 2, mn: .9, press: 0, rough: 0, seed: 1, col: '#fff' });   // a paper-white rim keeps the wing readable on the body
-  whiteS(scr); hatchS(scr, me ? TX.hMe[(FD + 1) % 3] : TX.hPil[(FD + 1) % 3], ...toS(F.hip));
-  HD.ink(G_, scr, { w: (me ? 3.8 : 3.2) * PZ, ts: 4, te: 4, mn: .7, press: .2, seed: sd + 2 + k, col: me ? INK : INKP });
-  // feather "fingers" at the tip: wrapped round what they hold (grip), laid flat (flat), or splayed (open)
-  const ty = (F.hand && F.hand[k]) || 'rest', fl = 11 * s;
-  const fing = ty === 'open' ? [-.9, -.3, .3, .9] : ty === 'flat' ? [-.2, 0, .2] : ty === 'grip' ? [-1.3, -.6, .1] : [-.35, 0, .35];
-  fing.forEach((a, i) => { const c = Math.cos(a), sn = Math.sin(a), dir = [u[0] * c - p[0] * sn * sg, u[1] * c - p[1] * sn * sg];
-    const e = [T[0] + dir[0] * fl, T[1] + dir[1] * fl], m = ty === 'grip' ? [T[0] + dir[0] * fl * .6 + p[0] * sg * 6 * s, T[1] + dir[1] * fl * .6 + p[1] * sg * 6 * s] : [(T[0] + e[0]) / 2, (T[1] + e[1]) / 2];
-    penS(HD.spline([T, m, e], 2).map(toS), sd + 30 + k * 7 + i, { w: me ? 3.6 : 3, ts: 3, te: 6, mn: .5, col: me ? INK : INKP }); });
-  if (ty === 'grip') penS(HD.spline([at(len - 3 * s, -wt * sg), at(len + 7 * s, -9 * s * sg), at(len + 13 * s, -2 * s * sg)], 2).map(toS), sd + 50 + k, { w: 3.6, ts: 3, te: 6, mn: .5, col: me ? INK : INKP });   // the thumb over the handle
-}
-function leg(F, M, k, sd, col) {
-  const R = HD.pt(M, k ? 8 : -8, 26), Ft = F.feet[k], LL = 52 * F.s, d = Math.hypot(Ft[0] - R[0], Ft[1] - R[1]);
-  const bend = Math.sqrt(Math.max(0, (LL / 2) ** 2 - (d / 2) ** 2)), ux = (Ft[0] - R[0]) / (d || 1), uy = (Ft[1] - R[1]) / (d || 1);
-  let px = -uy, py = ux; if (px * F.f > 0) { px = -px; py = -py; }   // the heel joint points backwards
-  const mid = [(R[0] + Ft[0]) / 2 + px * bend, (R[1] + Ft[1]) / 2 + py * bend];
-  penS(HD.spline([R, mid, Ft], 2).map(toS), sd, { w: 3.6, mn: .7, col });
-  const lift = F.gy - Ft[1] > 8 ? .5 : 0;
-  for (const a of [-.5, .15, .7]) { const aa = a + lift; penS(HD.seg(toS(Ft), toS([Ft[0] + F.f * Math.cos(aa) * 13 * F.s, Ft[1] + Math.sin(aa) * 5 * F.s + 2]), 2), sd + 3 + (a * 10 | 0), { w: 3, mn: .5, col }); }
-  penS(HD.seg(toS(Ft), toS([Ft[0] - F.f * 8 * F.s, Ft[1] + 1]), 2), sd + 9, { w: 2.8, mn: .5, col });
-}
-// F = { kind: 'me'|'pil', id, s, f, gy, hip, ang, feet:[far,near], hands:[far,near], hand:[..], tilt, eye, look, farFront, alpha, ticks, sweat, bang, run }
-function drawBird(F, back, mid) {
-  const al = F.alpha ?? 1; if (al <= 0) return;
-  const me = F.kind === 'me', sd = me ? 500 : 600 + F.id * 70, col = me ? INK : INKP;
-  G_.save(); G_.globalAlpha = al;
-  const M = birdM(F), S = mulM(CMX, M), Mh = mulM(M, rotAboutM(NECK[0], NECK[1], F.tilt || 0)), Sh = mulM(CMX, Mh), hipS = toS(F.hip);
-  if (back) back();
-  if (!F.farFront) wing(F, M, 0, me, sd + 100);
-  leg(F, M, 0, sd + 200, col); leg(F, M, 1, sd + 220, col);
-  for (const [a, b, c, d] of [[-76, 0, -98, -8], [-74, 6, -100, 6]]) penS(xf(HD.seg([a, b], [c, d], 2), S), sd + 240 + a, { w: 3.4, ts: 3, te: 6, mn: .4, col });
-  const body = HD.boil(xf(BODYL, S), sd + 1, FD, 1.3, 50);
-  whiteS(body); hatchS(body, me ? TX.hMe[FD] : TX.hPil[FD], ...hipS);
-  HD.ink(G_, body, { w: (me ? 4 : 3.4) * PZ, ts: 4, te: 4, mn: .7, press: .2, seed: sd + 2, col });
-  const head = HD.boil(xf(HEADL, Sh), sd + 3, FD, 1.2, 40);
-  whiteS(head); hatchS(head, me ? TX.hMe[FD] : TX.hPil[FD], ...hipS);
-  HD.ink(G_, head, { w: (me ? 4 : 3.4) * PZ, ts: 4, te: 4, mn: .7, press: .2, seed: sd + 4, col });
-  // eye: a white disc and a pupil (or a squeezed / happy / shocked eye)
-  const eye = F.eye || 'calm', er = eye === 'shock' ? 19 : 17, ec = [26, -84];
-  if (F.front) {   // turning: a face-on head for a beat (two eyes, the beak pointing at us)
-    const Sf = mulM(CMX, mulM(HD.mat(F.hip[0], F.hip[1], F.ang, F.s, F.s), rotAboutM(NECK[0], NECK[1], F.tilt || 0)));
-    for (const ex of [2, 30]) { const dd = xf(HD.arc(ex, -84, 13, 13, 0, TAU, 2), Sf); whiteS(dd); penS(dd, sd + 5 + ex, { w: 3.2, raw: true, ts: 3, te: 3, mn: .7, col });
-      G_.fillStyle = INKS; pathS(G_, xf(HD.arc(ex, -82, 5.5, 5.5, 0, TAU, 2), Sf)); G_.fill(); }
-    const bk = xf(HD.poly([[8, -72], [24, -72], [16, -56]], true, 2), Sf); whiteS(bk); penS(bk, sd + 11, { w: 3.6, raw: true, ts: 3, te: 3, mn: .7, col });
-  } else {
-  const disc = HD.boil(xf(HD.arc(ec[0], ec[1], er, er, 0, TAU, 2), Sh), sd + 5, FD, .8, 20);
-  whiteS(disc); penS(disc, sd + 6, { w: 3.4, raw: true, ts: 3, te: 3, mn: .7, col });
-  const lk = F.look || (eye === 'down' ? [1, 8] : eye === 'up' ? [3, -7] : [5, 3]);
-  if (eye === 'strain') { penS(xf(HD.poly([[18, -93], [31, -85], [18, -77]], false, 2), Sh), sd + 7, { w: 3.6, col }); }
-  else if (eye === 'happy') { penS(xf(HD.arc(ec[0], ec[1] + 5, 10, 9, Math.PI * 1.1, Math.PI * 1.9, 2), Sh), sd + 7, { w: 3.6, col }); }
-  else { const pr = eye === 'shock' ? 4.5 : 7.5, pc = [ec[0] + lk[0], ec[1] + lk[1]];
-    G_.fillStyle = INKS; pathS(G_, HD.boil(xf(HD.arc(pc[0], pc[1], pr, pr, 0, TAU, 2), Sh), sd + 8, FD, .5, 10)); G_.fill();
-    if (eye === 'down') penS(xf(HD.seg([10, -88], [42, -86], 2), Sh), sd + 9, { w: 3.2, col }); }
-  const beak = HD.boil(xf(HD.poly([[54, -84], [92, -78], [55, -70]], true, 2), Sh), sd + 10, FD, .8, 20);
-  whiteS(beak); penS(beak, sd + 11, { w: 3.8, raw: true, ts: 3, te: 3, mn: .7, col }); }
-  if (F.strap) {   // the strap that holds the cross on the back: a loop round the post, a band round the chest
-    for (const pts of [xf(HD.arc(-36, -64, 9, 17, 0, TAU, 2), S), xf(HD.spline([[-38, -58], [-6, -30], [28, -6], [24, 20]], 3), S)]) {
-      HD.ink(G_, pts, { w: 12 * PZ, ts: 2, te: 2, mn: .9, press: .1, rough: .05, seed: sd + 300, col });
-      HD.ink(G_, pts, { w: 5.5 * PZ, ts: 2, te: 2, mn: .9, press: 0, rough: 0, seed: sd + 301, col: '#fff' }); } }
-  if (mid) mid();
-  if (F.farFront) wing(F, M, 0, me, sd + 100);
-  wing(F, M, 1, me, sd + 100);
-  // doodle emphasis: worry ticks round the head, sweat drops, a "!"
-  if (F.ticks) for (let i = 0; i < 6; i++) { const a = -Math.PI * (.18 + i * .13), r0 = 60, r1 = 74 + (i % 2) * 6;
-    penS(xf(HD.seg([16 + Math.cos(a) * r0, -84 + Math.sin(a) * r0], [16 + Math.cos(a) * r1, -84 + Math.sin(a) * r1], 2), Sh), sd + 260 + i, { w: 3.2, col }); }
-  if (F.sweat) for (const [x, y, k] of [[-30, -104, 0], [-38, -86, 1]]) { const dr = xf([[x, y - 9], [x + 4, y - 1], [x + 3, y + 4], [x - 3, y + 4], [x - 4, y - 1]], Sh), dd = HD.spline(dr, 2, true);
-    whiteS(dd); penS(dd, sd + 270 + k, { w: 2.8, ts: 2, te: 2, mn: .7, col }); }
-  if (F.bang) { const b0 = xf([[18, -150], [14, -196]], Sh); penS(HD.seg(b0[0], b0[1], 2).reverse(), sd + 280, { w: 7, ts: 2, te: 16, mn: .25 });
-    const dt = xf([[19, -138]], Sh)[0]; G_.fillStyle = INKS; G_.beginPath(); G_.arc(dt[0], dt[1], 4.5 * PZ, 0, TAU); G_.fill(); }
-  if (F.run > 0) for (let i = 0; i < 4; i++) { const y = -96 + i * 30, x0 = -96 - (i % 2) * 18;   // speed lines behind
-    penS(xf(HD.seg([x0, y], [x0 - (60 + 60 * F.run), y], 3), mulM(CMX, HD.mat(F.hip[0], F.hip[1], 0, F.f * F.s, F.s))), sd + 290 + i, { w: 3, ts: 3, te: 14, mn: .3, col }); }
-  G_.restore();
+  penS(HD.arc(...P(4, 22), 2.4 * K.cam.z, 2.4 * K.cam.z, 0, TAU, 1), seed + 9, { w: 2.6 }); penS(HD.arc(...P(4, 6), 2.4 * K.cam.z, 2.4 * K.cam.z, 0, TAU, 1), seed + 10, { w: 2.6 });
 }
 
 // ---------------- timeline: my path (integrated once), the cuts ----------------
@@ -357,39 +131,14 @@ function pieceAt(c, t) {   // a cut piece lying on the road where it fell — it
 const SLOTS = [[22.9, 0], [23.6, 1], [24.3, 2]];   // the outline's missing span lights one piece-length at a time (soft knocks in the soundtrack)
 
 // ---------------- poses ----------------
-function walkSpec(x, gy, s, f, ph, stride, lean, lift = 18) {
-  const feet = [0, 1].map(i => { const p = frac(ph + i * .5); let off, up = 0;
-    if (p < .58) off = stride * (.29 - p); else { const u = (p - .58) / .42; off = -.29 * stride + .58 * stride * eio(u); up = lift * Math.sin(Math.PI * u); }
-    return [x + f * off, gy - up]; });
-  const hop = lift > 30 ? lift * .45 * Math.abs(Math.sin(TAU * ph)) : 0;
-  return { s, f, gy, hip: [x, gy - (HIPH - 4 * Math.abs(Math.cos(TAU * ph))) * s - hop], ang: f * lean, feet, hands: [null, null], hand: ['rest', 'rest'], tilt: 0, eye: 'calm', ph };
-}
-function standSpec(x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - HIPH * s], ang: f * lean, feet: [[x - f * 12 * s, gy], [x + f * 12 * s, gy]], hands: [null, null], hand: ['rest', 'rest'], tilt: 0, eye: 'calm' }; }
-function restHands(F) { const M = birdM(F); return [HD.pt(M, WROOT[0][0] + 8, WROOT[0][1] + 48), HD.pt(M, WROOT[1][0] + 8, WROOT[1][1] + 48)]; }
-function mixSpec(A, Bs, k) {
-  if (k <= 0) return A; if (k >= 1) return Bs;
-  const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = restHands(A), hB = restHands(Bs), pick = k < .5 ? A : Bs;
-  return { ...pick, s: lerp(A.s, Bs.s, k), gy: lerp(A.gy, Bs.gy, k), hip: l2(A.hip, Bs.hip), ang: lerp(A.ang, Bs.ang, k), feet: [l2(A.feet[0], Bs.feet[0]), l2(A.feet[1], Bs.feet[1])],
-    hands: [0, 1].map(i => l2(A.hands[i] || hA[i], Bs.hands[i] || hB[i])), hand: pick.hand.slice(), tilt: lerp(A.tilt || 0, Bs.tilt || 0, k), front: A.f !== Bs.f && k > .22 && k < .78 };
-}
 // the cross on a bird's back: it rests on the back behind the head, foot trailing down behind, top up in front
 const TOPX = 250;
-function carryCross(F, left, a0) {
-  const T = HD.pt(birdM(F), ...CONTACT), a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
-  const contact = left < .55 ? L - 40 : L - Math.min(TOPX, left * L - 44);   // the last, short cross rides lower: crossbar behind the back, not by the eyes
-  return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false, gf: 34, gn: 92 };
+function carryCross(F, left, a0) {   // my cross on the back (K.shoulder); the last, short cross rides lower: crossbar behind the back, not by the eyes
+  const contact = left < .55 ? L - 40 : L - Math.min(TOPX, left * L - 44);
+  return { ...K.shoulder(F, a0, PW, contact), u0: L * (1 - left) };
 }
-function gripCarry(F, X, held) { F.hands = [cpt(X, farU(X)), held ? null : cpt(X, nearU(X))]; F.hand = ['grip', 'grip']; return F; }
-const mixX = (A, Bx, k, sw = .62) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > sw ? Bx.lie : A.lie };   // sw: when it changes from behind the body to in front
-const farU = X => X.contact - X.gf, nearU = X => Math.max(X.u0 + 12, X.contact - X.gn);   // where the free hands grip a carried cross
-function attach(F, X, k, u, v = 0) {   // keep wingtip k on the beam at (u, v): if that point is out of reach, the beam comes to the wingtip
-  const Rt = HD.pt(birdM(F), ...WROOT[k]), T = cpt(X, u, v), dx = T[0] - Rt[0], dy = T[1] - Rt[1], d = Math.hypot(dx, dy), Rr = 74 * F.s * 1.12;
-  if (d <= Rr) { F.hands[k] = T; return X; }
-  const nT = [Rt[0] + dx / d * Rr, Rt[1] + dy / d * Rr]; F.hands[k] = nT; return { ...X, x: X.x + nT[0] - T[0], y: X.y + nT[1] - T[1] };
-}
-function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
 const hangAng = f => f > 0 ? .42 : Math.PI - .42;
-const hangGrip = (F, sw = 0) => { const R = HD.pt(birdM(F), ...WROOT[1]); return [R[0] + F.f * (34 + sw) * F.s / 1.6, R[1] + 40 * F.s / 1.6]; };
+const hangGrip = K.hangGrip;
 function sawState(c, t) {   // the cutting stroke: the teeth pass through the kerf, the blade moves along its own length
   const kp = clamp((t - c.saw0) / (c.drop - .06 - c.saw0)), saw = t >= c.saw0 - .05 && t < c.drop + .02;
   const osc = saw ? 22 * Math.sin(TAU * 3.4 * (t - c.saw0)) : 0, g0 = sawGeo([0, 0], CUT_ANG), d = g0.d, up = g0.up;
@@ -508,7 +257,7 @@ function pilState(i, t) {
 }
 
 // ---------------- camera ----------------
-const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
+const mixCam = K.mixCam;
 function camAt(t) {
   let c = { x: meX(t) + 70 + 80 * ss(4.3, 5.4, t), y: 1060, z: 1.12 };
   c = mixCam({ x: meX(t) + 40, y: 1080, z: 1.78 }, c, eio((t - 1.5) / 1.1));       // the hook: close on me (the saw in my wing), widening to the procession by ~2.6
@@ -522,132 +271,39 @@ function camAt(t) {
   if (t >= B.fall + .65) c = mixCam(c, { x: E + 100, y: 1110, z: 1.15 }, eio((t - B.fall - .65) / .7));
   if (t >= B.back) c = mixCam(c, { x: E - 255, y: 1110, z: 1.3 }, eio((t - B.back - .05) / .72));    // one move back along the road: the pieces glow where they lie
   if (t >= 22.2) c = mixCam(c, { x: E + 115, y: 1020, z: 1.2 }, eio((t - 22.2) / .65));          // and back: the gap, me at the lip, the outline
-  const k = 1 - ss(B.fall, B.fall + .55, t);
-  c.sx = t >= B.fall ? 16 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 12 * k * Math.sin(t * 131 + 1) : 0;
+  [c.sx, c.sy] = K.shake(t, B.fall);
   return c;
 }
 
-// ---------------- the world ----------------
-const MARKS = [], DROPS = [];
-function buildMarks() {
-  const r = rng(77), x0 = -1700, x1 = E + G + 1600, n = Math.round((x1 - x0) * 560 / 2900);
-  for (let i = 0; i < n; i++) {
-    const depth = Math.pow(r(), .85), y = RT + 14 + depth * 560, x = x0 + r() * (x1 - x0), ty = r();
-    if (x > E - 40 && x < E + G + 40 && y > HF - 14 && y < NR + 30) continue;
-    MARKS.push({ x, y, s: .6 + .7 * depth, type: ty < .36 ? 'paren' : ty < .62 ? 'dash' : ty < .8 ? 'wave' : ty < .9 ? 'cup' : 'tick', seed: 1000 + i, ph: Math.floor(r() * 3), len: 10 + r() * 22 });
-  }
-  MARKS.sort((a, b) => a.x - b.x);
-}
-function drawMark(m, k, q) {
-  const [x, y] = toS([m.x, m.y]); if (x < -60 || x > W + 60 || y < -40 || y > H + 40) return;
-  const s = m.s * CAM.z, sd = m.seed, o = { w: 3.1, fix: true };
-  if (m.type === 'paren') { const rr = (7 + 4 * k) * s;
-    penS(HD.arc(x - rr * .9, y, rr * .7, rr * .45, Math.PI * .6, Math.PI * 1.4, 2), sd, o); penS(HD.arc(x + rr * .9, y, rr * .7, rr * .45, -Math.PI * .4, Math.PI * .4, 2), sd + 1, o);
-    if (k > 0) penS(HD.seg([x - rr * .25, y + rr * .1], [x + rr * .3, y + rr * .1], 2), sd + 2, o); }
-  else if (m.type === 'dash') { const l = m.len * s * (1 + .15 * k); penS(HD.seg([x - l / 2, y], [x + l / 2, y + 1], 3), sd, o); if (k === 2) penS(HD.seg([x + l / 2 + 8, y], [x + l / 2 + 14, y], 2), sd + 1, o); }
-  else if (m.type === 'wave') { const l = (16 + 3 * k) * s, pts = []; for (let i = 0; i <= 12; i++) { const u = i / 12; pts.push([x - l + 2 * l * u, y + Math.sin(u * TAU * 1.5 + k) * 3 * s]); } penS(pts, sd, o); }
-  else if (m.type === 'cup') { const rr = (6 + 2 * k) * s; penS(HD.arc(x, y - rr * .3, rr, rr * .6, Math.PI * .1, Math.PI * .9, 2), sd, o); }
-  else { penS(HD.seg([x, y - 7 * s], [x + 1, y + 2], 2), sd, o); penS(HD.seg([x + 7 * s, y - 5 * s], [x + 7 * s, y + 2], 2), sd + 1, o); }
-}
-function buildRain() { const r = rng(4242); for (let i = 0; i < 140; i++) DROPS.push({ x: 20 + r() * 1040, y0: r() * 2000, v: 1300 + r() * 500, len: 30 + r() * 60, depth: Math.pow(r(), .7), seed: 3000 + i }); }
-function rain(t, a = 1, keep = []) {   // keep: screen boxes round the figures' legs (rain dashes there read as extra legs)
-  const q = t12(t);
-  for (const d of DROPS) { const floor = toS([0, RT - 20 + d.depth * 460])[1], span = floor + 120, y = ((d.y0 + d.v * q) % Math.max(200, span)) - 120; if (y + d.len < 40) continue;
-    let y1 = Math.min(y + d.len, floor), skip = false;
-    for (const [x0, y0, x1, yb] of keep) if (d.x > x0 && d.x < x1 && y1 > y0 && y < yb) { if (y < y0 - 8) y1 = y0; else skip = true; }
-    if (skip || y1 - y < 8) continue;
-    penS(HD.seg([d.x, y], [d.x - 1.5, y1], 6), d.seed, { w: 3.1, ts: 4, te: 12, mn: .3, wob: .6, boil: .6, fix: true, col: a < 1 ? `rgba(34,31,40,${.9 * a})` : INK }); }
-}
-// the gap: a HOLE in the road — far and near lips in perspective, the road going on beyond it and in front of it;
-// sparse hatching on the far wall just under the far lip, dense hatching deepening toward the near lip (the deepest part)
+// ---------------- the world (kit pieces placed for this story) ----------------
+let MARKS = [], HOLE = null;
 const NR = FY + 128, HF = BY - 46;   // the hole's near lip and far lip
-let HOLE = null;
-function buildHole() {   // an oval opening in the road (a rounded super-ellipse), ragged
-  const r = rng(71), cx = E + G / 2, cy = (HF + NR) / 2, a = G / 2 + 8, b = (NR - HF) / 2, n = 2.6, pts = [];
-  for (let i = 0; i < 72; i++) { const th = i / 72 * TAU, c = Math.cos(th), sn = Math.sin(th);
-    pts.push([cx + a * Math.sign(c) * Math.pow(Math.abs(c), 2 / n) + (r() - .5) * 5, cy + b * Math.sign(sn) * Math.pow(Math.abs(sn), 2 / n) + (r() - .5) * 4]); }
-  const near = pts.slice(0, 37), far = pts.slice(36).concat([pts[0]]);   // lower half (near lip) / upper half (far lip)
-  HOLE = { poly: pts, near, far, cracks: [], road: [], cx, cy, a, b };
-  for (let k = 0; k < 9; k++) HOLE.cracks.push([cx + (r() - .5) * G * .7, HF + 16 + r() * 8, 18 + r() * 30]);
-  for (let k = 0; k < 10; k++) { const side = k % 2 ? 1 : -1, y = cy + (r() - .5) * b * 1.2, x = cx + side * (a + 2), d = side;
-    HOLE.road.push([[x, y], [x + d * (14 + r() * 20), y + (r() - .5) * 10], [x + d * (30 + r() * 30), y + (r() - .5) * 16]]); }
-}
-function drawHole() {
-  const P = HOLE.poly.map(toS), o = toS([E, RT]);
-  whiteS(P);
-  // the far wall, seen just under the far lip: sparse hatching; then dense hatching, darkest deep down in the middle
-  TX.pHoleL.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(o[0]) + FD * 29, Math.round(o[1]) + FD * 17])); G_.fillStyle = TX.pHoleL; pathS(G_, P); G_.fill();
-  const hg = TX.holeG; hg.globalCompositeOperation = 'source-over'; hg.clearRect(0, 0, W, H);
-  TX.pHoleD.setTransform(new DOMMatrix([1, 0, 0, 1, Math.round(o[0]) + FD * 37, Math.round(o[1]) + FD * 23])); hg.fillStyle = TX.pHoleD; pathS(hg, P); hg.fill();
-  const yA = toS([0, HF + 6])[1], yB = toS([0, NR - 10])[1], gr = hg.createLinearGradient(0, yA, 0, yB);   // light under the far lip → black down to the near lip
-  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(.42, 'rgba(0,0,0,.8)'); gr.addColorStop(.62, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,1)');
-  hg.globalCompositeOperation = 'destination-in'; hg.fillStyle = gr; hg.fillRect(0, 0, W, H); hg.globalCompositeOperation = 'source-over';
-  G_.drawImage(TX.holeC, 0, 0);
-  for (const [x, y, l] of HOLE.cracks) penS([toS([x, y]), toS([x + 3, y + l])], 4010 + (x | 0), { w: 2.6, col: 'rgba(34,31,40,.55)' });
-  penS(HOLE.far.map(toS), 4003, { w: 3.6 });
-  penS(HOLE.far.slice(6, -6).map(p => toS([p[0], p[1] + 12])), 4004, { w: 2.4, col: 'rgba(34,31,40,.6)' });   // the earth edge under the far lip
-  penS(HOLE.near.map(toS), 4005, { w: 5.2 });
-  HOLE.road.forEach((cr, i) => penS(cr.map(toS), 4060 + i, { w: 2.8 }));
-}
-// the doorway on the far side: a plain arch, two leaves ajar, the yellow light pouring out
-function drawGate(t) {
-  const gy = BY + 4, x = GX, ay = GAY, r = 104, rr = 82;
-  const arc = (rad, a0, a1) => { const o = []; for (let i = 0; i <= 40; i++) { const a = a0 + (a1 - a0) * i / 40; o.push([x + Math.cos(a) * rad, ay + Math.sin(a) * rad]); } return o; };
-  const inner = [[x - rr, gy], ...arc(rr, Math.PI, TAU), [x + rr, gy]].map(toS);
-  // light: highlighter in the doorway, rays fanning onto the road, its reflection as dashes
-  hiS(inner, .62); const fl = .9 + .1 * Math.sin(t * 3.1);
-  for (let i = 0; i < 7; i++) { const u = (i + .5) / 7, xb = x - 300 + u * 600; hiLine([toS([x - 50 + u * 100, gy - 10]), toS([xb, gy + 90 + Math.abs(u - .5) * 40])], 26 * CAM.z, .14 * fl); }
-  for (let i = 0; i < 4; i++) { const y = gy + 40 + i * 40, w2 = 140 - i * 26; hiLine(HD.seg(toS([x - w2 / 2, y]), toS([x + w2 / 2, y + 2]), 6), 11 * CAM.z, .3); }
-  const outer = [[x - r, gy], ...arc(r, Math.PI, TAU), [x + r, gy]];
-  const ring = outer.concat([[x + rr, gy], ...arc(rr, TAU, Math.PI), [x - rr, gy]].map(p => p)).map(toS);
-  whiteS(ring); penS(outer.map(toS), 4101, { w: 4.2 }); penS([[x + rr, gy], ...arc(rr, TAU, Math.PI), [x - rr, gy]].map(toS), 4102, { w: 3.8 });
-  for (let i = 0; i < 13; i++) { const a = Math.PI + Math.PI * (i + .5) / 13; penS(HD.seg(toS([x + Math.cos(a) * rr, ay + Math.sin(a) * rr]), toS([x + Math.cos(a) * r, ay + Math.sin(a) * r]), 2), 4110 + i, { w: 2.6 }); }
-  for (let y = ay + 30; y < gy - 20; y += 34) for (const s of [-1, 1]) penS(HD.seg(toS([x + s * rr, y]), toS([x + s * r, y]), 2), 4130 + y + s, { w: 2.6 });
-  for (const s of [-1, 1]) { const leaf = [[x + s * rr, gy], [x + s * (rr + 46), gy + 14], [x + s * (rr + 46), ay + 6], [x + s * rr, ay - 26]].map(toS);
-    whiteS(leaf); penS(leaf.concat([leaf[0]]), 4150 + s, { w: 3.4 }); penS(HD.seg(toS([x + s * (rr + 34), (gy + ay) / 2]), toS([x + s * (rr + 34), (gy + ay) / 2 + 10]), 2), 4155 + s, { w: 4 }); }
-  // emphasis ticks round the light (like the lab's lamp)
-  for (let i = 0; i < 11; i++) { const a = Math.PI * (1.05 + i * .09), r0 = r + 14, r1 = r + 34 + (i % 2) * 10; penS(HD.seg(toS([x + Math.cos(a) * r0, ay + Math.sin(a) * r0]), toS([x + Math.cos(a) * r1, ay + Math.sin(a) * r1]), 2), 4170 + i, { w: 3.2 }); }
-}
-function drawPost(x, base, sd) {   // an unlit street lamp from the lab, standing behind the road
-  const top = base - 380, P = p => toS(p), o = { w: 3.6 };
-  penS(HD.seg(P([x - 7, base]), P([x - 5, top]), 5), sd, o); penS(HD.seg(P([x + 7, base]), P([x + 6, top]), 5), sd + 1, o);
-  penS(HD.poly([P([x - 15, base]), P([x - 13, base - 30]), P([x + 14, base - 30]), P([x + 15, base])]), sd + 2, o);
-  penS(HD.seg(P([x - 26, top]), P([x + 26, top]), 3), sd + 3, o);
-  const Lp = [[x - 20, top - 4], [x - 28, top - 60], [x + 28, top - 60], [x + 20, top - 4]].map(P); whiteS(Lp); penS(HD.poly(Lp, true), sd + 4, o);
-  penS(HD.seg(P([x, top - 6]), P([x, top - 58]), 3), sd + 5, { w: 2.6 }); penS(HD.seg(P([x - 25, top - 33]), P([x + 25, top - 33]), 3), sd + 6, { w: 2.6 });
-  penS(HD.poly([P([x - 37, top - 60]), P([x, top - 90]), P([x + 37, top - 60])]), sd + 7, o);
-  for (let y = top + 30; y < base - 40; y += 16) penS(HD.seg(P([x + 1, y]), P([x + 6, y - 5]), 2), sd + 10 + y, { w: 2.2 });
-}
 function guide(t, k, al) {   // the dashed pen outline of my whole cross across the gap
-  const S0 = mulM(CMX, HD.mat(E - REST, LYY, 0)), ol = HD.poly(crossOutline(true), true, 3), x1 = (L + 8) * k - 4;
+  const S0 = mulM(K.M, HD.mat(E - REST, LYY, 0)), ol = HD.poly(crossOutline(true), true, 3), x1 = (L + 8) * k - 4;
   const pts = xf(ol.filter(p => p[0] <= x1 + .5), S0); if (pts.length < 2) return;
-  const Ls = HD.lengths(pts); let seg = [], on = true, nxt = 15;
-  G_.save(); G_.globalAlpha = al;
-  const fillP = xf(clipU(crossOutline(true), 0, x1), S0); G_.save(); G_.globalAlpha = al * .5; G_.fillStyle = '#fff'; pathS(G_, fillP); G_.fill(); G_.restore();
+  K.g.save(); K.g.globalAlpha = al;
+  const fillP = xf(clipU(crossOutline(true), 0, x1), S0); K.g.save(); K.g.globalAlpha = al * .5; K.g.fillStyle = '#fff'; pathS(K.g, fillP); K.g.fill(); K.g.restore();
   hiS(fillP, .16 * al);
-  for (let i = 0; i < pts.length; i++) { const s = Ls[i] + (t * 18 % 24); if (s > nxt) { if (on && seg.length > 1) penS(seg, 4200 + i, { w: 5.2, ts: 2, te: 2, mn: .7, wob: .5, boil: .5, col: '#fff' }); on = !on; nxt += on ? 15 : 9; seg = []; } if (on) seg.push(pts[i]); }
-  if (on && seg.length > 1) penS(seg, 4199, { w: 5.2, ts: 2, te: 2, mn: .7, wob: .5, boil: .5, col: '#fff' });
-  G_.restore();
+  K.dashed(pts, t, 4200);
+  K.g.restore();
 }
 function litSlots(t) {   // each slot of the missing span lights up — exactly one piece long; the outline stays a ghost, the gap stays open
-  const S0 = mulM(CMX, HD.mat(E - REST, LYY, 0));
+  const S0 = mulM(K.M, HD.mat(E - REST, LYY, 0));
   for (const [t0, k] of SLOTS) { const a = eo((t - t0) / .3); if (a <= 0) continue; const c = CUTS[k];
     const P = xf(HD.poly(clipU(crossOutline(true), c.u0 + 2, c.u1 - 2), true, 3), S0);
-    G_.save(); G_.globalAlpha = .82 * a; G_.fillStyle = '#fff'; pathS(G_, P); G_.fill(); G_.restore();
+    K.g.save(); K.g.globalAlpha = .82 * a; K.g.fillStyle = '#fff'; pathS(K.g, P); K.g.fill(); K.g.restore();
     hiS(P.map(q => [q[0] + 3, q[1] - 2]), .62 * a);
-    const fl = 1 - ss(t0 + .15, t0 + .7, t); if (fl > 0) { const cc = xf([[(c.u0 + c.u1) / 2, 0]], S0)[0], rx = ((c.u1 - c.u0) / 2 + 26) * CAM.z, ry = 44 * CAM.z;
+    const fl = 1 - ss(t0 + .15, t0 + .7, t); if (fl > 0) { const cc = xf([[(c.u0 + c.u1) / 2, 0]], S0)[0], rx = ((c.u1 - c.u0) / 2 + 26) * K.cam.z, ry = 44 * K.cam.z;
       for (let i = 0; i < 7; i++) { const an = -Math.PI * (.08 + i * .14), sg = HD.seg([cc[0] + Math.cos(an) * rx, cc[1] + Math.sin(an) * ry], [cc[0] + Math.cos(an) * rx * 1.35, cc[1] + Math.sin(an) * ry * 1.5], 2);
-        G_.save(); G_.globalAlpha = fl; penS(sg, 4900 + k * 10 + i, { w: 10, ts: 3, te: 8, col: '#fff' }); penS(sg, 4900 + k * 10 + i, { w: 3.6, ts: 3, te: 8 }); G_.restore(); } } }
+        K.g.save(); K.g.globalAlpha = fl; penS(sg, 4900 + k * 10 + i, { w: 10, ts: 3, te: 8, col: '#fff' }); penS(sg, 4900 + k * 10 + i, { w: 3.6, ts: 3, te: 8 }); K.g.restore(); } } }
 }
 function world(t) {
-  const q = t12(t);
   // two unlit lamps from the lab, along the back of the road (gone once the verse takes the upper third)
-  if (t < B.back) for (const [x, sd] of [[620, 5000], [1780, 5100]]) { const sx = toS([x, 0])[0]; if (sx > -200 && sx < W + 200) drawPost(x, RT + 2, sd); }
+  if (t < B.back) for (const [x, sd] of [[620, 5000], [1780, 5100]]) { const sx = toS([x, 0])[0]; if (sx > -200 && sx < W + 200) K.lamp(x, RT + 2, sd); }
   // puddle scribbles on the road (rippling), then the gap
-  const vx0 = CAM.x - 600 / CAM.z, vx1 = CAM.x + 600 / CAM.z;
-  for (const m of MARKS) { if (m.x < vx0) continue; if (m.x > vx1) break; drawMark(m, (Math.floor(q * 4) + m.ph) % 3, q); }
-  if (toS([E + G, 0])[0] > -40 && toS([E, 0])[0] < W + 40) drawHole();
-  if (toS([GX - 300, 0])[0] < W + 40) drawGate(t);
+  K.drawPuddles(MARKS, t);
+  if (toS([E + G, 0])[0] > -40 && toS([E, 0])[0] < W + 40) K.drawGap(HOLE, [E, RT]);
+  if (toS([GX - 300, 0])[0] < W + 40) K.doorway(t, { x: GX, gy: BY + 4, ay: GAY });
   const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean);
   // back lane: a bridge (only ever one, its owner's), then the others
   for (const P of pils) if (P.B) drawCross(P.B, 0, L, { lying: true, seed: 330 + P.F.id * 9 });
@@ -665,9 +321,9 @@ function world(t) {
   for (const c of CUTS) if (t >= c.drop) { const p = pieceAt(c, t), hl = ss(B.back + .3 + (2 - c.k) * .18, B.back + .75 + (2 - c.k) * .18, t);
     const scr = drawCross(p, c.u0, c.u1, { lying: true, mine: true, seed: 360 + c.k * 7 });
     if (hl > 0 && scr) { const cc = toS([p.cx, p.cy]), pulse = hl * (.85 + .15 * Math.sin((t - B.back) * 4 + c.k));
-      HLg.save(); HLg.globalAlpha = pulse; hiLine(scr.concat([scr[0]]), 26 * CAM.z, .3); HLg.restore();
-      for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + .3, rx = ((c.u1 - c.u0) / 2 + 30) * CAM.z, ry = 46 * CAM.z, r1 = 1.25 + .1 * (i % 2);
-        G_.save(); G_.globalAlpha = hl; penS(HD.seg([cc[0] + Math.cos(a) * rx, cc[1] + Math.sin(a) * ry], [cc[0] + Math.cos(a) * rx * r1, cc[1] + Math.sin(a) * ry * r1 * 1.15], 2), 4300 + c.k * 10 + i, { w: 3 }); G_.restore(); } } }
+      K.hl.save(); K.hl.globalAlpha = pulse; hiLine(scr.concat([scr[0]]), 26 * K.cam.z, .3); K.hl.restore();
+      for (let i = 0; i < 8; i++) { const a = i / 8 * TAU + .3, rx = ((c.u1 - c.u0) / 2 + 30) * K.cam.z, ry = 46 * K.cam.z, r1 = 1.25 + .1 * (i % 2);
+        K.g.save(); K.g.globalAlpha = hl; penS(HD.seg([cc[0] + Math.cos(a) * rx, cc[1] + Math.sin(a) * ry], [cc[0] + Math.cos(a) * rx * r1, cc[1] + Math.sin(a) * ry * r1 * 1.15], 2), 4300 + c.k * 10 + i, { w: 3 }); K.g.restore(); } } }
   // me and my cross (and the saw in my near wing)
   const M = poseMe(t), F = M.F;
   const myCross = X => { if (X) drawCross(X, X.u0, L, { lying: X.lie, mine: true, seed: 300 }); };
@@ -681,69 +337,30 @@ function world(t) {
     penW(HD.seg([c.cutX + Math.cos(a) * 30, c.y - 20 + Math.sin(a) * 30], [c.cutX + Math.cos(a) * 58, c.y - 20 + Math.sin(a) * 58], 2), 4600 + i, { w: 3.4 }); } }
   // my cross over the edge: tips, falls (clipped to the slot)
   const FX = fallX(t);
-  if (FX && (FX.alpha ?? 1) > 0) { G_.save(); if (FX.clip) { const hp = HOLE.poly.map(toS); pathS(G_, hp); G_.clip(); HLg.save(); pathS(HLg, hp); HLg.clip(); }
+  if (FX && (FX.alpha ?? 1) > 0) { K.g.save(); if (FX.clip) { const hp = HOLE.poly.map(toS); pathS(K.g, hp); K.g.clip(); K.hl.save(); pathS(K.hl, hp); K.hl.clip(); }
     drawCross(FX, FX.u0, L, { lying: true, mine: true, seed: 300, alpha: FX.alpha ?? 1 });
-    if (FX.clip) HLg.restore(); G_.restore();
+    if (FX.clip) K.hl.restore(); K.g.restore();
     if (FX.clip) { const u = t - B.fall, cc = cpt(FX, (FX.u0 + L) / 2); for (let i = -1; i <= 1; i++) penW([[cc[0] + i * 40, cc[1] - 120], [cc[0] + i * 40, cc[1] - 260]], 4700 + i, { w: 4.4, ts: 3, te: 14, mn: .3, col: '#fff' }); } }
   // the hit: a scribbled burst at the lip
-  if (t >= B.fall && t < B.fall + .45) { const k = (t - B.fall) / .45, c = [E + 30, LYY];
-    for (let i = 0; i < 11; i++) { const a = -Math.PI * (.05 + i * .09), r0 = 50 + 120 * eo(k), r1 = r0 + 40 * (1 - k) + 14;
-      const sg = HD.seg([c[0] + Math.cos(a) * r0, c[1] + Math.sin(a) * r0 * .8], [c[0] + Math.cos(a) * r1, c[1] + Math.sin(a) * r1 * .8], 2);
-      penW(sg, 4800 + i, { w: 11, ts: 3, te: 10, col: '#fff' }); penW(sg, 4800 + i, { w: 4.2, ts: 3, te: 10 }); } }   // white-haloed, so it reads on the dark slot too
+  K.hit(t, B.fall, [E + 30, LYY]);
   // sawdust: little pen specks
-  for (const q2 of FLECKS) { const u = t - q2.t0; if (u < 0) continue; const al = 1 - ss(q2.t0 + 1.0, q2.t0 + 1.6, t); if (al <= 0) continue;
-    const tl = (-q2.vy + Math.sqrt(q2.vy * q2.vy + 4 * 700 * (q2.land - q2.y))) / 1400, uu = Math.min(u, Math.max(0, tl));
-    const x = q2.x + q2.vx * uu, y = q2.y + q2.vy * uu + 700 * uu * uu, r = q2.r0 + q2.vr * uu;
-    G_.save(); G_.globalAlpha = al; penW([[x - Math.cos(r) * q2.sz, y - Math.sin(r) * q2.sz], [x + Math.cos(r) * q2.sz, y + Math.sin(r) * q2.sz]], q2.seed, { w: 3, ts: 1, te: 2, mn: .5 }); G_.restore(); }
-}
-
-// ---------------- words ----------------
-const PEN = "'Nanum Pen Script','Nanum Pen',cursive";
-function capRect(t) {   // the hand leaves a gap in the rain round the words
-  for (const [a, b, s, src] of S.lines) { if (t < a - .05 || t > b + .05) continue; const n = s.split('\n').length; return [100, 300, 880, (n - 1) * 143 + 150 + (src ? 175 : 0)]; }
-  return null;
-}
-function words(ctx, t) {
-  if (t >= B.end) return;
-  const f = FD; ctx.save(); ctx.translate([0, 1, -1][f], [0, -1, 1][f]); ctx.rotate([0, .004, -.003][f]);
-  Story.captions(ctx, t, S.lines.map(l => [l[0], l[1], l[2]]), { font: PEN, weight: 400, size: 92, y: 410, color: '#25222b', shadow: 'rgba(0,0,0,0)', shadowBlur: 0 });
-  for (const [a, b, s, src] of S.lines) { if (!src) continue; const al = Pilot.win(t, a, b, .35, .45); if (al <= 0) continue;
-    const n = s.split('\n').length, m = src.match(/^(.*”)\s*(.*)$/) || [0, src, ''], y0 = 410 + (n - 1) * 92 * 1.55 + 92;
-    Pilot.text(ctx, m[1], W / 2, y0, { size: 52, font: PEN, color: '#3a3540', alpha: al }); if (m[2]) Pilot.text(ctx, m[2], W / 2, y0 + 56, { size: 40, font: PEN, color: '#55505a', alpha: al }); }
-  ctx.restore();
-}
-function endCard(ctx, t) {
-  if (t < B.end - .2) return;
-  const k = 1.32, cy = 900; ctx.save(); ctx.translate([0, 1, -1][FD], [0, -1, 1][FD]); ctx.setTransform(k, 0, 0, k, 540 - 540 * k, cy - cy * k);
-  Story.endCard(ctx, t, S.endCard, B.end, { font: PEN, srcFont: PEN, color: '#25222b', srcColor: '#3e3944', y: 840, titleShadow: '' });
-  ctx.restore();
+  K.specks(FLECKS, t);
 }
 
 // ---------------- frame ----------------
 function draw(ctx, t) {
-  FD = bf(t); setCam(camAt(t));
-  const g = INKL.g; G_ = g;
-  ctx.drawImage(TX.paper, 0, 0);
-  HD.clearWhite(g); HLg.clearRect(0, 0, W, H);
-  const cr = capRect(t);
-  const keep = [poseMe(t).F, ...[0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean).map(P => P.F)].map(F => { const a = toS([F.hip[0] - 80 * F.s, F.hip[1]]), b = toS([F.hip[0] + 80 * F.s, Math.max(F.feet[0][1], F.feet[1][1]) + 16]); return [a[0], a[1], b[0], b[1]]; });
-  { g.save(); if (cr) { const cl = new Path2D(); cl.rect(0, 0, W, H); cl.rect(cr[0], cr[1], cr[2], cr[3]); g.clip(cl, 'evenodd'); } rain(t, 1, keep); g.restore(); }
+  K.begin(ctx, t, camAt(t));
+  const keep = [poseMe(t).F, ...[0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean).map(P => P.F)].map(K.keepBox);
+  K.rain(t, { keep, hole: K.capRect(t, S.lines) });
   world(t);
-  HD.dropout(g, TX.drop, .5);
-  const fade = 1 - ss(B.end - .15, B.end + .35, t);   // the end card sits on plain paper
-  HD.multiply(ctx, HLc, 0, 0, W, H, fade); HD.multiply(ctx, INKL.c, 0, 0, W, H, fade);
-  words(ctx, t); endCard(ctx, t);
+  K.end(ctx, 1 - ss(B.end - .15, B.end + .35, t));   // the end card sits on plain paper
+  K.captions(ctx, t, S.lines, { until: B.end }); K.endCard(ctx, t, S.endCard, B.end);
 }
 async function init() {
-  const T = HD.tooth(3, 5, 1.8, 2500);
-  TX.paper = HD.paper(T, { base: [238, 231, 226], mott: 5, emb: 10, grain: 3, vig: .5, mscale: 300, tint: [2, 0, -2] });
-  TX.drop = HD.toothMask(T, '#ffffff', 'valley', .3, .12, .8);
-  TX.hMe = [0, 1, 2].map(f => hatchTile(720, 720, [[-.9, 3.6], [.6, 4.2], [.1, 6]], .78, 600 + f * 13));
-  TX.hPil = [0, 1, 2].map(f => hatchTile(640, 640, [[-.9, 7.5], [.6, 10]], .42, 700 + f * 13, 2.8));
-  TX.hSlot = hatchTile(512, 512, [[1.45, 3.4], [-.25, 4.2], [.75, 5.5]], .82, 800);
-  TX.hHoleL = hatchTile(512, 512, [[1.5, 7], [1.2, 11]], .5, 820, 2.8);
-  buildTimeline(); buildMarks(); buildRain(); buildHole();
-  INKL = HD.layer(); TX.pHoleL = INKL.g.createPattern(TX.hHoleL, 'repeat'); TX.holeC = Pilot.canvas(W, H); TX.holeG = TX.holeC.getContext('2d'); TX.pHoleD = TX.holeG.createPattern(TX.hSlot, 'repeat'); HLc = Pilot.canvas(W, H); HLg = HLc.getContext('2d');
+  K.init();
+  buildTimeline();
+  MARKS = K.puddles({ x0: -1700, x1: E + G + 1600, top: RT, skip: (x, y) => x > E - 40 && x < E + G + 40 && y > HF - 14 && y < NR + 30 });
+  HOLE = K.gap({ cx: E + G / 2, top: HF, bottom: NR, half: G / 2 + 8 });
 }
 window.__dbg = () => ({ E, G, GX, cuts: CUTS.map(c => [c.mx, c.cutX, c.baseX, c.u0, c.u1]) });
 Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 92px 'Nanum Pen Script'", "400 92px 'Nanum Pen'"], init, draw });

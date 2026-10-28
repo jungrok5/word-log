@@ -7,276 +7,39 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap">
 </head>
 <body>
-<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script><script src="kit-risoline.js"></script>
 <script>
-/* 잘라 낸 건 다리였다 — 07 risograph comic line (from the style lab's lab-risoline).
-   Two-ink print look: flat mottled teal-blue field with heavy print grain; a thick, wobbly black line that BOILS (fresh jitter
-   on twos, 12 fps); cream shapes printed a hair out of register; dot-screen tone for shade. The one extra ink is yellow —
-   and in this film the yellow ink is MY CROSS (and, later, the light in the door across the gap). The others are the same
-   beanie kids printed in cream + dot tone, carrying cream, dot-toned crosses: quieter, in the background lane.
+/* 잘라 낸 건 다리였다 — 07 risograph comic line (from the style lab's lab-risoline). The worked example of the `risoline`
+   house style: the medium, the beanie-kid rig, the road, the door, the comic marks and the end plate come from
+   kit-risoline.js (styles/risoline/STYLE.md); this file draws only the story.
+   Two-ink print look: flat mottled teal-blue field, a thick boiling black line, cream shapes off-register, dot-screen tone.
+   The one extra ink is yellow — and in this film the yellow ink is MY CROSS (and, later, the light in the door across the
+   gap). The others are the same beanie kids printed in cream + dot tone, carrying cream, dot-toned crosses.
    Comic grammar carries the turn: sweat drops and gloom lines under the weight; squiggle motion lines and heel puffs as I
    run ahead; a pop-in inset panel of my face while my short cross hangs over the gap; manga focus lines for the hit; the
-   yellow pieces I sawed off twinkle where they lie, then fly back with squiggle trails into a dashed outline of my whole
-   cross. Everything (figures, camera) poses on twos, like the lab; only caption fades run on ones.
+   yellow pieces I sawed off glow where they lie, and a dashed outline of my whole cross lights slot by slot.
+   Everything (figures, camera) poses on twos, like the lab; only caption fades run on ones.
    World units ≈ screen px at zoom 1. My lane FY (front), the others' lane BY (behind), the road's far edge RT. */
-const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng, noise } = Pilot;
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot;
+const Rk = Riso, Rig = Riso.Rig, C = Riso.C, { ink, ell, tone, glow, wob, pathOf, resample } = Riso;
+const { frame, headFrame, walkSpec, standSpec, hangHands, mixSpec, hangGrip, cpt, mirrorX, mixX, rotAbout, SHN, SHF, ARM1, ARM2 } = Rig;
 const W = 1080, H = 1920, TAU = Math.PI * 2;
-const C = { field: '#7fb0bc', panel: '#9cc5cf', cream: '#f1ebdc', cream2: '#e6dfcb', ink: '#1d2123', yel: '#f1c75e', yelL: '#f7da86',
-  ground: '#5f909d', road: '#6d9fac', deep: '#33555e' };
-const t12 = t => Math.floor(t * 12 + 1e-6) / 12;
-const L = 480, PW = 34, CBX = L - 118, CBW = 32, CBH = 98, CBHL = 40;   // cross: post length/width, crossbar (from foot), thickness, half-length upright / lying
+const t12 = Riso.t12;
+const CR = Rig.CROSS, L = CR.L, PW = CR.PW, CBH = CR.bar.h, CBHL = CR.bar.hLie;   // the cross: post length/width, crossbar half-length upright / lying
+const crossPoly = CR.poly;
 const FY = 1300, BY = 1236, RT = 1180;                                  // my lane, the others' lane, the road's far edge
 const REST = 26, G = L - 2 * REST;                                      // a whole cross rests 26 on each lip: the gap is G wide
 const SME = .9, SPI = .8;                                               // me (front lane) a touch larger than the others
 const frac = x => x - Math.floor(x);
 const lerp2 = (a, b, k) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)];
-
-// ---------------- hand line (lab) ----------------
-let K = 0, LWK = 1, AMPK = 1, MR = 1, TS = 1;   // boil frame; line width / jitter / misregistration / dot-screen scale (camera-compensated)
-function wob(p, amp, k = K) {
-  const x = p[0], y = p[1], f = .022;
-  return [x + (noise(x * f + k * 7.31, y * f + .37) - .5) * 2 * amp + (noise(x * .07 + 40, y * .07) - .5) * 1.4 * AMPK,
-          y + (noise(x * f + 11.3, y * f + k * 5.17) - .5) * 2 * amp + (noise(x * .07, y * .07 + 90) - .5) * 1.4 * AMPK];
-}
-function chaikin(pts, closed, it = 2) {
-  for (let r = 0; r < it; r++) { const o = [], n = pts.length, m = closed ? n : n - 1; if (!closed) o.push(pts[0]);
-    for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); }
-    if (!closed) o.push(pts[n - 1]); pts = o; }
-  return pts;
-}
-function resample(pts, closed, step) {
-  const o = [], n = pts.length, m = closed ? n : n - 1;
-  for (let i = 0; i < m; i++) { const a = pts[i], b = pts[(i + 1) % n], d = Math.hypot(b[0] - a[0], b[1] - a[1]), k = Math.max(1, Math.ceil(d / step));
-    for (let j = 0; j < k; j++) o.push([a[0] + (b[0] - a[0]) * j / k, a[1] + (b[1] - a[1]) * j / k]); }
-  if (!closed) o.push(pts[n - 1]); return o;
-}
-function pathOf(pts, closed = true, smooth = true) {
-  const p = new Path2D(), n = pts.length;
-  if (!smooth || n < 3) { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n; i++) p.lineTo(pts[i][0], pts[i][1]); if (closed) p.closePath(); return p; }
-  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-  if (closed) { const s = mid(pts[n - 1], pts[0]); p.moveTo(s[0], s[1]);
-    for (let i = 0; i < n; i++) { const m = mid(pts[i], pts[(i + 1) % n]); p.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } p.closePath(); }
-  else { p.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < n - 1; i++) { const m = mid(pts[i], pts[i + 1]); p.quadraticCurveTo(pts[i][0], pts[i][1], m[0], m[1]); } p.lineTo(pts[n - 1][0], pts[n - 1][1]); }
-  return p;
-}
-// an inked shape: fill printed slightly off-register, optional dot tone, then the boiling black line
-function ink(ctx, pts, o = {}) {
-  const closed = o.closed !== false, sm = o.smooth !== false && !o.raw && pts.length > 2;
-  const step = (o.step || 11) * clamp(LWK, .6, 1.6);
-  const base = o.raw ? pts : resample(sm ? chaikin(pts, closed, 2) : pts, closed, step);
-  const amp = (o.amp ?? 1.8) * AMPK;
-  const P = base.map(p => wob(p, amp)), path = pathOf(P, closed, sm);
-  if (o.fill || o.tone) { ctx.save(); ctx.translate((o.mx ?? 2.5) * MR, (o.my ?? 1.6) * MR);
-    if (o.fill) { ctx.fillStyle = o.fill; ctx.fill(path); }
-    if (o.tone) { ctx.fillStyle = o.tone; ctx.fill(path); }
-    ctx.restore(); }
-  if (o.lw !== 0) { const lw = (o.lw || 6) * LWK; ctx.strokeStyle = o.col || C.ink; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-    ctx.lineWidth = lw * .86; ctx.stroke(path);
-    if ((o.lw || 6) > 3.5 && !o.single) { ctx.lineWidth = lw * .72; ctx.stroke(pathOf(base.map(p => wob(p, amp * .8, K + 50.5)), closed, sm)); } }
-  return path;
-}
-const ell = (cx, cy, rx, ry, n = 20, rot = 0) => { const o = []; for (let i = 0; i < n; i++) { const a = i / n * TAU, x = Math.cos(a) * rx, y = Math.sin(a) * ry;
-  o.push([cx + x * Math.cos(rot) - y * Math.sin(rot), cy + x * Math.sin(rot) + y * Math.cos(rot)]); } return o; };
-const rot2 = (p, a) => [p[0] * Math.cos(a) - p[1] * Math.sin(a), p[0] * Math.sin(a) + p[1] * Math.cos(a)];
-function tube(line, wd) {
-  const Lf = [], R = [];
-  for (let i = 0; i < line.length; i++) { const a = line[Math.max(0, i - 1)], b = line[Math.min(line.length - 1, i + 1)];
-    let dx = b[0] - a[0], dy = b[1] - a[1]; const d = Math.hypot(dx, dy) || 1; dx /= d; dy /= d;
-    Lf.push([line[i][0] - dy * wd[i], line[i][1] + dx * wd[i]]); R.push([line[i][0] + dy * wd[i], line[i][1] - dx * wd[i]]); }
-  return Lf.concat(R.reverse());
-}
-function spark4(cx, cy, r) { const o = []; for (let i = 0; i < 8; i++) { const a = -Math.PI / 2 + i * Math.PI / 4, rr = i % 2 ? r * .22 : r * (i % 4 === 0 ? 1 : .78); o.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); } return o; }
-
-// ---------------- prebuilt print ----------------
-let MOTTLE, GRAIN, TONE, TONE_D, GLOW, PAT = {};
-function hash2(x, y) { let h = Math.imul(x, 374761393) + Math.imul(y, 668265263) | 0; h = Math.imul(h ^ h >>> 13, 1274126177); return ((h ^ h >>> 16) >>> 0) / 4294967296; }
-function pnoise(x, y, p) {   // value noise, periodic with period p
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), m = q => ((q % p) + p) % p;
-  const a = hash2(m(xi), m(yi)), b = hash2(m(xi + 1), m(yi)), c = hash2(m(xi), m(yi + 1)), d = hash2(m(xi + 1), m(yi + 1));
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
+const shoulderOf = Rig.shoulderOf;
+const drawCross = (ctx, X, u0, u1, mine, alpha = 1) => Riso.beam(ctx, CR, X, u0, u1, mine, alpha);
+const drawKid = Riso.kid;
+let ROAD = null;
 function init() {
-  // field mottling: a seamless low-res tile, upscaled ×8 when used (riso density variation)
-  const mw = 128; MOTTLE = Pilot.canvas(mw, mw); const mx = MOTTLE.getContext('2d'), md = mx.createImageData(mw, mw);
-  for (let y = 0; y < mw; y++) for (let x = 0; x < mw; x++) {
-    const v = (pnoise(x / 16, y / 16, 8) * .55 + pnoise(x / 8 + 3, y / 8, 16) * .3 + pnoise(x / 4, y / 4 + 5, 32) * .15), i = (y * mw + x) * 4, k = (v - .5) * 2.2;
-    md.data[i] = md.data[i + 1] = md.data[i + 2] = k > 0 ? 255 : 20; md.data[i + 3] = Math.min(255, Math.abs(k) * 40); }
-  mx.putImageData(md, 0, 0);
-  // grain tile: clumpy (half-res) + fine, light and dark specks
-  const N = 512; GRAIN = Pilot.canvas(N, N); const g = GRAIN.getContext('2d'), gd = g.createImageData(N, N), r = rng(77);
-  const hn = N >> 1, hr = new Float32Array(hn * hn); for (let i = 0; i < hr.length; i++) hr[i] = r();
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const i = (y * N + x) * 4, v = .6 * hr[(y >> 1) * hn + (x >> 1)] + .4 * r() - .5;
-    if (v > 0) { gd.data[i] = 255; gd.data[i + 1] = 252; gd.data[i + 2] = 240; gd.data[i + 3] = Math.min(255, v * v * 4 * 120); }
-    else { gd.data[i] = 18; gd.data[i + 1] = 36; gd.data[i + 2] = 44; gd.data[i + 3] = Math.min(255, v * v * 4 * 130); } }
-  g.putImageData(gd, 0, 0);
-  const mk = (cell, rad, a) => { const c = Pilot.canvas(cell * 2, cell * 2), x = c.getContext('2d'), rr = rng(5); x.fillStyle = `rgba(29,33,35,${a})`;
-    for (const [px, py] of [[cell / 2, cell / 2], [cell * 1.5, cell * 1.5], [cell * 1.5, cell / 2], [cell / 2, cell * 1.5]]) {
-      x.beginPath(); x.ellipse(px, py, rad * (.85 + rr() * .3), rad * (.85 + rr() * .3), 0, 0, TAU); x.fill(); }
-    return c; };
-  TONE = mk(11, 2.1, .9); TONE_D = mk(9, 2.4, .95);
-  GLOW = Pilot.canvas(256, 256); const gl = GLOW.getContext('2d'), gr = gl.createRadialGradient(128, 128, 0, 128, 128, 128);
-  gr.addColorStop(0, 'rgba(247,214,120,.95)'); gr.addColorStop(.35, 'rgba(244,206,108,.45)'); gr.addColorStop(.7, 'rgba(240,200,100,.12)'); gr.addColorStop(1, 'rgba(240,200,100,0)');
-  gl.fillStyle = gr; gl.fillRect(0, 0, 256, 256);
-  const c0 = Pilot.canvas(2, 2).getContext('2d');
-  PAT.tone = c0.createPattern(TONE, 'repeat'); PAT.toneD = c0.createPattern(TONE_D, 'repeat'); PAT.grain = c0.createPattern(GRAIN, 'repeat'); { const big = Pilot.canvas(1024, 1024), bx = big.getContext('2d'); bx.imageSmoothingEnabled = true; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) bx.drawImage(MOTTLE, i * 1024, j * 1024, 1024, 1024); PAT.mottle = c0.createPattern(big, 'repeat'); }   // pre-scaled: an unscaled pattern fill is ~3x cheaper
+  Riso.init();
   buildTimeline();
-  CACHE = [0, 1].map(() => ({ c: Pilot.canvas(W, H), t: -1 }));
-}
-// dot-screen fill anchored to an object (dots stay screen-size under zoom)
-const tone = (dense, ox, oy) => { const p = dense ? PAT.toneD : PAT.tone; p.setTransform(new DOMMatrix().translate(Math.round(ox), Math.round(oy)).scale(TS)); return p; };
-const glow = (ctx, x, y, r, a) => { if (a <= 0) return; ctx.save(); ctx.globalAlpha *= a; ctx.drawImage(GLOW, x - r, y - r, r * 2, r * 2); ctx.restore(); };
-function sparkle(ctx, x, y, r, a, glowA = .7) {
-  if (a <= .01 || r < .5) return; glow(ctx, x, y, r * 2.6, a * glowA);
-  ctx.save(); ctx.globalAlpha *= a; ink(ctx, spark4(x, y, r), { fill: C.yel, lw: 3.2, smooth: false, raw: true, amp: .8, mx: 1.5, my: 1, single: true }); ctx.restore();
-}
-function squiggle(ctx, x0, y0, len, amp, ph, lw = 4.5, dir = 1) {   // "~~~~" ending in a tiny circle (dir -1: trails to the left)
-  const pts = []; for (let i = 0; i <= 14; i++) { const u = i / 14; pts.push([x0 + dir * u * len, y0 + Math.sin(u * 3.2 * TAU + ph) * amp * (.5 + .5 * u)]); }
-  ink(ctx, pts, { closed: false, lw, step: 8, single: true });
-  ctx.lineWidth = 3.5 * LWK; ctx.strokeStyle = C.ink; const c = wob([x0 + dir * (len + 14), y0], AMPK); ctx.beginPath(); ctx.arc(c[0], c[1], 4.5 * LWK, 0, TAU); ctx.stroke();
-}
-
-// ---------------- the kid (lab figure, generalised: facing either way, IK arms and legs) ----------------
-// spec F: { s, f (+1 faces right), gy, hip:[x,y], ang (world lean, + leans toward +x), feet:[far, near], hands:[far, near] (targets or null),
-//          hand:[type far, type near] ('grip' | 'flat' | 'open' | 'hang'), tilt (head nod, + = down), eye, mouth, me, alpha, saw:{grip, ang} }
-function ik(a, t, l1, l2, pick) {
-  let dx = t[0] - a[0], dy = t[1] - a[1], d = Math.hypot(dx, dy) || 1e-6; const dd = clamp(d, Math.abs(l1 - l2) + .5, l1 + l2 - .5);
-  const tx = a[0] + dx / d * dd, ty = a[1] + dy / d * dd, an = Math.atan2(ty - a[1], tx - a[0]), b = Math.acos(clamp((l1 * l1 + dd * dd - l2 * l2) / (2 * l1 * dd), -1, 1));
-  const j1 = [a[0] + Math.cos(an + b) * l1, a[1] + Math.sin(an + b) * l1], j2 = [a[0] + Math.cos(an - b) * l1, a[1] + Math.sin(an - b) * l1];
-  return [pick(j1, j2), [tx, ty]];
-}
-function frame(F) {
-  const up = [Math.sin(F.ang), -Math.cos(F.ang)], fw = [F.f * Math.cos(F.ang), F.f * Math.sin(F.ang)], s = F.s;
-  return { up, fw, P: (a, b) => [F.hip[0] + fw[0] * a * s + up[0] * b * s, F.hip[1] + fw[1] * a * s + up[1] * b * s] };
-}
-const SHN = [0, 114], SHF = [-8, 110], ARM1 = 64, ARM2 = 60, LEG1 = 86, LEG2 = 84, HIPH = 158;
-const shoulderOf = F => frame(F).P(SHN[0], SHN[1]);
-function headFrame(F) {
-  const { P } = frame(F), hfF = F.headF ?? F.f, ha = F.ang * .5 + hfF * (F.tilt || 0), hu = [Math.sin(ha), -Math.cos(ha)], hf = [hfF * Math.cos(ha), hfF * Math.sin(ha)];
-  const nk = P(14, 136), s = F.s, hc = [nk[0] + (hu[0] * 62 + hf[0] * 8) * s, nk[1] + (hu[1] * 62 + hf[1] * 8) * s], HS = 1.18 * s;
-  return { hc, HF: (u, v) => [hc[0] + HS * (u * hf[0] + v * hu[0]), hc[1] + HS * (u * hf[1] + v * hu[1])] };
-}
-const FACE = [[-52, -20], [-56, 16], [-44, 46], [-14, 58], [24, 54], [46, 36], [56, 10], [64, 2], [58, -10], [52, -26], [34, -46], [0, -52], [-34, -44]];
-function drawHead(ctx, F, HF, s, me, toneD) {
-  ink(ctx, FACE.map(q => HF(q[0], q[1])), { fill: C.cream });
-  // beanie: dome, dot-toned fold, pompom, rib lines
-  ink(ctx, [[-58, 18], [-54, 52], [-32, 80], [2, 90], [34, 80], [52, 56], [58, 30]].map(q => HF(q[0], q[1])), { fill: me ? C.cream : C.cream2 });
-  ink(ctx, [[-61, 6], [-59, 28], [61, 38], [61, 16]].map(q => HF(q[0], q[1])), { fill: C.cream, tone: toneD, smooth: false, step: 10 });
-  ink(ctx, ell(0, 0, 15, 14, 14).map(q => HF(q[0] - 6, q[1] + 102)), { fill: C.cream, lw: 5.5 });
-  ink(ctx, [HF(-14, 76), HF(-8, 50)], { closed: false, lw: 4, single: true }); ink(ctx, [HF(18, 80), HF(16, 54)], { closed: false, lw: 4, single: true });
-  // ear
-  ink(ctx, [HF(-30, -2), HF(-40, -12), HF(-34, -28), HF(-24, -22)], { closed: false, lw: 4.5, single: true });
-  // eye
-  const e = HF(32, -10), eye = F.eye || 'dot';
-  if (eye === 'tired') ink(ctx, [HF(22, -8), HF(32, -14), HF(42, -10)], { closed: false, lw: 4.5, single: true });
-  else if (eye === 'happy') ink(ctx, [HF(22, -14), HF(32, -5), HF(42, -13)], { closed: false, lw: 4.5, single: true });
-  else if (eye === 'down') ink(ctx, [HF(24, -16), HF(32, -18), HF(41, -16)], { closed: false, lw: 4.5, single: true });
-  else { const r = (eye === 'shock' ? 9 : 6.5) * s * 1.18 / 1.06; ctx.fillStyle = C.ink; ctx.beginPath(); ctx.ellipse(e[0], e[1], r, r * 1.15, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = eye === 'glint' ? C.yelL : C.cream; ctx.beginPath(); ctx.arc(e[0] + F.f * r * .3, e[1] - r * .4, r * .33, 0, TAU); ctx.fill(); }
-  if (eye === 'shock' || eye === 'worry') ink(ctx, [HF(20, 8), HF(32, 12), HF(42, 6)], { closed: false, lw: 4, single: true });   // raised brow
-  // mouth
-  const mo = F.mouth || 'flat';
-  if (mo === 'smile') ink(ctx, [HF(38, -32), HF(46, -40), HF(54, -32)], { closed: false, lw: 4, single: true });
-  else if (mo === 'o') ink(ctx, ell(...HF(45, -35), 5 * s * 1.18, 6 * s * 1.18, 10), { fill: C.ink, lw: 3, single: true });
-  else if (mo === 'wavy') ink(ctx, [HF(36, -36), HF(41, -33), HF(46, -37), HF(51, -33)], { closed: false, lw: 3.6, single: true, smooth: false });
-  else if (mo === 'sad') ink(ctx, [HF(38, -38), HF(46, -33), HF(53, -38)], { closed: false, lw: 4, single: true });
-  else ink(ctx, [HF(38, -36), HF(50, -34)], { closed: false, lw: 4, single: true });
-}
-function drawLeg(ctx, F, i, P, toneP) {
-  const s = F.s, f = F.f, hp = P(i ? 8 : -6, -2), foot = F.feet[i], ank = [foot[0], foot[1] - 16 * s];
-  const kneePick = (a, b) => f * a[0] > f * b[0] ? a : b;
-  const kn = F.knees && F.knees[i] ? F.knees[i] : ik(hp, ank, LEG1 * s, LEG2 * s, kneePick)[0];
-  const top = P(i ? 8 : -6, 16), m1 = lerp2(hp, kn, .5), m2 = lerp2(kn, ank, .5);
-  ink(ctx, tube([top, m1, kn, m2, ank], [42, 45, 40, 36, 31].map(w => w * s)), { fill: i ? C.cream : C.cream2, tone: toneP });
-  const lift = Math.max(0, F.gy - foot[1]), toe = F.toes && F.toes[i] != null ? F.toes[i] : lift > 4 * s ? .25 : 0;
-  ink(ctx, [[ank[0] - 15 * s, ank[1] - 6 * s], [ank[0] + 13 * s, ank[1] - 6 * s], [ank[0] + 12 * s, ank[1] + 8 * s], [ank[0] - 14 * s, ank[1] + 8 * s]], { fill: C.cream, lw: 5, step: 9 });
-  const sh = [[-26, -6], [-20, -20], [6, -22], [20, -16], [34, -10], [40, 0], [30, 7], [-22, 7]].map(p => { const q = rot2(p, -toe); return [foot[0] + f * (q[0] + 6) * s, foot[1] + (q[1] - 5) * s]; });
-  ink(ctx, sh, { fill: C.ink, lw: 5.5, step: 9 });
-}
-function armGeo(F, S0, T, far) {
-  const s = F.s, f = F.f; if (!T) T = [S0[0] + f * (far ? -4 : 6) * s, S0[1] + 116 * s];
-  const elbowPick = (a, b) => (a[1] - f * a[0] * .35) > (b[1] - f * b[0] * .35) ? a : b;
-  const [el, hd] = ik(S0, T, ARM1 * s, ARM2 * s, elbowPick);
-  return { S0, el, hd };
-}
-function sleeve(ctx, A, s, fill, tn) {
-  const wr = lerp2(A.el, A.hd, .8);
-  ink(ctx, tube([A.S0, A.el, lerp2(A.el, A.hd, .45), wr], [24 * s, 21 * s, 19 * s, 17 * s]), { fill, tone: tn });
-}
-function mitten(ctx, A, s, type, f) {
-  const d0 = [A.hd[0] - A.el[0], A.hd[1] - A.el[1]], dl = Math.hypot(d0[0], d0[1]) || 1, d = [d0[0] / dl, d0[1] / dl];
-  let pr = [-d[1], d[0]]; if (pr[1] > 0) pr = [-pr[0], -pr[1]];   // the side facing up
-  let an = Math.atan2(d[1], d[0]);
-  if (type === 'flat') { an = f > 0 ? 0 : Math.PI; const c = A.hd;
-    ink(ctx, ell(c[0], c[1], 21 * s, 11 * s, 16, 0), { fill: C.cream, lw: 5.5 });
-    ink(ctx, ell(c[0] - f * 10 * s, c[1] - 8 * s, 6 * s, 8 * s, 10, -f * .5), { fill: C.cream, lw: 4.5, single: true }); return; }
-  const c = [A.hd[0] + d[0] * 5 * s, A.hd[1] + d[1] * 5 * s];
-  ink(ctx, ell(c[0], c[1], 17 * s, 14 * s, 16, an), { fill: C.cream, lw: 5.5 });
-  const th = type === 'open' ? 16 : 11;
-  ink(ctx, ell(c[0] + pr[0] * th * s - d[0] * 3 * s, c[1] + pr[1] * th * s - d[1] * 3 * s, 6.5 * s, 8.5 * s, 10, an + .6), { fill: C.cream, lw: 4.5, single: true });
-  if (type === 'grip') ink(ctx, [[c[0] + d[0] * 6 * s - pr[0] * 9 * s, c[1] + d[1] * 6 * s - pr[1] * 9 * s], [c[0] + d[0] * 9 * s + pr[0] * 4 * s, c[1] + d[1] * 9 * s + pr[1] * 4 * s]], { closed: false, lw: 3.6, single: true });
-}
-function drawKid(ctx, F, back, mid) {
-  const al = F.alpha ?? 1; if (al <= 0) return;
-  ctx.save(); ctx.globalAlpha *= al;
-  const s = F.s, f = F.f, me = !!F.me, { P } = frame(F);
-  const tP = tone(false, F.hip[0], F.hip[1]), tD = tone(true, F.hip[0], F.hip[1]);
-  // cast shadow in dot tone
-  ctx.save(); ctx.globalAlpha *= .5; ink(ctx, ell(F.hip[0], F.gy + 6 * s, 100 * s, 12 * s, 16), { tone: tD, lw: 0, mx: 0, my: 0 }); ctx.restore();
-  const AF = armGeo(F, P(SHF[0], SHF[1]), F.hands[0], true), AN = armGeo(F, P(SHN[0], SHN[1]), F.hands[1], false);
-  const hand = F.hand || ['grip', 'grip'];
-  // far arm (behind the body)
-  sleeve(ctx, AF, s, C.cream2, me ? null : tP); if (!F.farOver && !F.farMid) mitten(ctx, AF, s, hand[0], f);
-  if (back) back();
-  if (F.farMid) mitten(ctx, AF, s, hand[0], f);   // the far hand on a beam carried on the far shoulder: over the beam, under the head
-  drawLeg(ctx, F, 0, P, tD); drawLeg(ctx, F, 1, P, tP);
-  // sweater
-  const sw = [[-48, -12], [-57, 36], [-56, 92], [-42, 128], [-14, 144], [20, 142], [44, 124], [56, 92], [62, 50], [64, 12], [52, -14], [0, -20]].map(q => P(q[0], q[1]));
-  ink(ctx, sw, { fill: C.cream, tone: me ? null : tP });
-  ink(ctx, [P(-30, 30), P(-8, 22)], { closed: false, lw: 4.5, single: true });
-  const { HF } = headFrame(F);
-  ink(ctx, [P(2, 128), P(24, 128), P(26, 150), P(2, 152)], { fill: C.cream, lw: 5 });
-  // my scarf: black-and-cream stripes, the tail flying back (more when running)
-  if (me) {
-    ink(ctx, [P(-30, 120), P(-10, 134), P(20, 134), P(36, 122), P(32, 106), P(4, 116), P(-26, 104)], { fill: C.cream, lw: 5 });
-    for (const u of [-16, 0, 16]) ink(ctx, [P(u - 4, 132), P(u + 5, 131), P(u + 5, 114), P(u - 4, 115)], { fill: C.ink, lw: 0, smooth: false, mx: 0, my: 0 });
-    const wv = F.wind ?? .3, ph = (F.ph ?? 0) * TAU * 2, tail = [];
-    for (let i = 0; i <= 5; i++) { const u = i / 5; tail.push(P(-24 - u * (48 + 60 * wv), 118 - u * (70 - 62 * wv) + Math.sin(ph + u * 4) * 10 * wv * u)); }
-    const tl = tube(tail, tail.map((_, i) => (11 - i * .8) * s));
-    ink(ctx, tl, { fill: C.cream, lw: 4.5 });
-    for (let i = 1; i < 5; i += 2) { const a = tail[i], b = tail[i + 1], d = [b[0] - a[0], b[1] - a[1]], l = Math.hypot(d[0], d[1]) || 1, n = [-d[1] / l * 9 * s, d[0] / l * 9 * s];
-      ink(ctx, [[a[0] + n[0], a[1] + n[1]], [b[0] + n[0], b[1] + n[1]], [b[0] - n[0], b[1] - n[1]], [a[0] - n[0], a[1] - n[1]]], { fill: C.ink, lw: 0, smooth: false, mx: 0, my: 0 }); }
-  }
-  drawHead(ctx, F, HF, s, me, tD);
-  if (mid) mid();
-  if (F.farOver) mitten(ctx, AF, s, hand[0], f);
-  if (F.saw) drawSaw(ctx, F.saw.grip, F.saw.ang);
-  sleeve(ctx, AN, s, C.cream, me ? null : tP); mitten(ctx, AN, s, hand[1], f);
-  ctx.restore();
-  return { AF, AN };
-}
-
-// ---------------- crosses ----------------
-function crossPoly(u0, u1, hb) {
-  const a = PW / 2, c0 = CBX - CBW / 2, c1 = CBX + CBW / 2, bar = u0 < c0 && u1 > c1, pts = [[u0, -a]];
-  if (bar) pts.push([c0, -a], [c0, -hb], [c1, -hb], [c1, -a]);
-  pts.push([u1, -a], [u1, a]);
-  if (bar) pts.push([c1, a], [c1, hb], [c0, hb], [c0, a]);
-  pts.push([u0, a]); return pts;
-}
-const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
-function drawCross(ctx, X, u0, u1, mine, alpha = 1) {
-  if (!X || u1 - u0 < .5 || alpha <= 0) return;
-  if (X.sx != null) { ctx.save(); ctx.translate(X.px, 0); ctx.scale(X.sx, 1); ctx.translate(-X.px, 0); drawCross(ctx, { ...X, sx: null }, u0, u1, mine, alpha); ctx.restore(); return; }
-  const hb = X.lie ? CBHL : CBH, pts = crossPoly(u0, u1, hb).map(([u, v]) => cpt(X, u, v));
-  ctx.save(); ctx.globalAlpha *= alpha;
-  ink(ctx, pts, { fill: mine ? C.yel : C.cream, tone: mine ? null : tone(false, X.x, X.y), smooth: false, lw: 5.5, step: 12 });
-  // wood: a grain line or two along the post, a print highlight on mine
-  const g0 = Math.max(u0 + 18, 30), g1 = Math.min(u1 - 18, CBX - 30);
-  if (g1 - g0 > 30) ink(ctx, [cpt(X, g0, -4), cpt(X, lerp(g0, g1, .55), -2)], { closed: false, lw: 3.4, single: true });
-  if (u1 > CBX + 40 && u0 < CBX + 30) ink(ctx, [cpt(X, CBX + 34, 5), cpt(X, Math.min(u1 - 14, CBX + 92), 6)], { closed: false, lw: 3.4, single: true });
-  if (mine) { ctx.save(); ctx.globalAlpha *= .8; ctx.strokeStyle = C.yelL; ctx.lineWidth = 4 * LWK; ctx.lineCap = 'round'; const a = cpt(X, u0 + 10, -PW / 2 + 7), b = cpt(X, u1 - 10, -PW / 2 + 7);
-    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.restore(); }
-  ctx.restore();
+  ROAD = Riso.makeRoad({ top: RT, front: FY + 66, bottom: FY + 150, gaps: [[E, E + G]] });   // the road breaks off at the gap
 }
 
 // ---------------- the saw ----------------
@@ -321,7 +84,7 @@ const meX = t => tab(MEX, t), meP = t => tab(MEP, t);
 const CUTS = [{ s: 3.2, d: .3, saw0: 3.5, drop: 4.0, up1: 4.4 }, { s: 9.0, d: .36, saw0: 9.38, drop: 9.8, up1: 10.12 }, { s: 10.4, d: .32, saw0: 10.73, drop: 11.2, up1: 11.47 }];
 const leftAt = t => S.left[CUTS.filter(c => t >= c.drop).length];
 const FLECKS = [];
-let E = 2000, GX = 0, SAWLIE = null, CACHE = null;
+let E = 2000, GX = 0, SAWLIE = null;
 function buildTimeline() {
   let x = 0, p = 0;
   for (let i = 0; i < NT; i++) { const t = i * DT; MEX[i] = x; MEP[i] = p; const v = vMe(t); x += v * DT; p += v / strideMe(t) * DT; }
@@ -343,55 +106,13 @@ function pieceAt(c, t) {   // a cut piece lying where it fell — it stays there
 }
 // v2 ending: each piece starts to glow as the camera reaches it; then the outline's missing span lights slot by slot
 const GLOWAT = [22.0, 21.68, 21.42], SLOTAT = [24.3, 23.6, 22.9];   // index = cut k (piece 3 is nearest the gap)
-// lay my cross TOP-first: crossbar end on the near lip, the sawn end reaching out over the gap (foot origin at the far lip, pointing back)
-const flipX = (A, Bx, k) => { if (k <= 0) return A; if (k >= 1) return Bx; const cu = (Bx.u0 + L) / 2, ca = cpt(A, cu), cb = cpt(Bx, cu), a = lerp(A.a, Bx.a, k), c = lerp2(ca, cb, k);
-  c[1] -= 70 * Math.sin(Math.PI * k); return { ...Bx, x: c[0] - Math.cos(a) * cu, y: c[1] - Math.sin(a) * cu, a, lie: k > .6 }; };
-// ---------------- poses ----------------
-function walkSpec(x, gy, s, f, ph, stride, lean, lift = 22) {
-  const feet = [0, 1].map(i => { const p = frac(ph + i * .5); let off, up = 0;
-    if (p < .58) off = stride * (.29 - p); else { const u = (p - .58) / .42; off = -.29 * stride + .58 * stride * eio(u); up = lift * Math.sin(Math.PI * u); }
-    return [x + f * off * s, gy - up * s]; });
-  const hipH = (HIPH - 7 * Math.abs(Math.sin(TAU * ph))) * s;
-  return { s, f, gy, hip: [x, gy - hipH], ang: f * lean, feet, hands: [null, null], hand: ['grip', 'grip'], tilt: 0, eye: 'dot', ph };
-}
-function standSpec(x, gy, s, f, lean = .05) { return { s, f, gy, hip: [x, gy - (HIPH - 2) * s], ang: f * lean, feet: [[x - f * 16 * s, gy], [x + f * 20 * s, gy]], hands: [null, null], hand: ['hang', 'hang'], tilt: 0, eye: 'dot' }; }
-function hangHands(F, swing = 0) { const fr = frame(F), sF = fr.P(SHF[0], SHF[1]), sN = fr.P(SHN[0], SHN[1]); return [[sF[0] - F.f * (6 + swing) * F.s, sF[1] + 116 * F.s], [sN[0] + F.f * (4 - swing) * F.s, sN[1] + 116 * F.s]]; }
-function mixSpec(A, Bs, k) {
-  if (k <= 0) return A; if (k >= 1) return Bs;
-  const l2 = (a, b) => [lerp(a[0], b[0], k), lerp(a[1], b[1], k)], hA = hangHands(A), hB = hangHands(Bs), pick = k < .5 ? A : Bs;
-  return { ...pick, s: lerp(A.s, Bs.s, k), gy: lerp(A.gy, Bs.gy, k), hip: l2(A.hip, Bs.hip), ang: lerp(A.ang, Bs.ang, k), feet: [l2(A.feet[0], Bs.feet[0]), l2(A.feet[1], Bs.feet[1])],
-    hands: [0, 1].map(i => l2(A.hands[i] || hA[i], Bs.hands[i] || hB[i])), hand: (pick.hand || ['grip', 'grip']).slice(), tilt: lerp(A.tilt || 0, Bs.tilt || 0, k),
-    knees: null, toes: null };
-}
-// the cross on the FAR shoulder (the head hides it where they overlap): {x, y, a} = foot origin and angle
-function carryCross(F, left, a0) {
-  const fr = frame(F), sh = fr.P(SHF[0], SHF[1] + 4), T = [sh[0] + fr.up[0] * 10 * F.s, sh[1] + fr.up[1] * 10 * F.s];
-  const a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
-  const contact = left < .6 ? L * (1 - left) + 14 : L - Math.min(250, left * L - 36);
-  return { x: T[0] + n[0] * PW / 2 - d[0] * contact, y: T[1] + n[1] * PW / 2 - d[1] * contact, a, contact, u0: L * (1 - left), lie: false };
-}
-function heldX(F, left) {
-  const u0 = L * (1 - left), f = F.f, s = F.s, g = [F.hip[0] + f * 44 * s, F.hip[1] - 30 * s], a = f > 0 ? Math.PI - .08 : .08, ug = u0 + 56;
-  return { x: g[0] - Math.cos(a) * ug, y: g[1] - Math.sin(a) * ug, a, u0, lie: false };
-}
-function holdLow(F, left) {   // between cuts 2 and 3 (a few steps): carried low on the far side, crossbar ahead; far mitten on it behind my back, saw in the near hand
-  const u0 = L * (1 - left), f = F.f, s = F.s, ug = u0 + 120, g = [F.hip[0] + f * 20 * s, F.hip[1] - 34 * s], a = f > 0 ? -.06 : Math.PI + .06;
-  const X = { x: g[0] - Math.cos(a) * ug, y: g[1] - Math.sin(a) * ug, a, u0, lie: false };
-  F.hands = [cpt(X, u0 + 26, PW / 2 - 2), hangGrip(F, F.ph != null ? 10 * Math.sin(TAU * F.ph) : 0)]; F.hand = ['grip', 'grip']; F.farMid = true; return [F, X];
-}
-function holdShort(F, left) {   // near mitten on the beam ahead of me, far mitten on it behind my back
-  const X = heldX(F, left); F.hands = [cpt(X, X.u0 + 150, PW / 2 - 2), cpt(X, X.u0 + 30, -PW / 2 - 2)]; F.hand = ['grip', 'grip']; F.farMid = true; return [F, X];
-}
-const mirrorX = (X, px, sx) => ({ ...X, px, sx: Math.sign(sx || 1) * Math.max(.08, Math.abs(sx)) });   // a yaw turn with the beam, drawn as a horizontal squash
-function reachOnBeam(F, X) {   // the far hand steadies the beam behind my back (where it shows past the body), within real reach
-  const sh = frame(F).P(SHF[0], SHF[1]), R = (ARM1 + ARM2) * F.s * .92; let u = Math.max(X.u0 + 22, X.contact - 100 * F.s);
-  while (u < X.contact) { const q = cpt(X, u, PW / 2); if (Math.hypot(q[0] - sh[0], q[1] - sh[1]) <= R && (q[0] - F.hip[0]) * F.f < -58 * F.s) break; u += 6; }
-  return cpt(X, u, PW / 2 - 4);
-}
-function gripCarry(F, X) { F.hands = [cpt(X, Math.min(L - 16, X.contact + 60)), cpt(X, X.contact + 2, PW * .55)]; F.hand = ['grip', 'grip']; return F; }   // near mitten holds the beam at the shoulder
-const mixX = (A, Bx, k) => k <= 0 ? A : k >= 1 ? Bx : { ...Bx, x: lerp(A.x, Bx.x, k), y: lerp(A.y, Bx.y, k), a: lerp(A.a, Bx.a, k), u0: Bx.u0, lie: k > .62 ? Bx.lie : A.lie };
-function rotAbout(X, pv, th) { const ox = X.x - pv[0], oy = X.y - pv[1]; return { ...X, x: pv[0] + ox * Math.cos(th) - oy * Math.sin(th), y: pv[1] + ox * Math.sin(th) + oy * Math.cos(th), a: X.a + th }; }
-const hangGrip = (F, sw = 0) => { const sh = shoulderOf(F); return [sh[0] + F.f * (14 + sw) * F.s, sh[1] + 112 * F.s]; };
+// ---------------- poses (the rig is the kit's; these are the story's) ----------------
+const carryCross = (F, left, a0) => Rig.onShoulder(F, CR, left, a0);
+const heldX = (F, left) => Rig.inFront(F, CR, left);
+const holdLow = (F, left) => Rig.holdLow(F, CR, left);
+const holdShort = (F, left) => Rig.holdFront(F, CR, left);
+const reachOnBeam = (F, X) => Rig.steadyBehind(F, CR, X);
+const gripCarry = (F, X) => Rig.gripShoulder(F, CR, X);
 
 // sawing: I face back (−x) toward the foot, squat over the lying cross; far mitten pins it beside the cut, near hand saws
 function sawSpec(c, t) {
@@ -505,7 +226,7 @@ function pilState(i, t) {
   if (tp < T + .9) { const x = lerp(xs0, xs1, eio(clamp((tp - T - .3) / .6))), gy = x < E + G + 4 ? yb - PW / 2 : BY, ph = P.ph + x / (160 * SPI);
     const F = walkSpec(x, gy, SPI, 1, ph, 160, .12, 30); F.tilt = -.05; F.hands = hangHands(F, 22 * Math.sin(TAU * ph)); F.hand = ['hang', 'hang']; return { F, B: XB }; }
   // from the far side: turn, crouch, take the top end and pull it back across
-  const pv = [E + G, yb + PW / 2], pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, pv, -.08 * k), xpAt = k => xs1 + 30 + PULL * k;
+  const pv = [E + G, yb + PW / 2], pullX = k => rotAbout({ ...XB, x: XB.x + PULL * k }, pv, -.08 * k);
   const PULLS = k => { const X = pullX(k), h = [cpt(X, L - 26, -PW / 2 - 3), cpt(X, L - 66, -PW / 2 - 3)], so = frame({ s: SPI, f: -1, ang: -.7, hip: [0, 0] }).P(SHN[0], SHN[1]);
     const shT = [h[0][0] + 26, h[0][1] - 84], hip = [shT[0] - so[0], shT[1] - so[1]];
     const F = { ...standSpec(hip[0], BY, SPI, -1), hip, ang: -.7, feet: [[hip[0] + 30, BY], [hip[0] - 34, BY]], tilt: .15, eye: 'dot' };
@@ -520,7 +241,7 @@ function pilState(i, t) {
 }
 
 // ---------------- camera (on twos, like everything else) ----------------
-const mixCam = (a, b, k) => k <= 0 ? a : k >= 1 ? b : { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k) };
+const mixCam = Riso.mixCam;
 function camAt(t) {
   let c = { x: meX(t) + 60 + 110 * ss(4.3, 5.4, t), y: 940, z: 1.0 };
   c = mixCam({ x: meX(t) + 40, y: 1010, z: 1.6 }, c, eio((t - 1.5) / 1.1));       // the hook: close on me (the saw in my hand), widening by ~2.6
@@ -536,88 +257,17 @@ function camAt(t) {
   if (t >= 21.9) c = mixCam(c, { x: E - 1250, y: 930, z: .58 }, eio((t - 21.9) / .45));                 // on, pulling out: piece 1 far down the road
   if (t >= 22.42) c = mixCam(c, { x: E + 140, y: 990, z: 1.08 }, eio((t - 22.42) / .46));                // back to the gap, me at the lip, the outline
   if (t >= 22.9) c = mixCam(c, { x: E + 160, y: 1020, z: 1.3 }, eio((t - 22.9) / 3.2));
-  const k = 1 - ss(B.fall, B.fall + .55, t); c.sx = t >= B.fall ? 16 * k * Math.sin(t * 97) : 0; c.sy = t >= B.fall ? 12 * k * Math.sin(t * 131 + 1) : 0;
+  [c.sx, c.sy] = Riso.shake(t, B.fall);                                                                  // the hit
   return c;
 }
-function setCam(ctx, cm, p) { const z = 1 + (cm.z - 1) * p, cx = cm.x * p, cy = 960 + (cm.y - 960) * p; ctx.setTransform(z, 0, 0, z, 540 - cx * z + cm.sx * p, 960 - cy * z + cm.sy * p); return z; }
-function camScale(z) { LWK = Math.pow(z, -.8); AMPK = 1.2 / z; MR = 1 / z; TS = 1 / z; }
 
 // ---------------- the world ----------------
-function cloud(ctx, x, y, s, seed) {
-  const r = rng(seed), pts = [], n = 26;
-  for (let i = 0; i < n; i++) { const a = i / n * TAU, rx = 210 * s, ry = 52 * s, k = 1 + .18 * Math.sin(a * 3 + seed) + .1 * Math.sin(a * 7 + seed * 2);
-    pts.push([x + Math.cos(a) * rx * k * (1 + .2 * (r() - .5)), y + Math.sin(a) * ry * k * (Math.sin(a) > 0 ? .6 : 1.15)]); }
-  ink(ctx, pts, { fill: C.cream, lw: 0, mx: 0, my: 0, amp: 1.2 });
-}
-const CLOUDS = [[-300, 330, .9, 3], [500, 250, 1.05, 5], [1100, 380, .45, 9], [1500, 300, .8, 11], [2200, 260, 1.0, 13], [2700, 360, .5, 17], [3100, 240, .9, 19]];
-const LOWCLOUDS = [[-200, 1740, 1.1, 21], [600, 1900, .8, 23], [1250, 1700, .55, 25], [1800, 1860, 1.2, 27], [2500, 1760, .7, 29], [3100, 1920, 1.0, 31], [3700, 1720, .6, 33]];
-const BUSH = []; { const r = rng(31); for (let x = -900; x < 5200; x += 230 + r() * 240) BUSH.push([x, .7 + r() * .5, r() * 100 | 0]); }
-const TUFT = []; { const r = rng(37); for (let x = -900; x < 5200; x += 120 + r() * 170) TUFT.push([x, RT + 34 + r() * 60, r()]); }
-// the road is a strip floating in the blue field (the riso world is all sky, as in the lab): top surface RT..RF, a dot-toned
-// front face below it with a lumpy underside; at the gap it simply breaks off — two jagged ends with sky and clouds between
-const RF = FY + 66, RB = FY + 150;
-const UNDER = []; { const r = rng(43); for (let x = -1200; x < 6000; x += 46) UNDER.push([x, RB + 26 * (Pilot.fbm(x / 160, 3, 3) - .5) * 2 + (r() < .12 ? 26 + r() * 30 : 0)]); }
-function endEdge(x, dir, seed) { const q = rng(seed), o = [[x, RT], [x - dir * 3, (RT + RF) / 2], [x + dir * 2, RF]];
-  for (let y = RF + 24; y < RB + 30; y += 26) o.push([x - dir * (6 + q() * 16 + (y - RF) * .25), y]); return o; }
-let ENDS = null;
-function ground(ctx, x0, x1) {
-  if (!ENDS) ENDS = [endEdge(E, 1, 71), endEdge(E + G, -1, 73)];
-  // distant bushes along the far edge
-  for (const [bx, sc, sd] of BUSH) { if (bx < x0 - 200 || bx > x1 + 200 || (bx > E - 90 && bx < E + G + 90)) continue;
-    const pts = []; for (let i = 0; i <= 12; i++) { const a = Math.PI + Math.PI * i / 12; pts.push([bx + Math.cos(a) * 70 * sc, RT + 6 + Math.sin(a) * 44 * sc * (1 + .18 * Math.sin(i * 2.3 + sd))]); }
-    ink(ctx, pts, { fill: C.cream, tone: tone(false, bx, RT), lw: 5 }); }
-  const under = (xa, xb) => UNDER.filter(p => p[0] > xa && p[0] < xb);
-  const parts = [];
-  if (x0 < E) { const e = ENDS[0], lastY = e[e.length - 1]; parts.push({ top: [[x0 - 60, RT], [E, RT], [E - 3, (RT + RF) / 2], [E + 2, RF], [x0 - 60, RF]],
-    face: [[x0 - 60, RF], ...e.slice(2), ...under(x0 - 60, lastY[0] - 10).reverse(), [x0 - 60, RB]], end: e }); }
-  if (x1 > E + G) { const e = ENDS[1], lastY = e[e.length - 1]; parts.push({ top: [[E + G, RT], [x1 + 60, RT], [x1 + 60, RF], [E + G - 2, RF], [E + G + 3, (RT + RF) / 2]],
-    face: [...e.slice(2), [x1 + 60, RF], [x1 + 60, RB], ...under(lastY[0] + 10, x1 + 60).reverse()], end: e }); }
-  for (const P of parts) {
-    ink(ctx, P.face, { fill: C.ground, tone: tone(true, 0, RF), lw: 6, smooth: false, step: 14 });
-    ink(ctx, P.top, { fill: C.road, lw: 0, smooth: false, mx: 0, my: 0 });
-  }
-  if (x0 < E) { ink(ctx, [[x0 - 40, RT], [E, RT]], { closed: false, lw: 6, smooth: false }); ink(ctx, [[x0 - 40, RF], [E + 2, RF]], { closed: false, lw: 6, smooth: false }); ink(ctx, ENDS[0].slice(0, 3), { closed: false, lw: 6, smooth: false }); }
-  if (x1 > E + G) { ink(ctx, [[E + G, RT], [x1 + 40, RT]], { closed: false, lw: 6, smooth: false }); ink(ctx, [[E + G - 2, RF], [x1 + 40, RF]], { closed: false, lw: 6, smooth: false }); ink(ctx, ENDS[1].slice(0, 3), { closed: false, lw: 6, smooth: false }); }
-  // crumbs hanging off the broken ends
-  for (const [x, dir] of [[E, 1], [E + G, -1]]) if (x > x0 - 100 && x < x1 + 100) for (const [dx, dy, r] of [[-14, RB + 40, 9], [-30, RB + 70, 6], [-8, RB + 96, 4.5]]) ink(ctx, ell(x + dir * dx, dy, r, r * .8, 9), { fill: C.ground, lw: 4, single: true });
-  // ground hints: dashes and grass tufts on the road surface
-  for (const [tx, ty, r] of TUFT) { if (tx < x0 - 60 || tx > x1 + 60 || (tx > E - 50 && tx < E + G + 50)) continue;
-    const y = Math.min(ty, RF - 12);
-    if (r < .5) ink(ctx, [[tx - 14, y], [tx - 6, y - 14], [tx, y], [tx + 7, y - 16], [tx + 14, y]], { closed: false, lw: 4, smooth: false, single: true });
-    else ink(ctx, [[tx - 40, y + 4], [tx + 40, y + 6]], { closed: false, lw: 4.5, single: true }); }
-}
-function door(ctx, t) {   // the far side: a plain arched door, open, yellow light inside
-  const gy = BY + 4, x = GX, R = 104, ay = gy - 300, r0 = 74, ay0 = gy - 270;
-  glow(ctx, x, gy - 170, 420, .8); glow(ctx, x, gy - 150, 230, .9);
-  // light on the ground in front of it
-  ctx.save(); ctx.globalAlpha *= .55; ink(ctx, [[x - r0, gy], [x + r0, gy], [x + 200, gy + 70], [x - 220, gy + 70]], { fill: C.yelL, lw: 0, mx: 0, my: 0, smooth: false }); ctx.restore();
-  const op = []; op.push([x - r0, gy]); for (let i = 0; i <= 16; i++) { const a = Math.PI + Math.PI * i / 16; op.push([x + Math.cos(a) * r0, ay0 + Math.sin(a) * r0]); } op.push([x + r0, gy]);
-  ink(ctx, op, { fill: C.yel, lw: 0, mx: 0, my: 0, smooth: false });
-  return { op, draw: () => {
-    // the frame: a thick arch with posts, toned on the inner jamb
-    const fr = []; fr.push([x - R, gy]); for (let i = 0; i <= 18; i++) { const a = Math.PI + Math.PI * i / 18; fr.push([x + Math.cos(a) * R, ay + Math.sin(a) * R + 30]); } fr.push([x + R, gy]);
-    const inner = op.slice().reverse(); ink(ctx, fr.concat(inner), { fill: C.cream, smooth: false, lw: 6 });
-    ink(ctx, [[x + r0, gy], [x + r0, ay0], [x + r0 + 16, ay0 + 6], [x + r0 + 16, gy]], { tone: tone(true, x, gy), lw: 0, smooth: false, mx: 0, my: 0 });
-    // door leaves swung open (one each side), dot-toned
-    ink(ctx, [[x - R, gy], [x - R - 46, gy + 22], [x - R - 46, ay0 - 30], [x - R, ay0 - 10]], { fill: C.cream, tone: tone(false, x, gy), lw: 5.5, smooth: false });
-    ink(ctx, [[x + R, gy], [x + R + 46, gy + 22], [x + R + 46, ay0 - 30], [x + R, ay0 - 10]], { fill: C.cream, tone: tone(false, x, gy), lw: 5.5, smooth: false });
-    ink(ctx, [[x - R - 14, ay + 40], [x + R + 14, ay + 40]].map((p, i) => p), { closed: false, lw: 0 });
-    // sparkles around the light
-    const SP = [[-150, -330, 22, 0], [140, -380, 18, .4], [190, -220, 14, .8], [-190, -170, 13, .2], [30, -460, 15, .6]];
-    for (const [dx, dy, rr, o] of SP) sparkle(ctx, x + dx, gy + dy, rr * (.5 + .5 * Math.abs(Math.sin(t * 2.6 + o * 6))), 1, .5);
-  } };
-}
 const XFULL = () => ({ x: E + G + REST, y: FY + 34, a: -Math.PI, lie: true });   // my whole cross laid top-first: top on the near lip, foot on the far lip
 const crossOutline = () => crossPoly(0, L, CBHL).map(([u, v]) => cpt(XFULL(), u, v));
-function dashed(ctx, pts, t) {
-  const P = resample(pts, true, 10 * LWK).map(p => wob(p, 1.2 * AMPK)), path = pathOf(P, true, false);
-  ctx.save(); ctx.lineCap = 'butt'; ctx.setLineDash([18 * LWK, 12 * LWK]); ctx.lineDashOffset = -t * 20;
-  ctx.lineWidth = 10 * LWK; ctx.strokeStyle = C.ink; ctx.stroke(path); ctx.lineWidth = 5 * LWK; ctx.strokeStyle = C.cream; ctx.stroke(path); ctx.setLineDash([]); ctx.restore(); return path;
-}
 function guide(ctx, t, k, al) {   // the hold: the dashed outline of my whole cross, drawn out from the near lip
   const x1 = E - REST - 4 + (L + 8) * k;
   ctx.save(); ctx.globalAlpha *= al; ctx.beginPath(); ctx.rect(E - REST - 10, FY - 200, x1 - (E - REST - 10), 400); ctx.clip();
-  const ol = crossOutline(); ctx.fillStyle = 'rgba(247,232,170,.22)'; ctx.fill(pathOf(ol, true, false)); dashed(ctx, ol, t);
+  const ol = crossOutline(); ctx.fillStyle = 'rgba(247,232,170,.22)'; ctx.fill(pathOf(ol, true, false)); Riso.dashed(ctx, ol, t);
   ctx.restore();
 }
 function endGuide(ctx, t) {   // v2 ending: the outline over the still-open gap; its missing span lights one piece-length at a time
@@ -631,24 +281,15 @@ function endGuide(ctx, t) {   // v2 ending: the outline over the still-open gap;
     const sl = crossPoly(c.u0 + 2, c.u1 - 2, CBHL).map(([u, v]) => cpt(X, u, v)), mid = cpt(X, (c.u0 + c.u1) / 2);
     glow(ctx, mid[0], mid[1], 120, .55 * on); ctx.fillStyle = 'rgba(241,199,94,' + (.62 * on) + ')'; ctx.fill(pathOf(sl, true, false));
   }
-  dashed(ctx, crossOutline(), t);
+  Riso.dashed(ctx, crossOutline(), t);
   for (const c of CUTS) { if (t < SLOTAT[c.k]) continue; const a = cpt(X, c.u1, -PW / 2 - 8), b = cpt(X, c.u1, PW / 2 + 8);   // the joins between slots
     if (c.k) ink(ctx, [a, b], { closed: false, lw: 3.4, single: true, col: C.cream }); }
   ctx.restore();
 }
-function drawFlecks(ctx, t) {
-  for (const q of FLECKS) {
-    const u = t - q.t0; if (u < 0) continue; const al = 1 - ss(q.t0 + 1.2, q.t0 + 1.8, t); if (al <= 0) continue;
-    const tl = (-q.vy + Math.sqrt(q.vy * q.vy + 4 * 700 * (q.land - q.y))) / 1400, uu = Math.min(u, Math.max(0, tl));
-    const x = q.x + q.vx * uu, y = q.y + q.vy * uu + 700 * uu * uu, r = q.r0 + q.vr * uu;
-    ctx.save(); ctx.globalAlpha *= al; const pts = []; for (let i = 0; i < 3; i++) { const a = r + i * TAU / 3; pts.push([x + Math.cos(a) * q.sz, y + Math.sin(a) * q.sz * .7]); }
-    ctx.fillStyle = q.col; ctx.fill(pathOf(pts, true, false)); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.4 * LWK; ctx.stroke(pathOf(pts, true, false)); ctx.restore();
-  }
-}
 function world(ctx, t, x0, x1) {
-  ground(ctx, x0, x1);
+  ROAD.draw(ctx, x0, x1);
   const near = x1 > E - 200;
-  const D = near ? door(ctx, t) : null;
+  const D = near ? Riso.arch(ctx, GX, BY + 4, t) : null;   // the far side: a plain arched door, open, yellow light inside
   const pils = [0, 1, 2, 3].map(i => pilState(i, t)).filter(Boolean);
   if (D) { ctx.save(); ctx.clip(pathOf(D.op, true, false));
     for (const P of pils) if (P.F && P.F.inGate) drawKid(ctx, P.F, P.X ? () => drawCross(ctx, P.X, P.X.u0, L, false) : null, null);
@@ -659,13 +300,12 @@ function world(ctx, t, x0, x1) {
     if (P.F.inGate) return; const X = P.X;
     drawKid(ctx, P.F, null, X && X.lie ? () => drawCross(ctx, X, X.u0, L, false) : null);
   });
-  // the outline shows the missing span while my short cross hangs off the lip, and again when the pieces come back
+  // the outline shows the missing span while my short cross hangs off the lip, and again at the end
   if (t >= 18.75 && t < 19.75) guide(ctx, t, eio((t - 18.75) / .35), 1 - ss(19.4, 19.75, t));
   endGuide(ctx, t);
   // the saw I left on the road after the last cut
   const c3 = CUTS[2];
   if (t >= c3.drop) { const k = eio((t - c3.drop) / .2), g0 = sawState(c3, c3.drop - .01).grip; drawSaw(ctx, lerp2(g0, SAWLIE.grip, k), lerp(CUT_ANG, SAWLIE.ang, k)); }
-  // the pieces I cut: lying where they fell, twinkling; they glow once I look back, and fly into the gap one by one
   for (const c of CUTS) if (t >= c.drop) {   // the pieces I cut: lying where they fell; each starts to glow softly as the camera reaches it
     const p = pieceAt(c, t), hl = ss(GLOWAT[c.k], GLOWAT[c.k] + .35, t), pu = 1 + .06 * Math.sin((t - GLOWAT[c.k]) * 4 + c.k);
     const far = c.k ? 1 : 1.5; if (hl > 0) { glow(ctx, p.cx, p.cy, 200 * pu * far, hl * .9); glow(ctx, p.cx, p.cy, 90 * far, hl * .85); }
@@ -673,76 +313,42 @@ function world(ctx, t, x0, x1) {
   }
   // me, my cross, the saw in my hand
   const M = poseMe(t), F = M.F; F.me = true;
-  if (M.saw) F.saw = M.saw;
+  if (M.saw) F.held = () => drawSaw(ctx, M.saw.grip, M.saw.ang);
   drawKid(ctx, F, M.X && !M.X.lie ? () => drawCross(ctx, M.X, M.X.u0, L, true) : null, () => {
     if (M.X && M.X.lie) drawCross(ctx, M.X, M.X.u0, L, true);
-    if (M.kerf) { ctx.fillStyle = C.ink; ctx.fillRect(M.c.cutX - 2 * LWK, M.c.y - PW / 2, 4 * LWK, M.kerf.kp * PW * .92 + .5); }
+    if (M.kerf) { const lwk = Riso.lwk(); ctx.fillStyle = C.ink; ctx.fillRect(M.c.cutX - 2 * lwk, M.c.y - PW / 2, 4 * lwk, M.kerf.kp * PW * .92 + .5); }
   });
   // my cross over the edge: tips, falls (clipped to the gap so it drops in between the lips)
   const FX = fallX(t);
   if (FX && (FX.alpha ?? 1) > 0) { ctx.save(); if (FX.clip) { ctx.beginPath(); ctx.rect(E + 2, -4000, G - 4, 9000); ctx.clip(); } drawCross(ctx, FX, FX.u0, L, true, FX.alpha ?? 1); ctx.restore(); }
-  drawFlecks(ctx, t);
+  Riso.chips(ctx, t, FLECKS);
   return M;
 }
 
 // ---------------- comic marks (world space, around me) ----------------
 function marks(ctx, t, M) {
   const F = M.F, { hc } = headFrame(F), s = F.s;
-  // sweat + gloom while heavy (0–3.2), surprise ticks at the gap
-  const heavy = 1 - ss(3.05, 3.25, t);
-  if (heavy > 0) { ctx.save(); ctx.globalAlpha *= heavy;
-    const ph = (t * 1.6) % 1;
-    for (const [dx, dy, sc] of [[-92, -40, 1], [-112, 6, .7]]) { const x = hc[0] + dx * s, y = hc[1] + dy * s + ph * 26;
-      ink(ctx, [[x, y - 22 * sc], [x + 9 * sc, y], [x, y + 8 * sc], [x - 9 * sc, y]], { fill: C.cream, lw: 4, step: 6, single: true }); }
-    for (let i = 0; i < 3; i++) { const x = hc[0] + (-34 + i * 30) * s, y = hc[1] - 150 * s; ink(ctx, [[x, y], [x + 4, y + 13], [x - 2, y + 26], [x + 3, y + 38]], { closed: false, lw: 4.5, single: true }); }
-    ctx.restore(); }
-  const ticks = (k, dir) => { if (k <= 0) return; ctx.save(); ctx.globalAlpha *= k;
-    for (let i = 0; i < 3; i++) { const an = -1.05 - i * .45, c = [hc[0] + dir * 20 * s, hc[1] - 30 * s], cx = Math.cos(an) * dir, sy = Math.sin(an);
-      ink(ctx, [[c[0] + cx * 100 * s, c[1] + sy * 100 * s], [c[0] + cx * 140 * s, c[1] + sy * 140 * s]], { closed: false, lw: 5.5, single: true }); }
-    ctx.restore(); };
-  if (M.shock) ticks(ss(12.05, 12.2, t) * (1 - ss(13.2, 13.4, t)), 1);
-  if (M.look) ticks(ss(21.5, 21.65, t) * (1 - ss(22.4, 22.6, t)), -1);
-  // running: squiggle lines behind, heel puffs
-  const run = Pilot.win(t, 4.7, 8.7, .25, .3);
-  if (run > 0) { ctx.save(); ctx.globalAlpha *= run;
-    squiggle(ctx, F.hip[0] - 250, F.hip[1] - 150, 110, 8, K * .9, 4.5, -1); squiggle(ctx, F.hip[0] - 270, F.hip[1] - 40, 80, 7, K * .9 + 1, 4.5, -1);
-    for (const off of [0, .5]) { const ph = frac((F.ph ?? 0) + off); if (ph < .2) { const k = ph / .2, fx = F.feet[off ? 1 : 0][0];
-      ink(ctx, ell(fx - 50 - k * 26, FY - 10 - k * 8, 13 + k * 7, 9 + k * 4, 12), { fill: C.cream, lw: 4, step: 8, amp: 1.2, single: true });
-      ink(ctx, ell(fx - 92 - k * 40, FY - 6 - k * 12, 8 + k * 4, 6 + k * 3, 10), { fill: C.cream, lw: 4, step: 6, amp: 1.2, single: true }); } }
-    ctx.restore(); }
-  // effort ticks while sawing
-  if (M.kerf) { const c = M.c; for (let i = 0; i < 2; i++) { const an = -2.4 + i * .5, x = c.cutX, y = c.y - 40; ink(ctx, [[x + Math.cos(an) * 46, y + Math.sin(an) * 46], [x + Math.cos(an) * 74, y + Math.sin(an) * 74]], { closed: false, lw: 4.5, single: true }); } }
-}
-// the hit: manga focus lines around the lip, on twos
-function focusLines(ctx, t, cx, cy) {
-  const k = 1 - ss(B.fall + .3, B.fall + .55, t); if (t < B.fall || k <= 0) return;
-  const r = rng(500 + K), n = 46; ctx.save(); ctx.globalAlpha *= k; ctx.fillStyle = C.ink;
-  for (let i = 0; i < n; i++) { const a = i / n * TAU + r() * .1, r0 = 430 + r() * 180, w = .012 + r() * .014;
-    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); ctx.lineTo(cx + Math.cos(a - w) * 1500, cy + Math.sin(a - w) * 1500); ctx.lineTo(cx + Math.cos(a + w) * 1500, cy + Math.sin(a + w) * 1500); ctx.fill(); }
-  ctx.restore();
+  const heavy = 1 - ss(3.05, 3.25, t);   // sweat + gloom while heavy (0–3.2)
+  if (heavy > 0) { ctx.save(); ctx.globalAlpha *= heavy; Riso.sweat(ctx, hc, s, t); Riso.gloom(ctx, hc, s); ctx.restore(); }
+  if (M.shock) Riso.ticks(ctx, hc, s, ss(12.05, 12.2, t) * (1 - ss(13.2, 13.4, t)), 1);   // surprise ticks at the gap
+  if (M.look) Riso.ticks(ctx, hc, s, ss(21.5, 21.65, t) * (1 - ss(22.4, 22.6, t)), -1);
+  const run = Pilot.win(t, 4.7, 8.7, .25, .3);   // running: squiggle lines behind, heel puffs
+  if (run > 0) { Riso.runLines(ctx, F, run); Riso.puffs(ctx, F, FY, run); }
+  if (M.kerf) { const c = M.c; for (let i = 0; i < 2; i++) { const an = -2.4 + i * .5, x = c.cutX, y = c.y - 40; ink(ctx, [[x + Math.cos(an) * 46, y + Math.sin(an) * 46], [x + Math.cos(an) * 74, y + Math.sin(an) * 74]], { closed: false, lw: 4.5, single: true }); } }   // effort ticks while sawing
 }
 
 // ---------------- inset panel: my face while it hangs short / falls (screen space) ----------------
-function panel(ctx, t) {
-  const a0 = 18.75, a1 = 21.05; if (t < a0 || t >= a1) return;
-  const pop = t < a0 + .25 ? eo((t - a0) / .25) * (1 + .12 * Math.sin(Math.PI * clamp((t - a0) / .25))) : 1, fadeOut = 1 - ss(a1 - .3, a1 - .08, t);   // it fades out whole, never shrinks to a dot
-  const x0 = 520, y0 = 572, w = 420, h = 290, cxp = x0 + w / 2, cyp = y0 + h / 2;
-  if (pop <= .06 || fadeOut <= .02) return;
-  ctx.save(); ctx.globalAlpha *= Math.min(1, pop * 1.6) * fadeOut; ctx.translate(cxp, cyp); ctx.scale(pop, pop); ctx.translate(-cxp, -cyp);
-  const rect = [[x0, y0], [x0 + w, y0], [x0 + w, y0 + h], [x0, y0 + h]];
-  const path = pathOf(resample(rect, true, 16).map(p => wob(p, 1.6)), true, false);
-  ctx.save(); ctx.fillStyle = C.panel; ctx.fill(path); ctx.clip(path);
-  const shock = ss(B.fall - .05, B.fall + .05, t), sad = ss(20.4, 20.6, t);
+function panelFace(ctx, x0, y0, w, h, t) {
+  const a0 = 18.75, shock = ss(B.fall - .05, B.fall + .05, t), sad = ss(20.4, 20.6, t);
   const ang = lerp(.22, -.1, shock) + sad * .3, hc = [x0 + 196, y0 + 166 - shock * 10];
   const hu = [Math.sin(ang), -Math.cos(ang)], hf = [Math.cos(ang), Math.sin(ang)], HF = (u, v) => [hc[0] + 1.5 * (u * hf[0] + v * hu[0]), hc[1] + 1.5 * (u * hf[1] + v * hu[1])];
   ink(ctx, [[x0 + 20, y0 + h + 30], [x0 + 46, y0 + 226], [x0 + 130, y0 + 200], [x0 + 230, y0 + 200], [x0 + 300, y0 + 226], [x0 + 330, y0 + h + 30]], { fill: C.cream, lw: 7 });
-  // the scarf at the neck
-  ink(ctx, [[x0 + 90, y0 + 214], [x0 + 140, y0 + 232], [x0 + 220, y0 + 228], [x0 + 260, y0 + 210], [x0 + 250, y0 + 250], [x0 + 100, y0 + 252]], { fill: C.cream, lw: 6 });
+  ink(ctx, [[x0 + 90, y0 + 214], [x0 + 140, y0 + 232], [x0 + 220, y0 + 228], [x0 + 260, y0 + 210], [x0 + 250, y0 + 250], [x0 + 100, y0 + 252]], { fill: C.cream, lw: 6 });   // the scarf at the neck
   for (const u of [130, 175, 220]) ink(ctx, [[x0 + u, y0 + 226], [x0 + u + 16, y0 + 226], [x0 + u + 16, y0 + 252], [x0 + u, y0 + 252]], { fill: C.ink, lw: 0, smooth: false, mx: 0, my: 0 });
-  ink(ctx, FACE.map(q => HF(q[0], q[1])), { fill: C.cream, lw: 7 });
+  ink(ctx, Riso.FACE.map(q => HF(q[0], q[1])), { fill: C.cream, lw: 7 });
   const tD = tone(true, x0, y0);
-  ink(ctx, [[-58, 18], [-54, 52], [-32, 80], [2, 90], [34, 80], [52, 56], [58, 30]].map(q => HF(q[0], q[1])), { fill: C.cream, lw: 7 });
-  ink(ctx, [[-61, 6], [-59, 28], [61, 38], [61, 16]].map(q => HF(q[0], q[1])), { fill: C.cream, tone: tD, smooth: false, step: 10, lw: 7 });
+  ink(ctx, Riso.BEANIE.map(q => HF(q[0], q[1])), { fill: C.cream, lw: 7 });
+  ink(ctx, Riso.FOLD.map(q => HF(q[0], q[1])), { fill: C.cream, tone: tD, smooth: false, step: 10, lw: 7 });
   ink(ctx, ell(0, 0, 15, 14, 14).map(q => HF(q[0] - 6, q[1] + 102)), { fill: C.cream, lw: 6 });
   ink(ctx, [HF(-30, -2), HF(-40, -12), HF(-34, -28), HF(-24, -22)], { closed: false, lw: 6, single: true });
   if (shock < .5) { const e = HF(32, -10); ctx.fillStyle = C.ink; ctx.beginPath(); ctx.ellipse(e[0], e[1], 9, 11, 0, 0, TAU); ctx.fill();
@@ -756,64 +362,33 @@ function panel(ctx, t) {
   else { ink(ctx, [HF(23, -17), HF(32, -20), HF(42, -17)], { closed: false, lw: 6, single: true });
     ink(ctx, [HF(38, -38), HF(46, -33), HF(53, -38)], { closed: false, lw: 5, single: true });
     for (let i = 0; i < 3; i++) { const q = HF(-30 + i * 26, 120); ink(ctx, [[q[0], q[1]], [q[0] + 4, q[1] + 13], [q[0] - 2, q[1] + 26], [q[0] + 3, q[1] + 38]], { closed: false, lw: 5, single: true }); } }
-  ctx.restore();
-  ctx.lineWidth = 6.5; ctx.strokeStyle = C.ink; ctx.lineJoin = 'round'; ctx.stroke(path);
-  ctx.restore();
-}
-
-// ---------------- the end card: a cream comic panel dropped onto the page ----------------
-function endPlate(ctx, t) {
-  const k = t - (B.end - .2); if (k <= 0) return 0;
-  const drop = k < .3 ? eo(k / .3) : 1, bounce = k < .3 ? 0 : Math.exp(-(k - .3) * 9) * Math.sin((k - .3) * 26) * 10;
-  const x0 = 92, x1 = 988, y0 = 616 - (1 - drop) * 900 + bounce, y1 = 1262 - (1 - drop) * 900 + bounce;
-  ctx.save(); ctx.globalAlpha = .35 * drop; ctx.fillStyle = C.field; ctx.fillRect(0, 0, W, H); ctx.restore();
-  const rect = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-  ctx.save(); ctx.translate(10, 12); ctx.fillStyle = tone(true, 0, 0); ctx.fill(pathOf(rect, true, false)); ctx.restore();
-  ink(ctx, resample(rect, true, 18), { fill: C.cream, smooth: false, lw: 7, raw: true });
-  // a small yellow cross stamped above the title
-  const X = { x: 540 - 40, y: y0 + 64, a: 0, lie: true }; const sc = .16;
-  ctx.save(); ctx.translate(540, y0 + 70); ctx.rotate(-Math.PI / 2); ctx.scale(sc * 1.9, sc * 1.9); ctx.translate(-L * .5, 0);
-  const lw0 = LWK; LWK = 1 / (sc * 1.9) * .75; ink(ctx, crossPoly(0, L, CBH).map(([u, v]) => [u, v]), { fill: C.yel, smooth: false, lw: 5.5 }); LWK = lw0; ctx.restore();
-  return y0;
 }
 
 // ---------------- frame ----------------
+const crossStamp = (ctx, y0) => Riso.stamp(ctx, 540, y0 + 70, .16 * 1.9, -Math.PI / 2, c => {   // a small yellow cross stamped above the title
+  c.translate(-L * .5, 0); ink(c, crossPoly(0, L, CBH), { fill: C.yel, smooth: false, lw: 5.5 }); });
 function scene(ctx, t) {
-  K = Math.round(t * 12);
+  Riso.boil(t);
   const cm = camAt(t);
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = C.field; ctx.fillRect(0, 0, W, H);
-  // field mottling, drifting slowly with the camera (deep parallax)
-  ctx.save(); PAT.mottle.setTransform(new DOMMatrix().translate(Math.round(-cm.x * .12), Math.round(-cm.y * .12))); ctx.fillStyle = PAT.mottle; ctx.fillRect(0, 0, W, H); ctx.restore();
-  // clouds (parallax .25)
-  let z = setCam(ctx, cm, .25); camScale(z);
-  for (const [x, y, sc, sd] of CLOUDS) cloud(ctx, x + t * 5, y + 120, sc, sd);
-  z = setCam(ctx, cm, .55); camScale(z);
-  for (const [x, y, sc, sd] of LOWCLOUDS) cloud(ctx, x - t * 7, y, sc, sd);
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  // the world
-  z = setCam(ctx, cm, 1); camScale(z);
+  Riso.field(ctx, cm);
+  Riso.sky(ctx, cm, t);
+  const z = Riso.cam(ctx, cm, 1);
   const x0 = cm.x - 540 / z - 60, x1 = cm.x + 540 / z + 60;
   const M = world(ctx, t, x0, x1);
   marks(ctx, t, M);
-  // impact point on screen for the focus lines
-  ctx.setTransform(1, 0, 0, 1, 0, 0); camScale(1);
-  if (t >= B.fall) { const sx = 540 + (E + 60 - cm.x) * cm.z, sy = 960 + (FY + 40 - cm.y) * cm.z; focusLines(ctx, t, sx, sy); }
-  panel(ctx, t);
-  endPlate(ctx, t);
-  // print grain over everything, locked to the camera's pan
-  ctx.save(); PAT.grain.setTransform(new DOMMatrix().translate(-(cm.x * cm.z) % 512, -(cm.y * cm.z) % 512)); ctx.fillStyle = PAT.grain; ctx.fillRect(0, 0, W, H); ctx.restore();
+  Riso.screen(ctx);
+  if (t >= B.fall) { const sx = 540 + (E + 60 - cm.x) * cm.z, sy = 960 + (FY + 40 - cm.y) * cm.z; Riso.focus(ctx, sx, sy, 1 - ss(B.fall + .3, B.fall + .55, t)); }   // the hit
+  Riso.inset(ctx, t, 18.75, 21.05, [520, 572, 420, 290], (c, x0, y0, w, h) => panelFace(c, x0, y0, w, h, t));
+  Riso.endPlate(ctx, t, B.end, { stamp: crossStamp });
+  Riso.grain(ctx, cm);
 }
 function draw(ctx, t) {
-  const tp = t12(t);
-  let slot = CACHE.find(c => c.t === tp);   // the picture changes 12×/s: draw it once per pose, reuse it for the frames in between
-  if (!slot) { slot = CACHE[CACHE.next = 1 - (CACHE.next || 0)];
-    const c = slot.c.getContext('2d'); c.save(); scene(c, tp); c.restore(); slot.t = tp; }
-  ctx.drawImage(slot.c, 0, 0);
-  if (t < B.end) Story.captions(ctx, t, S.lines, { font: "'Gaegu',cursive", weight: 700, size: 70, y: 405, color: C.ink, shadow: 'rgba(0,0,0,0)', shadowBlur: 0, srcColor: '#22343a' });
-  Story.endCard(ctx, t, S.endCard, B.end, { font: "'Gaegu',cursive", srcFont: "'Gaegu',cursive", color: C.ink, srcColor: '#2c3a3e', y: 860, titleShadow: '' });
+  Riso.onTwos(ctx, t, scene);
+  if (t < B.end) Riso.captions(ctx, t, S.lines);
+  Riso.endCard(ctx, t, S.endCard, B.end);
 }
 
-Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 70px 'Gaegu'"], init, draw });
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: Riso.FONTS, init, draw });
 </script>
 </body>
 </html>
