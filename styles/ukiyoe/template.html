@@ -25,7 +25,7 @@ const S = window.SCRIPT, B = S.beat, W = Pilot.W, H = Pilot.H, TAU = Math.PI * 2
 
 // ---------------------------------------------------------------- the world (world px; one sheet, oblique depth)
 const SX0 = 0, SY0 = -520, SX1 = 1800, SY1 = 2250;   // the printed sheet
-const GY = 1300, ROAD_D = 200, SEA = 1720;           // the field's front edge, its depth, the waterline below the bank
+const GY = 1300, ROAD_D = 200, SEA = 1480;           // the field's front edge, its depth, the waterline below the bank
 const FD = 60, FX0 = 1330, FX1 = 850;                // the pilgrim's lane, where he walks in from and stops
 const HOLE = 772, HP = LN(FD, HOLE, GY - 4);         // where the seed goes (world point on the field)
 let SKY, STATIC = [], ROCK, MARKS;
@@ -35,9 +35,10 @@ function buildStatic() {
   // Fuji: a concave cone, snow cap cut back to paper with a ragged lower edge
   const fuji = []; for (let x = -160; x <= 1360; x += 20) { const u = Math.abs(x - 560) / 760; fuji.push([x, 760 + 470 * Math.pow(u, 1.35) + (Math.abs(x - 560) < 46 ? -6 * Math.cos((x - 560) / 46 * Math.PI * 3) : 0)]); }
   L.push({ p: poly([[-160, 1260], ...fuji, [1360, 1260]]), fill: PAL.mtn2, key: 2, keyCol: PAL.prus });
-  const R = rng(3), cap = []; for (let x = 330; x <= 790; x += 20) cap.push([x, fuji[Math.round((x + 160) / 20)][1] - 1]);
-  const low = []; for (let x = 790; x >= 330; x -= 23) low.push([x, 900 - 70 * Math.pow(Math.abs(x - 560) / 230, 2) * .3 + (R() - .5) * 46 + (x % 2 ? 20 : 0)]);
-  L.push({ snow: poly([...cap, ...low]), ridges: (() => { const p = new Path2D(); for (const [x, y] of low.filter((_, i) => i % 2)) { p.moveTo(x, y); p.quadraticCurveTo(x + (x - 560) * .1, y + 40, x + (x - 560) * .25, y + 90); } return p; })() });
+  const R = rng(3), FY = x => fuji[Math.round((x + 160) / 20)][1], cap = [], low = [];
+  for (let x = 360; x <= 760; x += 20) cap.push([x, FY(x) - 2]);
+  for (let x = 760, i = 0; x >= 360; x -= 20, i++) low.push([x, FY(x) + (x === 760 || x === 360 ? 0 : (i % 2 ? 22 + R() * 18 : 64 + R() * 70) * (1 - Math.pow(Math.abs(x - 560) / 210, 4)))]);
+  L.push({ snow: smooth([...cap, ...low], true), rim: poly(fuji.filter(([x]) => x >= 300 && x <= 820), false), ridges: (() => { const p = new Path2D(); for (const [x, y] of low.filter((_, i) => i % 2 === 0)) { p.moveTo(x, y); p.quadraticCurveTo(x + (x - 560) * .12, y + 50, x + (x - 560) * .3, y + 120); } return p; })() });
   L.push({ mist: [[-100, 1130, 1300, 42], [700, 1185, 1200, 34]] });
   // two green ridges with small pines, down to the field's back edge
   const h1 = U.ridge(SX0 - 20, SX1 + 20, 1205, 60, 4.2, 20, .0034);
@@ -51,7 +52,7 @@ function buildStatic() {
   const bank = U.jagged(SX1 + 60, GY, SY1, 60, 10, 0, 6);
   L.push({ p: poly([[SX0 - 60, GY], [SX1 + 60, GY], [SX1 + 60, SY1 + 10], [SX0 - 60, SY1 + 10]]), fill: PAL.rock, key: 2.6, rock: true });
   // the big foreground pine leaning in from the left (Hiroshige framing)
-  L.push({ pine: U.pine(150, GY - 40, 520, .32, 11, 1.25), front: true });
+  L.push({ pine: U.pine(1240, GY + 60, 560, -.42, 11, 1.2), front: true });
 }
 
 // ---------------------------------------------------------------- the pilgrim (the kit's rig; this story's poses)
@@ -65,7 +66,7 @@ function me(t) {
   if (t < B.rise + .6) {
     const breathe = .02 * Math.sin(ta * 2.2);
     let lean = .55, bow = .2;
-    if (t >= B.kneel + .5 && t < B.plant + 1.6) lean = lerp(.55, 1.0, eio(seg(ta, B.kneel + .5, B.plant - .2))) - .62 * eio(seg(ta, B.plant + 1.2, B.plant + 1.6)) * 0;
+    if (t >= B.kneel + .5) lean = lerp(.55, 1.0, eio(seg(ta, B.kneel + .5, B.plant - .2)));   // bend down to the ground
     if (t >= B.plant + 1.2) lean = lerp(1.0, .4, eio(seg(ta, B.plant + 1.2, B.wait[0]))) + breathe;
     if (t >= B.sprout) { lean = lerp(.4, .05, eio(seg(ta, B.sprout, B.sprout + .4))); bow = lerp(.2, -.25, eio(seg(ta, B.sprout, B.sprout + .5))); }
     if (t >= B.rise) { lean = lerp(.05, .02, seg(ta, B.rise, B.rise + .6)); bow = lerp(-.25, -.42, seg(ta, B.rise, B.rise + .6)); }
@@ -154,7 +155,7 @@ function world(t) {
   let front = null;
   for (const l of STATIC) {
     if (l.mist) { for (const [x, y, w, h] of l.mist) U.mistBand(x + Math.sin(t * .3 + y) * 18 + t * 6, y, w, h * 1.4, .95); continue; }
-    if (l.snow) { erase(l.snow, .92); key(l.ridges, 1.6, PAL.prusL, .8); continue; }
+    if (l.snow) { erase(l.snow, .92); key(l.ridges, 1.6, PAL.prusL, .8); key(l.rim, 2, PAL.prus); continue; }   // snow = bare paper
     if (l.pine) { if (l.front) front = l.pine; else U.drawPine(l.pine); continue; }
     if (l.fill) fill(l.p, l.fill);
     if (l.rock) U.drawRock(ROCK);
@@ -162,7 +163,7 @@ function world(t) {
     if (l.key) key(l.p, l.key, l.keyCol || PAL.sumi);
   }
   drawGeese(t);
-  U.mistBand(-80 + Math.sin(t * .35) * 16, 1540, 1300, 38, .7);
+  U.mistBand(-80 + Math.sin(t * .35) * 16, GY + 90, 1300, 30, .6);
   U.sea(t, { x0: SX0, x1: SX1, y: SEA, bottom: SY1 });
   // the accent light: a fan of bare-paper rays from the sprout, and paper glowing round the bud
   if (light > 0) { const top = stemPt(t, 1), fade = 1 - .45 * ss(B.rise, B.end, t);
@@ -171,7 +172,7 @@ function world(t) {
   const st = me(t), R = U.pose(st), hd = hands(R, st, t);
   drawSprout(t);
   drawGround(t, R);
-  const fig = U.figure(R, ME, { near: hd.near, far: hd.far, st, front: () => {} });
+  const fig = U.figure(R, ME, { near: hd.near, far: hd.far, st, nearFist: !(t > 21 && t < 23.6) });   // open hand on the leaf
   drawSeedInHand(t, fig.hN);
   if (front) U.drawPine(front);
   U.border();
@@ -189,7 +190,7 @@ function draw(ctx, t) {
 }
 async function init() {
   U.init({ sheet: [SX0, SY0, SX1, SY1], ground: GY });
-  SKY = U.sky({ top: -40, haze: 820 }); buildStatic();
+  SKY = U.sky({ top: -60, haze: 560, hazeSoft: 380, hazeA: .7 }); buildStatic();
   ROCK = U.rockFace(SX0 + 20, SX1 - 20, 21, GY, SEA);
   MARKS = U.roadMarks(SX0, SX1, 41, GY, ROAD_D);
 }

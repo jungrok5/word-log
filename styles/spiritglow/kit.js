@@ -295,10 +295,12 @@
     if (inside) inside();
     ctx.restore();
   };
-  // motes(ctx, t, top, fade): the same rising motes anywhere (not clipped): visible below world y top, fading in over `fade` px.
-  SG.motes = function (ctx, t, top, fade = 220, k = 1) {
+  // motes(ctx, t, top, fade, k, bottom): the same rising motes anywhere (not clipped): visible between world y top (fading in
+  //   over `fade` px below it) and bottom (e.g. the ground line), at strength k. Set life({ motes }) to where they should rise.
+  SG.motes = function (ctx, t, top, fade = 220, k = 1, bottom = 1e9) {
+    if (k <= 0) return;
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    for (const m of MOTES) { const y = m.y - ((t * m.v) % 900), al = k * m.a * ss(top, top + fade, y) * (.6 + .4 * breathe(t, m.ph, 2)); if (al > 0) { ctx.fillStyle = `rgba(150,255,230,${al})`; ctx.beginPath(); ctx.arc(m.x, y, m.r, 0, TAU); ctx.fill(); } }
+    for (const m of MOTES) { const y = m.y - ((t * m.v) % 900), al = k * m.a * ss(top, top + fade, y) * (1 - ss(bottom - 40, bottom, y)) * (.6 + .4 * breathe(t, m.ph, 2)); if (al > 0) { ctx.fillStyle = `rgba(150,255,230,${al})`; ctx.beginPath(); ctx.arc(m.x, y, m.r, 0, TAU); ctx.fill(); } }
     ctx.restore();
   };
   SG.gapEdges = function (ctx, gp) {

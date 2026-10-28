@@ -271,11 +271,12 @@
   K.clipGap = function (E, E2, gy) { const a = K.toS([E + 3, gy - 4000]), b = K.toS([E2 - 3, gy + 9000]);
     for (const g of [K.g, K.hl]) { g.save(); g.beginPath(); g.rect(a[0], a[1], b[0] - a[0], b[1] - a[1]); g.clip(); } };
   K.unclip = () => { K.hl.restore(); K.g.restore(); };
-  /* a brush cloud: one scalloped stroke (3 bumps) over a dry flat base, width w, at world (x, y) — drift it in the scene
-     (≈ 6–12 px/s) for the "waiting" beat; seed, o.w brush width (7) */
-  K.cloud = function (x, y, w, seed, o = {}) { const pts = [];
-    for (let i = 0; i <= 48; i++) { const u = i / 48; pts.push([x - w / 2 + w * u, y - Math.abs(Math.sin(u * Math.PI * 3)) * w * .13 * (.55 + .45 * Math.sin(u * Math.PI))]); }
-    K.brW(pts, seed, { w: o.w ?? 7, ts: 20, te: 40, dry: .4, col: o.col }); K.brW([[x - w * .42, y + 6], [x + w * .36, y + 8]], seed + 1, { w: (o.w ?? 7) * .7, ts: 10, te: 30, dry: .5, col: o.col }); };
+  /* a brush cloud: one stroke of three round puffs (middle one biggest) over a dry flat base, width w, at world (x, y);
+     drift it in the scene (≈ 6–12 px/s) for the "waiting" beat. seed; o = { w: brush width (7), col } */
+  K.cloud = function (x, y, w, seed, o = {}) {
+    const R = [.2, .3, .22], tot = (R[0] + R[1] + R[2]) * 2, pts = []; let cx = x - w / 2;   // puffs chained end to start (no backtracking)
+    R.forEach(r => { const rr = r * w / tot, c = cx + rr, lift = (rr - R[1] * w / tot) * .5; for (let k = 0; k <= 14; k++) { const a = Math.PI + Math.PI * k / 14; pts.push([c + Math.cos(a) * rr, y + lift + Math.sin(a) * rr * .8]); } cx = c + rr; });
+    K.brW(pts, seed, { w: o.w ?? 7, ts: 20, te: 40, dry: .4, col: o.col }); K.brW([[x - w * .46, y + 4], [x + w * .4, y + 6]], seed + 1, { w: (o.w ?? 7) * .7, ts: 10, te: 30, dry: .5, col: o.col }); };
   /* a lit DOORWAY at the end of the line: a brushed arch (radius r, centre ay, standing on gy), the warm dab glowing
      inside, the leaf swung open toward us, wisps of light rising above. o = { x, gy, ay, r: 112, seed: 4300, light: 1 } */
   K.doorway = function (t, o) {
