@@ -96,20 +96,42 @@ function poseMe(t) {
 }
 const crossAt = (F) => { const X = carry(F, -.4, PW * SME, CONTACT * SME); return X; };
 const gripsOn = (F, X) => [cpt(X, (CONTACT + HOLD) * SME), cpt(X, (CONTACT + HOLD - 50) * SME)];
-// the drop: hands open, the beam slides back along itself off the shoulder, then falls flat behind me (top end at my back)
-const LY = GY - 10;   // where it lies (a touch behind my feet)
-function crossState(t) {
-  if (t < DROP) { const F = poseMe(t12(t)), X = crossAt(F); return { X, hb: CBH }; }
-  const F0 = poseMe(t12(DROP - 1e-3)), X0 = crossAt(F0), d = [Math.cos(X0.a), Math.sin(X0.a)], Lp = L * SME;
-  const back = (L - CONTACT + 24) * SME;   // slide until the top end is at the shoulder
-  if (t < SLIDE) { const u = (t - DROP) / (SLIDE - DROP), sl = back * u * u; return { X: { x: X0.x - d[0] * sl, y: X0.y - d[1] * sl, a: X0.a }, hb: CBH }; }
-  const Xs = { x: X0.x - d[0] * back, y: X0.y - d[1] * back, a: X0.a }, top = cpt(Xs, Lp), foot = [Xs.x, Xs.y];
-  const u = clamp((t - SLIDE) / (IMPACT - SLIDE)), q = u * u, q2 = clamp(u * 1.35) ** 2;
-  let ty = lerp(top[1], LY, q), fy = lerp(foot[1], LY, q2), tx = top[0] + 10 * SME * q;
-  if (t > IMPACT) { const v = t - IMPACT, b = 16 * SME * Math.exp(-v * 7) * Math.abs(Math.sin(v * 15)); ty -= b; fy -= b * .4; }
-  const dy = fy - ty, fx = tx + Math.sqrt(Math.max(0, Lp * Lp - dy * dy));
-  const a = Math.atan2(ty - fy, tx - fx);
-  return { X: { x: fx, y: fy, a }, hb: lerp(CBH, CBHL, eio(ss(SLIDE, IMPACT, t))) };
+// the drop: hands open, the beam slides back along itself off the shoulder, then topples back and lands on the floor behind
+// me, angled into the car toward the aisle (foot end just behind my heels, top end back by the far door) — a 3-D box on the floor
+const M = 1.68 / 388;                                     // metres per kit unit at my size
+const LAND = { foot: [.9, 2.65], top: [-.25, 4.58], th: .065 };   // where it lies (world x, z) and its thickness (m)
+function crossEnds(t) {   // screen end points of the post's centre line (foot, top) + fall progress u
+  if (t < DROP) { const F = poseMe(t12(t)), X = crossAt(F); return { foot: [X.x, X.y], top: cpt(X, L * SME), u: 0 }; }
+  const F0 = poseMe(t12(DROP - 1e-3)), X0 = crossAt(F0), d = [Math.cos(X0.a), Math.sin(X0.a)];
+  const back = (L - CONTACT + 24) * SME;
+  if (t < SLIDE) { const u = (t - DROP) / (SLIDE - DROP), sl = back * u * u, X = { x: X0.x - d[0] * sl, y: X0.y - d[1] * sl, a: X0.a }; return { foot: [X.x, X.y], top: cpt(X, L * SME), u: 0 }; }
+  const Xs = { x: X0.x - d[0] * back, y: X0.y - d[1] * back, a: X0.a }, top0 = cpt(Xs, L * SME), foot0 = [Xs.x, Xs.y];
+  const u = clamp((t - SLIDE) / (IMPACT - SLIDE)), y = FL + LAND.th / 2;
+  const fT = pr(LAND.foot[0], y, LAND.foot[1]), tT = pr(LAND.top[0], y, LAND.top[1]);
+  const q = u * u, q2 = clamp(u * 1.25) ** 2;
+  return { foot: [lerp(foot0[0], fT[0], q2), lerp(foot0[1], fT[1], q2)], top: [lerp(top0[0], tT[0], q), lerp(top0[1], tT[1], q)], u };
+}
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1]], add2 = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k];
+function quads2D(foot, top, hb) {   // the flat cross between two screen points: post + crossbar quads (upper side first)
+  const dv = sub(top, foot), Ln = Math.hypot(dv[0], dv[1]) || 1, d = [dv[0] / Ln, dv[1] / Ln]; let up = [-d[1], d[0]]; if (up[1] > 0) up = [-up[0], -up[1]];
+  const pw = PW * SME / 2, cbw = CBW * SME / 2, h = hb * SME, c = add2(foot, dv, CBX / L);
+  return { post: [add2(foot, up, pw), add2(top, up, pw), add2(top, up, -pw), add2(foot, up, -pw)],
+    bar: [add2(add2(c, up, h), d, cbw), add2(add2(c, up, h), d, -cbw), add2(add2(c, up, -h), d, -cbw), add2(add2(c, up, -h), d, cbw)] };
+}
+function quads3D(y) {   // the lying cross as projected boxes (top faces at height y): same corner order as quads2D
+  const [fx, fz] = LAND.foot, [tx, tz] = LAND.top, Ln = Math.hypot(tx - fx, tz - fz), d = [(tx - fx) / Ln, (tz - fz) / Ln];
+  let pp = [d[1], -d[0]]; const P = (u, v) => pr(fx + d[0] * u + pp[0] * v, y, fz + d[1] * u + pp[1] * v);
+  if (P(Ln / 2, .1)[1] > P(Ln / 2, -.1)[1]) pp = [-pp[0], -pp[1]];
+  const pw = PW * M / 2, cbw = CBW * M / 2, h = CBH * M, cb = Ln * CBX / L;
+  return { post: [P(0, pw), P(Ln, pw), P(Ln, -pw), P(0, -pw)], bar: [P(cb + cbw, h), P(cb - cbw, h), P(cb - cbw, -h), P(cb + cbw, -h)] };
+}
+function crossQuads(t) {
+  const E = crossEnds(t), hb = lerp(CBH, CBH * .6, ss(.2, 1, E.u)), A = quads2D(E.foot, E.top, hb), m = t < SLIDE ? 0 : ss(.45, 1, E.u);
+  if (m <= 0) return { ...A, m: 0 };
+  const Tp = quads3D(FL + LAND.th), Bt = quads3D(FL);
+  let b = 0; if (t > IMPACT) { const v = t - IMPACT; b = 12 * SME * Math.exp(-v * 7) * Math.abs(Math.sin(v * 15)); }
+  const mix = (P, Q) => P.map((p, i) => [lerp(p[0], Q[i][0], m), lerp(p[1], Q[i][1], m) - b]);
+  return { post: mix(A.post, Tp.post), bar: mix(A.bar, Tp.bar), postB: mix(A.post, Bt.post), barB: mix(A.bar, Bt.bar), m };
 }
 function meFull(t) {
   const tp = t12(t), F = poseMe(tp);
@@ -122,24 +144,24 @@ function meFull(t) {
 }
 
 // ---------------- the cross (drawn as cel wood: ink outline, flat wood, one hard shadow tone, neon / amber rims) ----------------
-function drawCross(ctx, X, hb, lt, warm) {
-  const s = SME, Lp = L * s, pw = PW * s / 2, cbx = CBX * s, cbw = CBW * s / 2, h = hb * s;
-  ctx.save(); ctx.translate(X.x, X.y); ctx.rotate(X.a);
-  const post = new Path2D(); post.rect(0, -pw, Lp, 2 * pw); const bar = new Path2D(); bar.rect(cbx - cbw, -h, 2 * cbw, 2 * h);
-  const all = new Path2D(); all.addPath(post); all.addPath(bar);
-  // rim offsets are in the beam's local frame: rotate the screen-space offsets into it
-  const c = Math.cos(-X.a), sn = Math.sin(-X.a), rot = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
-  const LtL = lt && { ...lt, vA: rot(lt.vA), vB: rot(lt.vB) };
-  R.cel(ctx, all, COL.wood, s, LtL, () => {
-    const up = Math.sin(X.a + Math.PI / 2) < 0 ? 1 : -1;   // which local side faces down on screen
-    ctx.fillStyle = COL.woodS; ctx.fillRect(0, up > 0 ? -pw : pw * .15, Lp, pw * .85);   // hard shadow on the underside of the post
-    ctx.fillRect(cbx + (up > 0 ? -cbw : cbw * .1), -h, cbw * .9, 2 * h);
-    ctx.strokeStyle = 'rgba(70,30,60,.55)'; ctx.lineWidth = 1.6 * s; const r = rng(31);
-    for (let i = 0; i < 4; i++) { const y = -pw * .6 + i * pw * .4; ctx.beginPath(); ctx.moveTo(30 * s, y); for (let x = 40 * s; x < Lp - 10; x += 30 * s) ctx.lineTo(x, y + Math.sin(x / (40 * s) + i * 2 + r()) * 1.6 * s); ctx.stroke(); }
-    ctx.beginPath(); ctx.ellipse(200 * s, pw * .2, 9 * s, 3.5 * s, 0, 0, TAU); ctx.stroke();
-    if (warm > 0) { ctx.fillStyle = `rgba(255,190,110,${.35 * warm})`; ctx.globalCompositeOperation = 'screen'; ctx.fillRect(0, -pw, Lp, 2 * pw); ctx.fillRect(cbx - cbw, -h, 2 * cbw, 2 * h); ctx.globalCompositeOperation = 'source-over'; }
-  }, 2.2);
-  ctx.restore();
+function drawCross(ctx, Q, lt, warm) {
+  const s = SME, P2q = q => { const p = new Path2D(); q.forEach((v, i) => i ? p.lineTo(v[0], v[1]) : p.moveTo(v[0], v[1])); p.closePath(); return p; };
+  // lying: the box sides first (dark wood), so the cross sits on the floor with thickness
+  if (Q.m > 0) { const sides = new Path2D();
+    for (const [T, Bq] of [[Q.post, Q.postB], [Q.bar, Q.barB]]) for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; sides.addPath(P2q([T[i], T[j], Bq[j], Bq[i]])); }
+    ctx.save(); ctx.globalAlpha = Q.m; ctx.lineJoin = 'round'; ctx.strokeStyle = INK; ctx.lineWidth = 3.4 * s; ctx.stroke(sides); ctx.fillStyle = '#7a4650'; ctx.fill(sides); ctx.restore(); }
+  const post = P2q(Q.post), bar = P2q(Q.bar), all = new Path2D(); all.addPath(post); all.addPath(bar);
+  R.cel(ctx, all, COL.wood, s, lt, () => {
+    // hard shadow on the lower half of the post and one side of the bar; a few grain lines along the post
+    const [a, b, c, d] = Q.post, mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+    ctx.save(); ctx.globalAlpha = 1 - Q.m; ctx.fillStyle = COL.woodS; ctx.fill(P2q([mid(a, d), mid(b, c), c, d]));
+    const [e, f, g, h] = Q.bar; ctx.fill(P2q([mid(e, f), f, g, mid(h, g)])); ctx.restore();
+    if (Q.m > 0) { ctx.fillStyle = `rgba(255,236,200,${.35 * Q.m})`; ctx.fill(P2q([a, b, mid(b, c), mid(a, d)])); }   // lying: the top face catches the light
+    ctx.strokeStyle = 'rgba(70,30,60,.55)'; ctx.lineWidth = 1.6 * s;
+    for (const k of [.22, .42, .62]) { const p = [lerp(a[0], d[0], k), lerp(a[1], d[1], k)], q = [lerp(b[0], c[0], k), lerp(b[1], c[1], k)];
+      ctx.beginPath(); ctx.moveTo(lerp(p[0], q[0], .06), lerp(p[1], q[1], .06)); ctx.lineTo(lerp(p[0], q[0], .94), lerp(p[1], q[1], .94)); ctx.stroke(); }
+    if (warm > 0) { ctx.fillStyle = `rgba(255,190,110,${.35 * warm})`; ctx.globalCompositeOperation = 'screen'; ctx.fill(all); ctx.globalCompositeOperation = 'source-over'; }
+  }, lerp(2.2, 1.5, Q.m));
 }
 
 // ---------------- the passengers ----------------
@@ -396,9 +418,9 @@ function draw(ctx, t) {
   for (const { g, F } of gp) { const wk = warmZ(g.z, t), lt = rimFor(g.f, wk, .8);
     R.ghost(ctx, F, lt, { mid: () => drawPhone(ctx, F.ph, t, g.seed) }); }
   // me + my cross (reflection first, into a half-res buffer, flipped about the floor line)
-  const F = meFull(t), cs = crossState(t), wk = warmZ(ZME, t), lt = rimFor(-1, wk);
-  const meDraw = c => { drawCross(c, cs.X, cs.hb, lt, wk); R.me(c, F, lt, null, null); };
-  RX.setTransform(1, 0, 0, 1, 0, 0); RX.clearRect(0, 0, RB.width, RB.height); RX.setTransform(.5, 0, 0, .5, 0, 0); meDraw(RX);
+  const F = meFull(t), CQ = crossQuads(t), wk = warmZ(ZME, t), lt = rimFor(-1, wk);
+  const meDraw = (c, refl) => { if (!refl || t < SLIDE) drawCross(c, CQ, lt, wk); R.me(c, F, lt, null, null); };
+  RX.setTransform(1, 0, 0, 1, 0, 0); RX.clearRect(0, 0, RB.width, RB.height); RX.setTransform(.5, 0, 0, .5, 0, 0); meDraw(RX, true);
   RX.globalCompositeOperation = 'destination-in'; RX.fillStyle = grad(RX, 0, GY, 0, GY - 520, [[0, 'rgba(0,0,0,1)'], [1, 'rgba(0,0,0,0)']]); RX.fillRect(0, 0, W, H); RX.globalCompositeOperation = 'source-over';
   ctx.save(); ctx.beginPath(); ctx.rect(0, GY - 4, W, H); ctx.clip(); ctx.globalAlpha = .3; ctx.translate(0, 2 * GY - 6); ctx.scale(1, -1);
   for (let k = 0; k < 2; k++) ctx.drawImage(RB, jig * 10 * Math.sin(t * 40 + k * 2) + k * 3, 0, W, H);
