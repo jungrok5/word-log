@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 고스타그램 네온 지하철</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script src="lab-ghostagram-rig.js"></script>
+<script>
+/* 고스타그램 — a night subway car in one-point perspective, lo-fi album-cover mood: violet / magenta / electric blue, a cyan
+   neon tube down the ceiling, pink strap rings, glossy floor reflections, bokeh specks, VHS grain + a slight colour fringe.
+   Clean ink outlines, flat cel colour, one hard shadow tone, neon rim bands on every figure edge (lab-ghostagram-rig.js).
+   Me = the cavesil hooded figure (dark hoodie, pale profile face) carrying a wooden cross on the shoulder, hands on the beam.
+   The passengers = graphite sheet ghosts, lit from below by their phones, scrolling — each with their own attitude:
+   headphones on the near bench, a backwards cap squatting by the door, round sunglasses nodding to the beat (90 BPM).
+   Beats (script.js): trudge in 0–2.6, stop, look up 3.2 as the train runs into a lit station (amber sweeps the windows from
+   the far end — the one warm thing), the cross slips off and lands 4.4–4.85 (floor reflections jiggle, the ghosts glance
+   up), breathe. Poses on twos (12 fps), light / tunnel / straps / bokeh on ones. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot, R = window.Rig, INK = R.INK;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const FONT = "'Jua',sans-serif";
+const t12 = t => Math.floor(t * 12 + 1e-6) / 12;
+const frac = x => x - Math.floor(x);
+const BEAT = 2 / 3;   // 90 BPM → 9 beats in the 6-s loop
+
+// ---------------- perspective: camera at the origin looking down +z, eye 1.5 m above the floor ----------------
+const FOC = 900, VX = 520, VY = 830, PVX = 520, PVY = 1050;
+const HW = 1.45, FL = -1.5, WT = .42, CL = .80, CX = .98, ZE = 21;
+const pr = (x, y, z) => [VX + FOC * x / z, VY - FOC * y / z];
+const SEG = [['bench', .6, 3.9], ['door', 4.0, 5.3], ['bench', 5.45, 9.55], ['door', 9.7, 11.0], ['bench', 11.15, 15.25], ['door', 15.4, 16.7], ['bench', 16.85, ZE]];
+
+const COL = {
+  navy: '#0a0827', ceil: '#2b2378', ceil2: '#3d2f9c', cove: '#4a35b4', wall: '#3a2a98', wall2: '#2a1f76', kick: '#231a62',
+  win: '#100c3a', door: '#5a44c8', doorD: '#3d2d9a', seat: '#a23fc8', seatF: '#6a2696', seatB: '#8a34b4', floor: '#2a1d72', floor2: '#5a3cbc',
+  pole: '#c9d2ff', rail: '#9fb0ff', strap: '#ff5fc0', strapB: '#ff8ad6', cyan: '#7ff4ff', mag: '#ff4fd8', amber: '#ffb347', amberL: '#ffe2a6',
+  wood: '#9a6044', woodS: '#5e3150', woodL: '#d39a6c',
+  hood: '#2c2272', hoodD: '#1a1450', hoodFar: '#1e1758', hoodNear: '#3a2d8e', skin: '#f3ecff', skinD: '#c9b8f0',
+  sheet: '#efeaff', sheetD: '#a99ae6',
+};
+const rgb = Pilot.hex, css = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`, mixc = (a, b, k) => Pilot.mix(rgb(a), rgb(b), k);
+
+// ---------------- timing ----------------
+const DROP = B.drop, SLIDE = DROP + .2, IMPACT = DROP + .45;
+// the station: amber sweeps the windows from the far end toward us (the train runs into a lit platform), fades a little at the end
+const zFront = t => ZE + 3 - 46 * (t - 3.02);
+const warmZ = (z, t) => ss(zFront(t) - 1.5, zFront(t) + 1.5, z) * (1 - .55 * ss(5.05, 5.95, t));
+const warmAll = t => warmZ(2.5, t);
+// neon tube: buzz + two quick drop-outs
+const tubeK = t => { let k = .92 + .08 * Math.sin(t * 157) * Math.sin(t * 43);
+  for (const [a, d] of [[1.55, .12], [5.2, .08]]) if (t > a && t < a + d) k *= [.35, .9, .25, .8][Math.floor((t - a) / d * 4)] ?? 1;
+  return k; };
+
+// ---------------- me: position (integrated once), walk phase ending on a planted stance ----------------
+const ZME = 2.45, GY = pr(0, FL, ZME)[1], SME = FOC / ZME * 1.68 / 388;
+const X0 = 905, DT = 1 / 240, NT = Math.ceil(7 / DT) + 2, MEX = new Float32Array(NT);
+const vMe = t => t < 2.15 ? 92 * (1 + .45 * Math.sin(t * TAU / 1.24 - .9)) : 92 * (1 - ss(2.15, 2.6, t)) * (1 + .45 * Math.sin(t * TAU / 1.24 - .9));
+for (let i = 1; i < NT; i++) MEX[i] = MEX[i - 1] + vMe((i - .5) * DT) * DT;
+const distAt = t => { const u = clamp(t, 0, 6.9) / DT, i = Math.floor(u); return lerp(MEX[i], MEX[i + 1], u - i); };
+const DTOT = distAt(2.6), NSTEP = Math.max(1, Math.round(DTOT / (116 * SME) - .54)), STRIDE = DTOT / (SME * (NSTEP + .54));
+const meX = t => X0 - distAt(t);
+
+// the cross (kit beam units × SME): post L, width PW, crossbar at CBX from the foot, half-length CBH (upright) / CBHL (lying)
+const L = 520, PW = 34, CBX = L - 130, CBW = 32, CBH = 118, CBHL = 46, CONTACT = 238, HOLD = 128;
+const cpt = (X, u, v = 0) => [X.x + Math.cos(X.a) * u - Math.sin(X.a) * v, X.y + Math.sin(X.a) * u + Math.cos(X.a) * v];
+function carry(F, a0, w, contact) {   // styles/cavesil carry(): the beam rests ON the shoulder, behind the head
+  const fr = R.frame(F), sh = fr.P(-10, 128), T = [sh[0] + fr.up[0] * 10 * F.s, sh[1] + fr.up[1] * 10 * F.s];
+  const a = F.f > 0 ? a0 : Math.PI - a0, d = [Math.cos(a), Math.sin(a)]; let n = [d[1], -d[0]]; if (n[1] > 0) n = [-n[0], -n[1]];
+  return { x: T[0] + n[0] * w / 2 - d[0] * contact, y: T[1] + n[1] * w / 2 - d[1] * contact, a, contact };
+}
+function walkPose(x, gy, s, f, ph, stride, lean, lift = 16) {   // styles/cavesil walk()
+  const feet = [0, 1].map(i => { const p = frac(ph + i * .5); let off, up = 0;
+    if (p < .58) off = stride * (.29 - p); else { const u = (p - .58) / .42; off = -.29 * stride + .58 * stride * eio(u); up = lift * Math.sin(Math.PI * u); }
+    return [x + f * off * s, gy - up * s]; });
+  const hipH = (176 - 5 * Math.abs(Math.sin(TAU * ph))) * s;
+  return { s, f, gy, hip: [x, gy - hipH], ang: f * lean, feet, hands: [null, null], hand: ['fist', 'fist'], tilt: 0, eye: 'calm', sway: -f * 7 * Math.sin(TAU * ph), ph };
+}
+const hangHands = F => { const sh = R.frame(F).P(4, 136); return [[sh[0] - F.f * 10 * F.s, sh[1] + 140 * F.s], [sh[0] - F.f * 4 * F.s, sh[1] + 142 * F.s]]; };
+function poseMe(t) {
+  const tw = Math.min(t, 2.6), ph = distAt(tw) / (STRIDE * SME), x = meX(tw);
+  const wk = 1 - ss(2.3, 2.7, t), look = eio(ss(B.look - .05, B.look + .5, t)), rel = ss(DROP + .1, DROP + .6, t);
+  const bob = Math.sin(t * TAU / 1.24 + .6);
+  let lean = lerp(.3 + .06 * bob * wk, .36, ss(2.5, 2.8, t)); lean = lerp(lean, .2, look); lean = lerp(lean, .07, rel);
+  const F = walkPose(x, GY, SME, -1, ph, STRIDE, lean, 16);
+  F.sway *= wk;
+  F.hip[1] += (6 * Math.max(0, bob) * wk + 10 * ss(2.5, 2.9, t) * (1 - look)) * SME - 6 * SME * rel + 2.5 * SME * Math.sin((t - DROP) * TAU / 1.7) * ss(DROP + .6, DROP + 1.1, t);
+  F.col = COL.hood; F.colD = COL.hoodD; F.colFar = COL.hoodFar; F.colNear = COL.hoodNear; F.colLeg = '#251c66'; F.skin = COL.skin; F.skinD = COL.skinD;
+  F.shoe = { shoe: '#f4f0ff', sole: '#ff5fc0', lace: '#2c2272' };
+  F.eye = look > .3 ? 'calm' : 'strain'; F.mouth = t > DROP + .25 && t < DROP + 1.1 ? 'o' : look > .3 ? 'soft' : null;
+  // head: down and weary → up toward the light ahead (the far end, over the crossbar)
+  const tl = R.frame(F).P(6, 176), T = [VX - 40, VY - 170], aim = Math.atan2(-(T[1] - tl[1]), -(T[0] - tl[0]));
+  F.tilt = lerp(.16 + .03 * bob * wk + .06 * ss(2.5, 2.9, t), clamp(aim - F.ang, -.7, .7), look);
+  return F;
+}
+const crossAt = (F) => { const X = carry(F, -.4, PW * SME, CONTACT * SME); return X; };
+const gripsOn = (F, X) => [cpt(X, (CONTACT + HOLD) * SME), cpt(X, (CONTACT + HOLD - 50) * SME)];
+// the drop: hands open, the beam slides back along itself off the shoulder, then falls flat behind me (top end at my back)
+const LY = GY - 10;   // where it lies (a touch behind my feet)
+function crossState(t) {
+  if (t < DROP) { const F = poseMe(t12(t)), X = crossAt(F); return { X, hb: CBH }; }
+  const F0 = poseMe(t12(DROP - 1e-3)), X0 = crossAt(F0), d = [Math.cos(X0.a), Math.sin(X0.a)], Lp = L * SME;
+  const back = (L - CONTACT + 24) * SME;   // slide until the top end is at the shoulder
+  if (t < SLIDE) { const u = (t - DROP) / (SLIDE - DROP), sl = back * u * u; return { X: { x: X0.x - d[0] * sl, y: X0.y - d[1] * sl, a: X0.a }, hb: CBH }; }
+  const Xs = { x: X0.x - d[0] * back, y: X0.y - d[1] * back, a: X0.a }, top = cpt(Xs, Lp), foot = [Xs.x, Xs.y];
+  const u = clamp((t - SLIDE) / (IMPACT - SLIDE)), q = u * u, q2 = clamp(u * 1.35) ** 2;
+  let ty = lerp(top[1], LY, q), fy = lerp(foot[1], LY, q2), tx = top[0] + 10 * SME * q;
+  if (t > IMPACT) { const v = t - IMPACT, b = 16 * SME * Math.exp(-v * 7) * Math.abs(Math.sin(v * 15)); ty -= b; fy -= b * .4; }
+  const dy = fy - ty, fx = tx + Math.sqrt(Math.max(0, Lp * Lp - dy * dy));
+  const a = Math.atan2(ty - fy, tx - fx);
+  return { X: { x: fx, y: fy, a }, hb: lerp(CBH, CBHL, eio(ss(SLIDE, IMPACT, t))) };
+}
+function meFull(t) {
+  const tp = t12(t), F = poseMe(tp);
+  if (tp < DROP) { const X = crossAt(F); F.hands = gripsOn(F, X); return F; }
+  const F0 = poseMe(t12(DROP - 1e-3)), hg = gripsOn(F0, crossAt(F0)), hh = hangHands(F), k = eio(ss(DROP + .03, DROP + .42, tp));
+  const sw = Math.exp(-(tp - DROP - .5) * 4) * Math.sin((tp - DROP - .5) * 10) * ss(DROP + .45, DROP + .5, tp) * 10 * SME;
+  F.hands = [0, 1].map(i => [lerp(hg[i][0], hh[i][0], k) - F.f * sw, lerp(hg[i][1], hh[i][1], k)]);
+  F.hand = k < .15 ? ['open', 'open'] : ['open', 'open'];
+  return F;
+}
+
+// ---------------- the cross (drawn as cel wood: ink outline, flat wood, one hard shadow tone, neon / amber rims) ----------------
+function drawCross(ctx, X, hb, lt, warm) {
+  const s = SME, Lp = L * s, pw = PW * s / 2, cbx = CBX * s, cbw = CBW * s / 2, h = hb * s;
+  ctx.save(); ctx.translate(X.x, X.y); ctx.rotate(X.a);
+  const post = new Path2D(); post.rect(0, -pw, Lp, 2 * pw); const bar = new Path2D(); bar.rect(cbx - cbw, -h, 2 * cbw, 2 * h);
+  const all = new Path2D(); all.addPath(post); all.addPath(bar);
+  // rim offsets are in the beam's local frame: rotate the screen-space offsets into it
+  const c = Math.cos(-X.a), sn = Math.sin(-X.a), rot = v => [v[0] * c - v[1] * sn, v[0] * sn + v[1] * c];
+  const LtL = lt && { ...lt, vA: rot(lt.vA), vB: rot(lt.vB) };
+  R.cel(ctx, all, COL.wood, s, LtL, () => {
+    const up = Math.sin(X.a + Math.PI / 2) < 0 ? 1 : -1;   // which local side faces down on screen
+    ctx.fillStyle = COL.woodS; ctx.fillRect(0, up > 0 ? -pw : pw * .15, Lp, pw * .85);   // hard shadow on the underside of the post
+    ctx.fillRect(cbx + (up > 0 ? -cbw : cbw * .1), -h, cbw * .9, 2 * h);
+    ctx.strokeStyle = 'rgba(70,30,60,.55)'; ctx.lineWidth = 1.6 * s; const r = rng(31);
+    for (let i = 0; i < 4; i++) { const y = -pw * .6 + i * pw * .4; ctx.beginPath(); ctx.moveTo(30 * s, y); for (let x = 40 * s; x < Lp - 10; x += 30 * s) ctx.lineTo(x, y + Math.sin(x / (40 * s) + i * 2 + r()) * 1.6 * s); ctx.stroke(); }
+    ctx.beginPath(); ctx.ellipse(200 * s, pw * .2, 9 * s, 3.5 * s, 0, 0, TAU); ctx.stroke();
+    if (warm > 0) { ctx.fillStyle = `rgba(255,190,110,${.35 * warm})`; ctx.globalCompositeOperation = 'screen'; ctx.fillRect(0, -pw, Lp, 2 * pw); ctx.fillRect(cbx - cbw, -h, 2 * cbw, 2 * h); ctx.globalCompositeOperation = 'source-over'; }
+  }, 2.2);
+  ctx.restore();
+}
+
+// ---------------- the passengers ----------------
+const gyAt = z => pr(0, FL, z)[1];
+const sAt = (z, k = 1) => FOC / z * 1.55 / 388 * k;
+const nod = (t, k) => k * Math.exp(-frac(t / BEAT + .15) * 7);
+// glance: after the thud they look up from their phones for a beat
+const glance = t => ss(IMPACT + .05, IMPACT + .2, t) * (1 - ss(5.45, 5.75, t));
+function sitPose(x, gy, s, f, lean = -.06) {   // sitting on the bench: hip at seat height, thighs forward, shins down
+  const hip = [x, gy - 113 * s];
+  return { s, f, gy, hip, ang: f * lean, feet: [[x + f * 92 * s, gy], [x + f * 112 * s, gy - 1 * s]], hands: [null, null], hand: ['fist', 'fist'], tilt: .38, eye: 'calm', sway: 0, lap: 108, lapY: -10, hemUp: 64 };
+}
+function squatPose(x, gy, s, f) {   // a street squat: hip low, knees up and out, heels down
+  return { s, f, gy, hip: [x, gy - 54 * s], ang: f * .3, feet: [[x - f * 10 * s, gy], [x + f * 74 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .2, eye: 'calm', sway: 0, lap: 76, lapY: -62, hemUp: 26 };
+}
+function standLean(x, gy, s, f) {
+  return { s, f, gy, hip: [x, gy - 176 * s], ang: -f * .08, feet: [[x - f * 6 * s, gy], [x + f * 40 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .3, eye: 'calm', sway: 0, front: 0 };
+}
+// a phone held in front of the face: { c: centre, a: angle, w, h } — mittens at its lower corners
+function phoneAt(F, k = 1) { const fr = R.frame(F), c = fr.P(82, 112 + 10 * k); return { c, a: -F.f * .35, w: 22 * F.s, h: 36 * F.s }; }
+function drawPhone(ctx, ph, t, seed) {
+  ctx.save(); ctx.translate(ph.c[0], ph.c[1]); ctx.rotate(ph.a);
+  const p = new Path2D(); p.roundRect(-ph.w / 2, -ph.h / 2, ph.w, ph.h, ph.w * .18);
+  ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke(p); ctx.fillStyle = '#1a1240'; ctx.fill(p);
+  const sw = ph.w * .82, shh = ph.h * .86; ctx.save(); ctx.beginPath(); ctx.rect(-sw / 2, -shh / 2, sw, shh); ctx.clip();
+  ctx.fillStyle = '#dff8ff'; ctx.fillRect(-sw / 2, -shh / 2, sw, shh);
+  // a feed of little square posts scrolling up (ghost-stagram)
+  const cell = sw / 2.2, off = frac(t * .9 + seed * .37) * cell * 1.1, cols = ['#ff7fd8', '#7fd8ff', '#b59cff', '#ff9fcf', '#8ff0ff', '#c8b4ff'];
+  for (let j = -1; j < 5; j++) for (let i = 0; i < 2; i++) { ctx.fillStyle = cols[(j + i * 3 + seed + Math.floor(t * .9 + seed * .37) * 2 + 60) % 6];
+    ctx.fillRect(-sw / 2 + 1.5 + i * (cell + 1.5), -shh / 2 + j * cell * 1.1 - off + 2, cell, cell); }
+  ctx.restore(); ctx.restore();
+}
+const phoneGrips = ph => { const c = Math.cos(ph.a), s = Math.sin(ph.a), P = (u, v) => [ph.c[0] + u * c - v * s, ph.c[1] + u * s + v * c]; return [P(-ph.w * .1, ph.h * .5), P(ph.w * .05, ph.h * .62)]; };
+const GH = [
+  // left bench, near: headphones, sitting, scrolling
+  { kind: 'sit', z: 3.05, x: -1.22, k: 1.02, f: 1, acc: { phones: '#5ff0ff' }, seed: 1, nod: .05, sheet: '#efeaff' },
+  // by the left door: a backwards cap, squatting, scrolling
+  { kind: 'squat', z: 5.0, x: -1.02, k: .95, f: 1, acc: { cap: '#ff4fa8', cap2: '#3b2bb0' }, seed: 2, nod: .04, sheet: '#e8e2ff' },
+  // left side, by the far door: round sunglasses, one mitten on a strap, nodding hard to the beat
+  { kind: 'lean', z: 9.2, x: -.8, k: 1.0, f: 1, acc: { glasses: true }, seed: 3, nod: .12, sheet: '#ece7ff', mouth: 'grin' },
+  // right bench, far: a small one curled over the phone
+  { kind: 'sit', z: 12.5, x: 1.2, k: .85, f: -1, acc: {}, seed: 4, nod: .03, sheet: '#e4ddff' },
+];
+function ghostPose(g, t) {
+  const tp = t12(t), s = sAt(g.z, g.k), [x, gy] = [pr(g.x, FL, g.z)[0], gyAt(g.z)];
+  const F = g.kind === 'sit' ? sitPose(x, gy, s, g.f) : g.kind === 'squat' ? squatPose(x, gy, s, g.f) : standLean(x, gy, s, g.f);
+  const gl = glance(tp), n = nod(tp, g.nod) * (1 - gl);
+  F.tilt += n - .5 * gl; F.look = [lerp(4, g.f > 0 ? 10 : 12, gl) , lerp(4, -6, gl)]; F.eye = gl > .5 ? 'calm' : 'calm';
+  F.mouth = gl > .5 ? 'o' : g.mouth; F.hip[1] += n * 30 * s;
+  F.sheet = g.sheet; F.sheetD = COL.sheetD; F.acc = g.acc; F.shoe = { shoe: '#f6f2ff', sole: g.seed % 2 ? '#7ff4ff' : '#ff5fc0', lace: '#3a2a98' };
+  const ph = phoneAt(F, gl); ph.c[1] += 30 * s * gl; F.ph = ph;   // the phone drops a little while they look up
+  if (g.kind === 'lean') { // one mitten on the strap above, the other on the phone
+    const sy = pr(g.x, .56 - .3, g.z)[1]; F.hands = [[F.hip[0] + g.f * 6 * s, sy + 26 * s], phoneGrips(ph)[1]]; F.hand = ['fist', 'fist'];
+  } else F.hands = phoneGrips(ph);
+  F.up = { x: ph.c[0], y: ph.c[1], k: 1 - .4 * gl };
+  return F;
+}
+
+// ---------------- prebuilt layers ----------------
+let BG, WINP, FLOORP, GL, GX, GB, GBX, GW, GWX, GRAIN = [], VIG, SCAN, RB, RX, CH, CHX, BOKEH, BK;
+const GS = .25;
+function poly(g, pts) { g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); }
+const P2 = pts => { const p = new Path2D(); pts.forEach((q, i) => i ? p.lineTo(q[0], q[1]) : p.moveTo(q[0], q[1])); p.closePath(); return p; };
+const wallQ = (sd, y0, y1, z0, z1) => [pr(sd * HW, y0, z0), pr(sd * HW, y1, z0), pr(sd * HW, y1, z1), pr(sd * HW, y0, z1)];
+function edge(g, a, b, z0, z1, k = 2.6, col = INK) {   // an ink line along z from point a(z) to b(z), width ∝ 1/z
+  const n = Math.max(2, Math.ceil((z1 - z0) / .5));
+  g.strokeStyle = col; g.lineCap = 'round';
+  for (let i = 0; i < n; i++) { const za = lerp(z0, z1, i / n), zb = lerp(z0, z1, (i + 1) / n), p = a(za), q = a(zb); g.lineWidth = Math.max(.7, k * 2.75 / za); g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke(); }
+}
+function vline(g, x, y0, y1, z, k = 2.6) { const a = pr(x, y0, z), b = pr(x, y1, z); g.strokeStyle = INK; g.lineWidth = Math.max(.7, k * 2.75 / z); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+function grad(g, x0, y0, x1, y1, stops) { const gr = g.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => gr.addColorStop(o, c)); return gr; }
+function buildBG() {
+  BG = Pilot.canvas(W, H); const g = BG.getContext('2d'); g.lineJoin = 'round'; const LATE = [];
+  g.fillStyle = COL.navy; g.fillRect(0, 0, W, H);
+  const zn = .45;
+  // end wall + connecting door (its window glows)
+  const e = (x, y) => pr(x, y, ZE);
+  poly(g, [e(-HW, FL), e(-HW, WT), e(-CX, CL), e(CX, CL), e(HW, WT), e(HW, FL)]); g.fillStyle = '#4b37b8'; g.fill();
+  poly(g, [e(-.42, FL), e(-.42, .45), e(.42, .45), e(.42, FL)]); g.fillStyle = '#5c46d0'; g.fill(); g.strokeStyle = INK; g.lineWidth = 1.2; g.stroke();
+  poly(g, [e(-.3, -.3), e(-.3, .35), e(.3, .35), e(.3, -.3)]); g.fillStyle = '#1a1350'; g.fill(); g.stroke();
+  // ceiling: flat centre + coves
+  poly(g, [pr(-CX, CL, zn), pr(CX, CL, zn), pr(CX, CL, ZE), pr(-CX, CL, ZE)]);
+  g.fillStyle = grad(g, 0, 0, 0, VY, [[0, '#1d1858'], [.7, COL.ceil], [1, COL.ceil2]]); g.fill();
+  for (const sd of [-1, 1]) {
+    poly(g, [pr(sd * CX, CL, zn), pr(sd * HW, WT, zn), pr(sd * HW, WT, ZE), pr(sd * CX, CL, ZE)]); g.fillStyle = grad(g, 0, 0, 0, VY, [[0, '#2a2072'], [1, COL.cove]]); g.fill();
+    // light panels down each side of the ceiling (pale blue diffusers)
+    for (let z = 1.9; z < ZE - .5; z += 1.6) { poly(g, [pr(sd * .38, CL - .005, z), pr(sd * .7, CL - .005, z), pr(sd * .7, CL - .005, z + 1.1), pr(sd * .38, CL - .005, z + 1.1)]); g.fillStyle = grad(g, 0, pr(0, CL, z)[1], 0, pr(0, CL, z + 1.1)[1], [[0, '#6c74f0'], [.5, '#b9c6ff'], [1, '#7f8af5']]); g.fill(); g.strokeStyle = INK; g.lineWidth = Math.max(.6, 6 / z); g.stroke();
+      // its reflection in the glossy floor (mirror plane y = FL)
+      const yr = 2 * FL - CL; LATE.push(() => { g.globalAlpha = .13; poly(g, [pr(sd * .38, yr, z), pr(sd * .7, yr, z), pr(sd * .7, yr, z + 1.1), pr(sd * .38, yr, z + 1.1)]); g.fillStyle = '#9fb0ff'; g.fill(); }); }
+    // ad frames along the cove (lit panels with simple graphic shapes, no words)
+    const cv = (u, z) => pr(lerp(sd * HW, sd * CX, u), lerp(WT, CL, u), z);
+    let i = 0; for (const [kd, z0, z1] of SEG) { if (kd !== 'bench') continue; for (let z = Math.max(z0 + .2, 1.6); z + 1.0 < z1; z += 1.25) { i++;
+      const q = [cv(.12, z), cv(.88, z), cv(.88, z + .95), cv(.12, z + .95)]; poly(g, q);
+      const cc = [['#ff6fd0', '#ffd6f4'], ['#5ff0ff', '#d6fbff'], ['#b48cff', '#efe4ff'], ['#ff8fb8', '#fff0f6']][(i + (sd > 0 ? 2 : 0)) % 4];
+      g.fillStyle = cc[1]; g.fill(); g.strokeStyle = INK; g.lineWidth = Math.max(.7, 7 / z); g.stroke();
+      g.save(); g.clip(); g.fillStyle = cc[0]; const m = cv(.5, z + .45); g.beginPath(); g.arc(m[0] + (i % 2 ? 1 : -1) * 12 / z * 3, m[1], 70 / z, 0, TAU); g.fill();
+      g.fillRect(cv(.2, z + .1)[0] - 1, cv(.2, z + .1)[1], 3, 3); g.restore();
+      const cr = (u, zz) => pr(lerp(sd * HW, sd * CX, u), 2 * FL - lerp(WT, CL, u), zz);
+      LATE.push(() => { g.globalAlpha = .2; poly(g, [cr(.12, z), cr(.88, z), cr(.88, z + .95), cr(.12, z + .95)]); g.fillStyle = cc[0]; g.fill(); }); } }
+  }
+  // walls: base, kick panel, windows (glass cut out later), doors
+  WINP = new Path2D();
+  for (const sd of [-1, 1]) {
+    poly(g, wallQ(sd, FL, WT, zn, ZE)); g.fillStyle = grad(g, sd < 0 ? 0 : W, 0, VX, 0, [[0, COL.wall2], [1, COL.wall]]); g.fill();
+    for (const [kd, z0, z1] of SEG) {
+      if (kd === 'bench') {
+        for (let z = z0 + .25; z + .5 < z1; z += 1.45) { const za = z, zb = Math.min(z1 - .25, z + 1.3); const q = wallQ(sd, -.5, .3, za, zb); WINP.addPath(P2(q));
+          poly(g, q); g.fillStyle = COL.win; g.fill(); g.strokeStyle = INK; g.lineWidth = Math.max(.7, 7 / za); g.stroke();
+          poly(g, wallQ(sd, -.56, -.5, za, zb)); g.fillStyle = '#c9d2ff'; g.fill(); }   // a lit sill
+      } else {
+        const zm = (z0 + z1) / 2;
+        for (const [a, b] of [[z0, zm], [zm, z1]]) { const q = wallQ(sd, FL, .36, a, b); poly(g, q); g.fillStyle = grad(g, 0, pr(0, .36, a)[1], 0, pr(0, FL, a)[1], [[0, COL.door], [1, COL.doorD]]); g.fill(); g.strokeStyle = INK; g.lineWidth = Math.max(.7, 8 / a); g.stroke();
+          const wq = wallQ(sd, -.3, .26, a + (b - a) * .22, b - (b - a) * .22); WINP.addPath(P2(wq)); poly(g, wq); g.fillStyle = COL.win; g.fill(); g.stroke(); }
+        // door edge poles (grab poles)
+        for (const zp of [z0 - .08, z1 + .08]) { const a = pr(sd * 1.02, FL, zp), b = pr(sd * 1.02, CL - .05, zp), w = Math.max(1.5, 22 / zp);
+          g.fillStyle = INK; g.fillRect(a[0] - w * .7, b[1], w * 1.4, a[1] - b[1]); g.fillStyle = COL.pole; g.fillRect(a[0] - w * .45, b[1], w * .9, a[1] - b[1]); g.fillStyle = '#ffffff'; g.fillRect(a[0] - w * .15, b[1], w * .25, a[1] - b[1]); }
+      }
+    }
+    poly(g, wallQ(sd, FL, -1.05, zn, ZE)); g.fillStyle = COL.kick; g.fill();
+    edge(g, z => pr(sd * HW, WT, z), null, 1.2, ZE); edge(g, z => pr(sd * CX, CL, z), null, 1.2, ZE); edge(g, z => pr(sd * HW, FL, z), null, 1.2, ZE);
+  }
+  // benches (seat top, front, back cushion)
+  for (const sd of [-1, 1]) for (const [kd, z0, z1] of SEG) { if (kd !== 'bench') continue;
+    const za = Math.max(z0, .7);
+    poly(g, wallQ(sd, -1.05, -.6, za, z1)); g.fillStyle = COL.seatB; g.fill(); g.strokeStyle = INK; g.lineWidth = Math.max(.7, 7 / za); g.stroke();
+    poly(g, [pr(sd * HW, -1.05, za), pr(sd * 1.0, -1.05, za), pr(sd * 1.0, -1.05, z1), pr(sd * HW, -1.05, z1)]); g.fillStyle = COL.seat; g.fill(); g.stroke();
+    poly(g, [pr(sd * 1.0, -1.05, za), pr(sd * 1.0, FL + .1, za), pr(sd * 1.0, FL + .1, z1), pr(sd * 1.0, -1.05, z1)]); g.fillStyle = COL.seatF; g.fill(); g.stroke();
+    // seat highlight stripe (glossy vinyl)
+    poly(g, [pr(sd * 1.06, -1.04, za), pr(sd * 1.02, -1.04, za), pr(sd * 1.02, -1.04, z1), pr(sd * 1.06, -1.04, z1)]); g.fillStyle = '#ff9be8'; g.fill();
+    for (let z = za + .55; z < z1 - .2; z += .55) vline(g, sd * 1.0, -1.05, FL + .1, z, 1.2); }
+  // floor
+  FLOORP = P2([pr(-HW, FL, zn), pr(HW, FL, zn), pr(HW, FL, ZE), pr(-HW, FL, ZE)]);
+  g.fillStyle = grad(g, 0, H, 0, VY, [[0, '#120c3c'], [.45, COL.floor], [1, COL.floor2]]); g.fill(FLOORP);
+  g.save(); g.clip(FLOORP); g.strokeStyle = 'rgba(10,6,40,.35)';
+  for (let z = 1; z < ZE; z += .9) { const a = pr(-HW, FL, z), b = pr(HW, FL, z); g.lineWidth = Math.max(.5, 3 / z); g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); }
+  for (const x of [-.6, .6]) edge(g, z => pr(x, FL, z), null, .5, ZE, 1.2, 'rgba(160,140,255,.25)');
+  g.globalCompositeOperation = 'screen'; g.filter = 'blur(3px)'; for (const f of LATE) f(); g.filter = 'none'; g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+  g.restore();
+  // grab rails along the ceiling
+  for (const sd of [-1, 1]) { edge(g, z => pr(sd * .72, .56, z), null, 1.0, ZE - .3, 4.2, INK); edge(g, z => pr(sd * .72, .56, z), null, 1.0, ZE - .3, 2.2, COL.rail); }
+  // depth haze toward the far end (magenta-violet) + a dark vignette at the frame edges
+  g.globalCompositeOperation = 'screen';
+  let rg = g.createRadialGradient(VX, VY, 10, VX, VY, 700); rg.addColorStop(0, 'rgba(255,90,220,.55)'); rg.addColorStop(.25, 'rgba(170,70,255,.25)'); rg.addColorStop(1, 'rgba(60,30,160,0)'); g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'source-over';
+  // static bokeh sprite
+  BK = Pilot.canvas(64, 64); const bx = BK.getContext('2d'); rg = bx.createRadialGradient(32, 32, 0, 32, 32, 32); rg.addColorStop(0, 'rgba(255,255,255,.9)'); rg.addColorStop(.55, 'rgba(255,255,255,.55)'); rg.addColorStop(.8, 'rgba(255,255,255,.18)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); bx.fillStyle = rg; bx.fillRect(0, 0, 64, 64);
+}
+async function init() {
+  buildBG();
+  GL = Pilot.canvas(W * GS, H * GS); GX = GL.getContext('2d');
+  GB = Pilot.canvas(W * GS, H * GS); GBX = GB.getContext('2d'); GW = Pilot.canvas(W * GS, H * GS); GWX = GW.getContext('2d');
+  RB = Pilot.canvas(W / 2, H / 2); RX = RB.getContext('2d');
+  CH = Pilot.canvas(W / 4, H / 4); CHX = CH.getContext('2d');
+  for (let i = 0; i < 3; i++) GRAIN.push(Pilot.speckle(256, 256, 55, 70 + i));
+  VIG = Pilot.canvas(W, H); const v = VIG.getContext('2d'), vg = v.createRadialGradient(W / 2, H * .5, H * .25, W / 2, H * .5, H * .78); vg.addColorStop(0, 'rgba(6,2,30,0)'); vg.addColorStop(1, 'rgba(6,2,30,.7)'); v.fillStyle = vg; v.fillRect(0, 0, W, H);
+  SCAN = Pilot.canvas(4, 6); const sx = SCAN.getContext('2d'); sx.fillStyle = 'rgba(0,0,0,.5)'; sx.fillRect(0, 0, 4, 2);
+  v.globalAlpha = .05; v.fillStyle = v.createPattern(SCAN, 'repeat'); v.fillRect(0, 0, W, H); v.globalAlpha = 1;   // scanlines baked into the vignette layer
+  const r = rng(77); BOKEH = [];
+  for (let i = 0; i < 70; i++) BOKEH.push({ x: r() * W, y: 140 + r() * 1500, rr: r() < .15 ? 26 + r() * 40 : 3 + r() * 9, c: ['255,120,230', '120,240,255', '200,170,255', '255,255,255'][i % 4], ph: r() * TAU, a: .25 + r() * .5, dx: (r() - .5) * 40, dy: -20 - r() * 40 });
+}
+
+// ---------------- per-frame pieces ----------------
+function drawWindows(ctx, t) {   // the tunnel outside: dark, cable lines, lights rushing toward us (period 6 s), then the amber station
+  ctx.save(); ctx.clip(WINP);
+  ctx.fillStyle = '#0d0a33'; ctx.fillRect(0, 0, W, H);
+  ctx.lineCap = 'round';
+  for (const sd of [-1, 1]) {
+    // two faint cable lines on the tunnel wall
+    for (const y of [-.1, .18]) { const a = pr(sd * 2.1, y, 2), b = pr(sd * 2.1, y, ZE); ctx.strokeStyle = 'rgba(120,110,255,.25)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    for (let i = 0; i < 6; i++) { const z = ZE + 1 - ((t * 16 + i * 4 + (sd > 0 ? 2 : 0)) % 24); if (z < 1.2) continue;
+      const a = pr(sd * 2.0, .05, z), b = pr(sd * 2.0, .05, z + 1.6);
+      ctx.strokeStyle = 'rgba(140,240,255,.9)'; ctx.lineWidth = Math.max(1.5, 60 / z); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = Math.max(.8, 22 / z); ctx.stroke(); }
+  }
+  // the station: amber platform light per window depth, dark pillars sliding past
+  for (const sd of [-1, 1]) for (const [kd, z0, z1] of SEG) { const zm = Math.max(1.2, (z0 + z1) / 2), wk = warmZ(zm, t); if (wk <= .01) continue;
+    const q = wallQ(sd, -.6, .4, Math.max(z0, .8), z1); ctx.globalAlpha = wk * .88; poly(ctx, q);
+    ctx.fillStyle = grad(ctx, 0, pr(0, .4, zm)[1], 0, pr(0, -.6, zm)[1], [[0, '#ffd08a'], [.45, '#ff9f3a'], [1, '#c8502e']]); ctx.fill(); ctx.globalAlpha = 1; }
+  const wa = warmAll(t);
+  if (wa > 0) for (const sd of [-1, 1]) for (let i = 0; i < 5; i++) { const z = ZE + 2 - ((t * lerp(14, 6, ss(3, 5, t)) + i * 5) % 25); if (z < 1.2) continue;
+    const a = pr(sd * 2.3, -.6, z), b = pr(sd * 2.3, .4, z), w = 300 / z; ctx.fillStyle = `rgba(70,24,80,${.7 * warmZ(z, t)})`; ctx.fillRect(a[0] - w / 2, b[1], w, a[1] - b[1]); }
+  ctx.restore();
+}
+function drawTube(ctx, t, k) {   // the cyan neon tube down the middle of the ceiling (+ its glow)
+  const a = pr(-.06, CL - .01, .5), b = pr(.06, CL - .01, .5), c = pr(.06, CL - .01, ZE - .5), d = pr(-.06, CL - .01, ZE - .5);
+  ctx.save(); ctx.fillStyle = `rgba(127,244,255,${.95 * k})`; poly(ctx, [a, b, c, d]); ctx.fill();
+  const a2 = pr(-.02, CL - .01, .5), b2 = pr(.02, CL - .01, .5); ctx.fillStyle = `rgba(255,255,255,${k})`; poly(ctx, [a2, b2, c, d]); ctx.fill();
+  ctx.restore();
+}
+function drawStraps(ctx, t, near) {   // hand straps on the two rails: they swing with the car (periods 3 s / 1.5 s)
+  for (const sd of [-1, 1]) for (let z = 1.25; z < ZE - .6; z += .55) {
+    if (near !== (z < 2.6)) continue;
+    const th = .13 * Math.sin(TAU * t / 3 + z * .5) + .05 * Math.sin(TAU * t / 1.5 + z * 1.3) - .06 * Math.exp(-Math.max(0, t - IMPACT) * 3) * (t > IMPACT ? Math.sin((t - IMPACT) * 9) : 0);
+    const x = sd * .72, y0 = .56, Ls = .24, rr = .085;
+    const bt = [x, y0 - Ls * Math.cos(th), z + Ls * Math.sin(th)], top = pr(x, y0, z), mid = pr(...bt);
+    const lw = Math.max(1, 26 / z);
+    ctx.strokeStyle = INK; ctx.lineWidth = lw * 1.9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(top[0], top[1]); ctx.lineTo(mid[0], mid[1]); ctx.stroke();
+    ctx.strokeStyle = COL.strapB; ctx.lineWidth = lw; ctx.stroke();
+    // the ring: a rounded triangle in the strap's plane (y-z), seen edge-on-ish from the aisle
+    const ring = []; for (let i = 0; i <= 14; i++) { const a = i / 14 * TAU, ry = -rr - rr * Math.cos(a), rz = rr * .9 * Math.sin(a);
+      ring.push(pr(x + sd * .012 * Math.sin(a), bt[1] + ry * Math.cos(th) - rz * Math.sin(th) * 0, bt[2] + rz * Math.cos(th) + ry * Math.sin(th))); }
+    ctx.beginPath(); ring.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+    ctx.strokeStyle = INK; ctx.lineWidth = lw * 2.4; ctx.stroke(); ctx.strokeStyle = COL.strap; ctx.lineWidth = lw * 1.3; ctx.stroke();
+  }
+}
+function floorLights(ctx, t, jig) {   // the glossy floor: the tube's reflection and the windows' colour (amber in the station)
+  ctx.save(); ctx.clip(FLOORP); ctx.globalCompositeOperation = 'screen';
+  const tk = tubeK(t), yr = 2 * FL - CL;
+  for (const [hw, col] of [[.22, `rgba(127,244,255,${.22 * tk})`], [.09, `rgba(160,250,255,${.32 * tk})`], [.03, `rgba(255,255,255,${.45 * tk})`]]) {
+    const Lp = [], Rp = [];
+    for (let z = 3.0; z < ZE; z *= 1.06) { const p = pr(0, yr, z), w = FOC * hw / z, jx = jig * 26 * Math.sin(p[1] * .05 - t * 34) * (p[1] - VY) / 900 + 2 * Math.sin(p[1] * .02 + t * 3);
+      Lp.push([p[0] - w + jx, p[1]]); Rp.push([p[0] + w + jx, p[1]]); }
+    ctx.fillStyle = col; poly(ctx, Lp.concat(Rp.reverse())); ctx.fill(); }
+  // window colour on the floor along each wall (mirror image of the window band, smeared)
+  for (const sd of [-1, 1]) for (const [kd, z0, z1] of SEG) { const za = Math.max(z0, 1.0), zm = (za + z1) / 2, wk = warmZ(zm, t);
+    const col = Pilot.mix([120, 90, 255], [255, 170, 80], wk), al = .16 + .3 * wk;
+    const jx = jig * 14 * Math.sin(zm * 3 - t * 30);
+    const q = [pr(sd * HW, FL, za), pr(sd * (HW - .7), FL, za), pr(sd * (HW - .7), FL, z1), pr(sd * HW, FL, z1)].map(p => [p[0] + jx, p[1]]);
+    ctx.fillStyle = css(col, al); poly(ctx, q); ctx.fill(); }
+  ctx.restore();
+}
+function bokeh(ctx, t, k = 1) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const b of BOKEH) { const x = b.x + b.dx * Math.sin(TAU * t / 6 + b.ph), y = b.y + b.dy * Math.sin(TAU * t / 6 + b.ph * 1.7) * .6, tw = .6 + .4 * Math.sin(TAU * t / 2 + b.ph * 3);
+    ctx.globalAlpha = b.a * tw * k * (b.rr > 20 ? .35 : 1); ctx.drawImage(BK, x - b.rr, y - b.rr, b.rr * 2, b.rr * 2);
+    if (b.rr > 20) { ctx.globalAlpha = .12 * k; ctx.fillStyle = `rgb(${b.c})`; ctx.beginPath(); ctx.arc(x, y, b.rr * .8, 0, TAU); ctx.fill(); } }
+  ctx.restore();
+}
+// rim lighting: front edge (facing the far end) magenta → amber in the station, top/back edge cyan from the tube
+function rimFor(f, wk, front = 1) {
+  const A = css(Pilot.mix(rgb(COL.mag), rgb(COL.amber), wk)), B = css(Pilot.mix(rgb(COL.cyan), [255, 210, 150], wk * .5));
+  return { A, B, Af: css(Pilot.mix([200, 60, 200], [220, 130, 70], wk)), vA: [f * 4.6 * front, .4], vB: [-f * 1.8, 1.8] };
+}
+
+// ---------------- frame ----------------
+function draw(ctx, t) {
+  const tk = tubeK(t), wa = warmAll(t);
+  // tiny lo-fi bounce on the beat + a thud at the impact
+  let shx = 0, shy = .8 * Math.exp(-frac(t / BEAT) * 8);
+  if (t > IMPACT) { const v = t - IMPACT, a = 7 * Math.exp(-v * 8); shx = a * Math.sin(v * 70); shy += a * Math.cos(v * 55); }
+  const jig = t > IMPACT ? Math.exp(-(t - IMPACT) * 2.6) : 0;
+  // camera: close on the car (the album crops tight), a slow push while I look up, back by the loop
+  const zc = 1.14 + .035 * ss(B.look - .2, 5.0, t) * (1 - ss(5.0, 5.95, t)), cam = c => { c.translate(PVX, PVY); c.scale(zc, zc); c.translate(-PVX, -PVY); };
+  ctx.save(); ctx.translate(shx, shy); cam(ctx);
+  ctx.drawImage(BG, 0, 0);
+  drawWindows(ctx, t);
+  // warm spill on the walls/ceiling once the station arrives (the one warm thing)
+  if (wa > 0) { ctx.save(); ctx.globalCompositeOperation = 'screen'; const g = ctx.createRadialGradient(VX, VY, 20, VX, VY, 900); g.addColorStop(0, `rgba(255,170,80,${.45 * wa})`); g.addColorStop(.5, `rgba(255,120,60,${.12 * wa})`); g.addColorStop(1, 'rgba(255,120,60,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+  floorLights(ctx, t, jig);
+  drawTube(ctx, t, tk);
+  drawStraps(ctx, t, false);
+  // passengers, far to near
+  const gp = GH.map(g => ({ g, F: ghostPose(g, t) })).sort((a, b) => b.g.z - a.g.z);
+  for (const { g, F } of gp) { const wk = warmZ(g.z, t), lt = rimFor(g.f, wk, .8);
+    R.ghost(ctx, F, lt, { mid: () => drawPhone(ctx, F.ph, t, g.seed) }); }
+  // me + my cross (reflection first, into a half-res buffer, flipped about the floor line)
+  const F = meFull(t), cs = crossState(t), wk = warmZ(ZME, t), lt = rimFor(-1, wk);
+  const meDraw = c => { drawCross(c, cs.X, cs.hb, lt, wk); R.me(c, F, lt, null, null); };
+  RX.setTransform(1, 0, 0, 1, 0, 0); RX.clearRect(0, 0, RB.width, RB.height); RX.setTransform(.5, 0, 0, .5, 0, 0); meDraw(RX);
+  RX.globalCompositeOperation = 'destination-in'; RX.fillStyle = grad(RX, 0, GY, 0, GY - 520, [[0, 'rgba(0,0,0,1)'], [1, 'rgba(0,0,0,0)']]); RX.fillRect(0, 0, W, H); RX.globalCompositeOperation = 'source-over';
+  ctx.save(); ctx.beginPath(); ctx.rect(0, GY - 4, W, H); ctx.clip(); ctx.globalAlpha = .3; ctx.translate(0, 2 * GY - 6); ctx.scale(1, -1);
+  for (let k = 0; k < 2; k++) ctx.drawImage(RB, jig * 10 * Math.sin(t * 40 + k * 2) + k * 3, 0, W, H);
+  ctx.restore();
+  // soft contact shadow under me
+  ctx.fillStyle = 'rgba(6,2,30,.55)'; ctx.beginPath(); ctx.ellipse(F.hip[0] + 6, GY + 2, 110 * SME, 16 * SME, 0, 0, TAU); ctx.fill();
+  meDraw(ctx);
+  drawStraps(ctx, t, true);
+  ctx.restore();
+  // ---- bloom: tube, panels, windows, phones, the amber station (quarter res) ----
+  GX.setTransform(1, 0, 0, 1, 0, 0); GX.clearRect(0, 0, GL.width, GL.height); GX.setTransform(GS, 0, 0, GS, GS * shx, GS * shy); cam(GX);
+  drawTube(GX, t, tk);
+  GX.save(); GX.globalAlpha = .55; drawWindows(GX, t); GX.restore();
+  for (const { F } of gp) { GX.fillStyle = 'rgba(200,250,255,.9)'; GX.beginPath(); GX.arc(F.ph.c[0], F.ph.c[1], F.ph.w * .7, 0, TAU); GX.fill(); }
+  GX.fillStyle = 'rgba(255,90,220,.7)'; GX.beginPath(); GX.arc(VX, VY, 40, 0, TAU); GX.fill();
+  for (const [X, r] of [[GBX, 3], [GWX, 12]]) { X.setTransform(1, 0, 0, 1, 0, 0); X.clearRect(0, 0, GB.width, GB.height); X.filter = `blur(${r}px)`; X.drawImage(GL, 0, 0); X.filter = 'none'; }
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .55; ctx.drawImage(GB, 0, 0, W, H); ctx.globalAlpha = .75; ctx.drawImage(GW, 0, 0, W, H); ctx.restore();
+  bokeh(ctx, t);
+  // ---- caption: bubbly retro lettering (Jua), white on a hard violet drop + pink neon glow ----
+  ctx.save(); ctx.globalAlpha = .55 * Pilot.win(t, S.lines[0][0], S.lines[0][1], .35, .45); const cg = ctx.createRadialGradient(W / 2, 420, 20, W / 2, 420, 420);
+  cg.addColorStop(0, 'rgba(10,4,40,.85)'); cg.addColorStop(1, 'rgba(10,4,40,0)'); ctx.fillStyle = cg; ctx.save(); ctx.translate(W / 2, 420); ctx.scale(1.25, .55); ctx.translate(-W / 2, -420); ctx.fillRect(0, 0, W, H); ctx.restore(); ctx.restore();
+  Story.captions(ctx, t, S.lines, { font: FONT, size: 92, weight: 400, y: 392 + 8, color: '#4a1fc0', shadow: 'rgba(20,0,60,.8)', shadowBlur: 4 });
+  Story.captions(ctx, t, S.lines, { font: FONT, size: 92, weight: 400, y: 392, color: '#fff7ff', shadow: 'rgba(255,60,200,.95)', shadowBlur: 26 });
+  // ---- lo-fi grade: colour fringe, scanlines, grain, vignette ----
+  CHX.setTransform(1, 0, 0, 1, 0, 0); CHX.globalCompositeOperation = 'source-over'; CHX.drawImage(ctx.canvas, 0, 0, CH.width, CH.height);
+  CHX.globalCompositeOperation = 'multiply'; CHX.fillStyle = '#ff2a8a'; CHX.fillRect(0, 0, CH.width, CH.height);
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .16; ctx.drawImage(CH, -5, 0, W, H); ctx.restore();
+  ctx.drawImage(VIG, 0, 0);
+  ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .13; const gi = Math.floor(t * 12) % 3, ox = (Math.floor(t * 12) * 73) % 256, oy = (Math.floor(t * 12) * 131) % 256;
+  ctx.fillStyle = ctx.createPattern(GRAIN[gi], 'repeat'); ctx.translate(-ox, -oy); ctx.fillRect(0, 0, W + 256, H + 256); ctx.restore();
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["400 92px 'Jua'"], init, draw });
+</script>
+</body>
+</html>
