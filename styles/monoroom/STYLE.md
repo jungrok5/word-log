@@ -96,7 +96,7 @@ Template: 51 ms mean (93 ms worst). The trees (leaf polygons through `ink`) and 
 - Trees are parallax .8 and stand on y 1220 (`treeY`): with a different horizon pass `{ horizon, treeY }` to `storm`.
 - The flash uses `screen` compositing over everything except grain; keep captions outside the cache (they stay readable).
 - Body check: same rig rules as risoline (hands at grip points, a hand on every carried thing, in-betweens, no one-frame
-  turns). The hoodie's hood lies round on the back — never pointed (read as a horn in an earlier review).
+  turns). The hood lies round on the back — keep it round, never pointed.
 - Refactor note: pixel-identical to the pre-kit scene (max channel diff 0 at 10 times).
 
 ## What a scene author still draws
