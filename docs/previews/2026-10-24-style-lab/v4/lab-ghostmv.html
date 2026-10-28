@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>스타일 실험 · 고스타그램 MV 컷</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@700&display=swap">
+</head>
+<body>
+<script src="lib.js"></script><script src="story.js"></script><script src="source.js"></script><script src="script.js"></script>
+<script src="lab-ghostmv-car.js"></script><script src="lab-ghostmv-rig.js"></script><script src="lab-ghostmv-ghost.js"></script>
+<script>
+/* 고스타그램 MV — our 6 s recut like the music video: hard cuts on the beat, limited animation (poses on threes, 8 fps; the
+   world — tunnel lights, neon flicker, straps, bokeh — moves smoothly behind), bold even ink outlines, flat cel colour with one
+   hard shadow step, a midnight-purple base (#3E1F5C) lit by magenta #FF2A85 and cyan #00F0FF, the station's amber the one
+   warm colour; post: bloom on the neon, colour fringe growing toward the edges, vignette, film grain; a peach-yellow lyric
+   subtitle low in the frame (above the platform UI).
+   Cuts (beat grid .6 s from .2 — 100 BPM, 10 beats per loop):
+     ① 0–2.6  wide, down the car: me (the mograph code figure, dark hoodie, neon rim) trudges with the cross on my shoulder, a
+              tired nod on every beat; the sheet ghosts glow over their phones.
+     ② 2.6–4.4 bust shot: hood strings swing, a blink, at 3.2 the amber station sweeps across my face and my eyes lift; handheld.
+     ③ 4.4–5.6 low floor angle: the cross slams down on the beat (shake + aberration spike), the ghosts' heads turn on the
+              next beat, I groove, relieved.
+     ④ 5.6–6.0 back to ①'s wide framing so the loop cross-fade reads. */
+const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio, rng } = Pilot, INK = MV.INK, G = window.GRig;
+const W = 1080, H = 1920, TAU = Math.PI * 2;
+const BEAT = .6, B0 = .2, frac = x => x - Math.floor(x);
+const beatPh = t => frac((t - B0) / BEAT), beatK = t => Math.exp(-beatPh(t) * 6);
+const t8 = t => Math.floor(t * 8 + 1e-6) / 8;
+const CUT2 = 2.6, CUT3 = 4.4, CUT4 = 5.6, LAND = 4.5;
+const PAL = { base: '#3e1f5c', mag: '#ff2a85', cyan: '#00f0ff', lav: '#efe9ff', peach: '#ffd98a', amber: '#ffb347',
+  wood: '#a8683e', woodS: '#6a3550', woodL: '#e0a46a', sheetD: '#a796e6' };
+const css = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`, hex = Pilot.hex;
+
+// the station (the one warm colour): sweeps the windows from the far end at 3.2, fades toward the loop
+const zFront = t => 24 - 46 * (t - 3.05);
+const warmZ = (z, t) => ss(zFront(t) - 1.5, zFront(t) + 1.5, z) * (1 - .6 * ss(5.1, 5.95, t));
+const tubeK = t => { let k = .92 + .08 * Math.sin(t * 157) * Math.sin(t * 43); for (const [a, d] of [[1.55, .12], [5.25, .08]]) if (t > a && t < a + d) k *= [.35, .9, .25, .8][Math.floor((t - a) / d * 4)] ?? 1; return k; };
+const strapSwing = (z, t) => .13 * Math.sin(TAU * t / 3 + z * .5) + .05 * Math.sin(TAU * t / 1.5 + z * 1.3) - (t > LAND ? .07 * Math.exp(-(t - LAND) * 3) * Math.sin((t - LAND) * 9) : 0);
+
+// ---------------- cameras ----------------
+const CAM1 = { FOC: 900, VX: 520, VY: 830, E: 1.5, zoom: 1.14, pv: [520, 1050] };    // ① ④ wide, eye height
+const CAM3 = { FOC: 820, VX: 560, VY: 760, E: .5, zn: .15, zoom: 1, pv: [540, 960] };   // ③ low, at knee height
+let CAR1, CAR3;
+const camT = (c, cam) => { c.translate(cam.pv[0], cam.pv[1]); c.scale(cam.zoom, cam.zoom); c.translate(-cam.pv[0], -cam.pv[1]); };
+
+// ---------------- me (the mograph rig) + my cross, in rig-local units (820 = 1.68 m → 488 per metre) ----------------
+const UPM = 820 / 1.68, CR = { L: 2.25 * UPM, PW: .147 * UPM, CBX: 1.69 * UPM, CBW: .139 * UPM, CBH: .51 * UPM, contact: 1.03 * UPM, grip: 260, a0: .2 };
+function meRig(P) {   // two passes: the shoulder (independent of the reach), then the hand on the beam
+  const r0 = MV.rig(P), X = crossLocal(r0, P.slide || 0);
+  return { r: MV.rig({ ...P, reach: X.grip, reachAmt: P.reachAmt ?? 1, reachFar: X.grip2, reachFarAmt: P.reachAmt ?? 1 }), X };
+}
+function crossLocal(r, slide = 0) {   // the beam ON the shoulder: rest point R, direction d (rising forward); slide moves it back along itself
+  const d = [Math.cos(CR.a0), Math.sin(CR.a0)], R = [r.sh[0] - 8, r.sh[1] + 50];
+  const foot = [R[0] - d[0] * (CR.contact + slide), R[1] - d[1] * (CR.contact + slide)];
+  return { d, foot, grip: [R[0] + d[0] * CR.grip, R[1] + d[1] * CR.grip], grip2: [R[0] + d[0] * 30, R[1] + d[1] * 30] };   // near hand ahead on the beam, far hand steadying it right over the shoulder (behind the head)
+}
+function drawCrossLocal(shape, X, LW, warm) {   // post + crossbar as one cel shape (outline, flat wood, one hard shadow, rims)
+  const { d, foot } = X, n = [-d[1], d[0]], P = (u, v) => [foot[0] + d[0] * u + n[0] * v, foot[1] + d[1] * u + n[1] * v];
+  const pw = CR.PW / 2, cb = CR.CBX, cw = CR.CBW / 2, h = CR.CBH, p = new Path2D();
+  const quad = q => { p.moveTo(...q[0]); for (const v of q.slice(1)) p.lineTo(...v); p.closePath(); };
+  quad([P(0, -pw), P(CR.L, -pw), P(CR.L, pw), P(0, pw)]); quad([P(cb - cw, -h), P(cb + cw, -h), P(cb + cw, h), P(cb - cw, h)]);
+  shape(p, warm > .5 ? '#c27a46' : PAL.wood, true, () => {
+    const c = shape.ctx; c.fillStyle = PAL.woodS; c.beginPath(); c.moveTo(...P(0, -pw)); c.lineTo(...P(CR.L, -pw)); c.lineTo(...P(CR.L, -pw * .1)); c.lineTo(...P(0, -pw * .1)); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(...P(cb + cw * .1, -h)); c.lineTo(...P(cb + cw, -h)); c.lineTo(...P(cb + cw, h)); c.lineTo(...P(cb + cw * .1, h)); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(60,20,40,.55)'; c.lineWidth = LW * .55; for (const v of [.25, .55]) { c.beginPath(); c.moveTo(...P(40, pw * v)); c.lineTo(...P(CR.L - 30, pw * v)); c.stroke(); }
+  });
+}
+const rimMe = (wk, flip = 1) => ({ A: css(Pilot.mix(hex(PAL.mag), hex(PAL.amber), wk)), B: css(Pilot.mix(hex(PAL.cyan), [255, 214, 160], wk * .6)), vA: [5.5 * flip, .5], vB: [-2.4 * flip, 2.4] });
+function drawMe(ctx, r, o) { const sh = (p, f, rim, det) => MV._shape(p, f, rim, det); MV.drawMe(ctx, r, o); }
+
+// ① wide: me trudging left, a step every two beats, footfalls on the beat (walk distance; the planted foot stays put)
+const Z1 = 2.45, S1 = 1.68 * CAM1.FOC / Z1 / 820;
+const walk1 = t => 133.3 * (t - B0) + 2 * MV.BODY.stride * 0;
+const X1 = t => 890 - walk1(t) * S1;    // screen x of the ground anchor (facing left: x decreases as I walk)
+function pose1(tp) {
+  const k = beatK(tp);
+  return { walk: walk1(tp), walkAmt: 1, armSwing: .25, lean: .26, bounce: -14 * k, look: -.28 - .1 * k, face: -1 };
+}
+// ② bust: standing, the look at 3.2, the release at ~4.2
+function pose2(tp) {
+  const look = eio(ss(3.2, 3.45, tp)), k = beatK(tp) * (1 - look * .6);
+  const rel = ss(4.15, 4.4, tp);
+  return { walkAmt: 0, lean: lerp(.26, .16, look), bounce: -8 * k, look: lerp(-.22 - .07 * k, .3, look), face: -1, slide: 700 * rel * rel, reachAmt: 1 - ss(4.2, 4.4, tp) };
+}
+// ③ ④ standing relieved: arms drop, then a groove bounce + nod on every beat
+function pose3(tp) {
+  const k = beatK(tp), drop = eio(ss(CUT3, 4.85, tp));
+  return { walkAmt: 0, lean: lerp(.18, .06, drop), bounce: -12 * k * ss(4.8, 5.0, tp) + 6 * (1 - drop), look: .05 - .08 * k * ss(4.8, 5.0, tp), face: -1, reachAmt: 1 - drop, slide: 900, armSwing: 0 };
+}
+
+// ---------------- the lying cross as 3-D boxes (③ ④) ----------------
+const add3 = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k], sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross3 = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], nrm3 = a => { const l = Math.hypot(...a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }, dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+function boxFaces(c, u, v, w, hu, hv, hw) {   // 6 faces: [corners(4), outward normal, centre]
+  const P = (a, b, d) => add3(add3(add3(c, u, a * hu), v, b * hv), w, d * hw), F = [];
+  for (const [ax, sg] of [[0, 1], [0, -1], [1, 1], [1, -1], [2, 1], [2, -1]]) {
+    const q = ax === 0 ? [[sg, -1, -1], [sg, 1, -1], [sg, 1, 1], [sg, -1, 1]] : ax === 1 ? [[-1, sg, -1], [1, sg, -1], [1, sg, 1], [-1, sg, 1]] : [[-1, -1, sg], [1, -1, sg], [1, 1, sg], [-1, 1, sg]];
+    const nn = [u, v, w][ax].map(x => x * sg); F.push([q.map(k => P(...k)), nn, add3(c, nn, [hu, hv, hw][ax])]); }
+  return F;
+}
+function crossBoxes(foot, top) {   // world (car) coords → post + bar boxes
+  const u = nrm3(sub3(top, foot)), len = Math.hypot(...sub3(top, foot)), up = [0, 1, 0], v = nrm3(cross3(up, u)), w = cross3(u, v);
+  const pc = add3(foot, u, len / 2), bc = add3(foot, u, len * CR.CBX / CR.L);
+  return [boxFaces(pc, u, v, w, len / 2, .074, .05), boxFaces(bc, v, u, w, .51, .07, .05)];
+}
+function drawBoxes(ctx, car, boxes, camPos, o = {}) {
+  const lw = o.lw || 3;
+  for (const F of boxes) {
+    const vis = F.filter(([q, n, c]) => dot3(n, sub3(camPos, c)) > 0);
+    const paths = vis.map(([q, n]) => { const p = new Path2D(), s = q.map(x => car.pr(...x)); p.moveTo(...s[0]); for (const x of s.slice(1)) p.lineTo(...x); p.closePath(); return [p, n]; });
+    if (!o.mirror) { ctx.strokeStyle = INK; ctx.lineJoin = 'round'; ctx.lineWidth = lw * 2; for (const [p] of paths) ctx.stroke(p); }
+    for (const [p, n] of paths) { ctx.fillStyle = n[1] > .7 ? (o.warm > .3 ? '#d99860' : '#c88a5a') : n[0] * .6 + n[2] * -.8 > 0 ? PAL.woodS : PAL.wood; ctx.fill(p); }
+    if (!o.mirror) { ctx.strokeStyle = INK; ctx.lineWidth = lw * .55; for (const [p] of paths) ctx.stroke(p); }
+  }
+}
+// where it lies in ④ (wide, behind me — as in lab-ghostagram) and in ③ (low angle, in front of me)
+const LIE1 = { foot: [.62, -1.5 + .05, 2.95], top: [-.55, -1.5 + .05, 4.85] };
+const LIE3 = { foot: [1.5, -1.5 + .05, 1.6], top: [-.55, -1.5 + .05, 1.15] };
+function cross3At(t) {   // ③: it slams down from shoulder height, lands on the beat-and, one bounce
+  const u = clamp((t - CUT3) / (LAND - CUT3)), q = u * u;
+  let fy = lerp(-1.5 + .7, LIE3.foot[1], q), ty = lerp(-1.5 + 1.35, LIE3.top[1], clamp(u * 1.15) ** 2);
+  if (t > LAND) { const v = t - LAND, b = .06 * Math.exp(-v * 9) * Math.abs(Math.sin(v * 20)); fy += b * .5; ty += b; }
+  return { foot: [LIE3.foot[0], fy, LIE3.foot[2]], top: [LIE3.top[0] + .1 * (1 - q), ty, LIE3.top[2]] };
+}
+
+// ---------------- passengers (graphite sheet ghosts, bold-outlined copy) ----------------
+const gl = t => ss(5.0, 5.12, t) * (1 - ss(5.85, 5.98, t)) + ss(LAND, LAND + .1, t) * .0;   // heads turn on the beat after the hit
+function sitPose(x, gy, s, f) { return { s, f, gy, hip: [x, gy - 113 * s], ang: f * -.06, feet: [[x + f * 92 * s, gy], [x + f * 112 * s, gy - 1 * s]], hands: [null, null], hand: ['fist', 'fist'], tilt: .38, sway: 0, lap: 108, lapY: -10, hemUp: 64 }; }
+function squatPose(x, gy, s, f) { return { s, f, gy, hip: [x, gy - 54 * s], ang: f * .3, feet: [[x - f * 10 * s, gy], [x + f * 74 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .2, sway: 0, lap: 76, lapY: -62, hemUp: 26 }; }
+function leanPose(x, gy, s, f) { return { s, f, gy, hip: [x, gy - 176 * s], ang: -f * .08, feet: [[x - f * 6 * s, gy], [x + f * 40 * s, gy]], hands: [null, null], hand: ['fist', 'fist'], tilt: .3, sway: 0 }; }
+const GH1 = [   // ① ④ (wide): as in lab-ghostagram
+  { kind: 'sit', z: 3.05, x: -1.22, k: 1.02, f: 1, acc: { phones: '#00f0ff' }, seed: 1, nod: .05 },
+  { kind: 'squat', z: 5.0, x: -1.02, k: .95, f: 1, acc: { cap: '#ff2a85', cap2: '#3b2bb0' }, seed: 2, nod: .04 },
+  { kind: 'lean', z: 9.2, x: -.8, k: 1.0, f: 1, acc: { glasses: true }, seed: 3, nod: .12, mouth: 'grin' },
+  { kind: 'sit', z: 12.5, x: 1.2, k: .85, f: -1, acc: {}, seed: 4, nod: .03 },
+];
+const GH3 = [   // ③ (low angle): the same four, seen from the floor
+  { kind: 'sit', z: 4.3, x: -1.22, k: 1.02, f: 1, acc: { phones: '#00f0ff' }, seed: 1, nod: .05 },
+  { kind: 'squat', z: 4.9, x: .98, k: .95, f: -1, acc: { cap: '#ff2a85', cap2: '#3b2bb0' }, seed: 2, nod: .04 },
+  { kind: 'lean', z: 8.0, x: .8, k: 1.0, f: -1, acc: { glasses: true }, seed: 3, nod: .12, mouth: 'grin' },
+  { kind: 'sit', z: 9.5, x: -1.2, k: .85, f: 1, acc: {}, seed: 4, nod: .03 },
+];
+function phoneAt(F, k = 0) { const fr = G.frame(F), c = fr.P(82, 122); c[1] += 30 * F.s * k; return { c, a: -F.f * .35, w: 22 * F.s, h: 36 * F.s }; }
+const phoneGrips = ph => { const c = Math.cos(ph.a), s = Math.sin(ph.a), P = (u, v) => [ph.c[0] + u * c - v * s, ph.c[1] + u * s + v * c]; return [P(-ph.w * .1, ph.h * .5), P(ph.w * .05, ph.h * .62)]; };
+function drawPhone(ctx, ph, t, seed) {
+  ctx.save(); ctx.translate(ph.c[0], ph.c[1]); ctx.rotate(ph.a);
+  const p = new Path2D(); p.roundRect(-ph.w / 2, -ph.h / 2, ph.w, ph.h, ph.w * .18); ctx.lineWidth = 4; ctx.strokeStyle = INK; ctx.stroke(p); ctx.fillStyle = '#1a1240'; ctx.fill(p);
+  const sw = ph.w * .82, shh = ph.h * .86; ctx.save(); ctx.beginPath(); ctx.rect(-sw / 2, -shh / 2, sw, shh); ctx.clip(); ctx.fillStyle = '#dff8ff'; ctx.fillRect(-sw / 2, -shh / 2, sw, shh);
+  const cell = sw / 2.2, tt = t8(t), off = frac(tt * .9 + seed * .37) * cell * 1.1, cols = ['#ff2a85', '#00f0ff', '#b59cff', '#ff9fcf', '#8ff0ff', '#c8b4ff'];
+  for (let j = -1; j < 5; j++) for (let i = 0; i < 2; i++) { ctx.fillStyle = cols[(j + i * 3 + seed + Math.floor(tt * .9 + seed * .37) * 2 + 60) % 6]; ctx.fillRect(-sw / 2 + 1.5 + i * (cell + 1.5), -shh / 2 + j * cell * 1.1 - off + 2, cell, cell); }
+  ctx.restore(); ctx.restore();
+}
+function ghostF(g, car, t, scale) {
+  const tp = t8(t), s = 1.55 * car.cam.FOC / g.z / 388 * g.k, p = car.pr(g.x, -1.5, g.z), x = p[0], gy = p[1];
+  const F = g.kind === 'sit' ? sitPose(x, gy, s, g.f) : g.kind === 'squat' ? squatPose(x, gy, s, g.f) : leanPose(x, gy, s, g.f);
+  const L = gl(tp), n = g.nod * beatK(tp) * (1 - L);
+  F.tilt += n - .5 * L; F.look = [lerp(4, 14, L), lerp(4, -6, L)]; F.mouth = L > .5 ? 'o' : g.mouth; F.hip[1] += n * 30 * s;
+  F.sheet = '#efeaff'; F.sheetD = PAL.sheetD; F.acc = g.acc; F.shoe = { shoe: '#f6f2ff', sole: g.seed % 2 ? '#00f0ff' : '#ff2a85', lace: '#3a2a98' };
+  const ph = phoneAt(F, L); F.ph = ph;
+  if (g.kind === 'lean') { const sy = car.pr(g.x, .26, g.z)[1]; F.hands = [[F.hip[0] + g.f * 6 * s, sy + 26 * s], phoneGrips(ph)[1]]; } else F.hands = phoneGrips(ph);
+  F.up = { x: ph.c[0], y: ph.c[1], k: 1 - .4 * L };
+  return F;
+}
+const rimG = (f, wk) => ({ A: css(Pilot.mix(hex(PAL.mag), hex(PAL.amber), wk)), B: css(Pilot.mix(hex(PAL.cyan), [255, 214, 160], wk * .5)), vA: [-f * 4.6 * .8, .4], vB: [f * 1.8, 1.8] });
+
+// ---------------- buffers ----------------
+let GL, GX, GB, GBX, GW, GWX, CH0, CH0X, CHR, CHRX, CHB, CHBX, VIG, GRAIN = [], BK, BOKEH;
+const GS = .25;
+async function init() {
+  CAR1 = Car(CAM1); CAR3 = Car(CAM3);
+  GL = Pilot.canvas(W * GS, H * GS); GX = GL.getContext('2d');
+  GB = Pilot.canvas(W * GS, H * GS); GBX = GB.getContext('2d'); GW = Pilot.canvas(W * GS, H * GS); GWX = GW.getContext('2d');
+  for (const k of ['0', 'R', 'B']) { const c = Pilot.canvas(W / 4, H / 4); if (k === '0') { CH0 = c; CH0X = c.getContext('2d'); } else if (k === 'R') { CHR = c; CHRX = c.getContext('2d'); } else { CHB = c; CHBX = c.getContext('2d'); } }
+  VIG = Pilot.canvas(W, H); const v = VIG.getContext('2d'), vg = v.createRadialGradient(W / 2, H * .5, H * .22, W / 2, H * .5, H * .75); vg.addColorStop(0, 'rgba(14,4,30,0)'); vg.addColorStop(1, 'rgba(14,4,30,.75)'); v.fillStyle = vg; v.fillRect(0, 0, W, H);
+  for (let i = 0; i < 3; i++) GRAIN.push(Pilot.speckle(256, 256, 60, 90 + i));
+  BK = Pilot.canvas(64, 64); const bx = BK.getContext('2d'), rg = bx.createRadialGradient(32, 32, 0, 32, 32, 32); rg.addColorStop(0, 'rgba(255,255,255,.9)'); rg.addColorStop(.55, 'rgba(255,255,255,.5)'); rg.addColorStop(1, 'rgba(255,255,255,0)'); bx.fillStyle = rg; bx.fillRect(0, 0, 64, 64);
+  const r = rng(77); BOKEH = []; for (let i = 0; i < 50; i++) BOKEH.push({ x: r() * W, y: 140 + r() * 1500, rr: r() < .15 ? 26 + r() * 40 : 3 + r() * 9, ph: r() * TAU, a: .25 + r() * .5, dx: (r() - .5) * 40, dy: -20 - r() * 40 });
+}
+function bokeh(ctx, t) { ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (const b of BOKEH) { const x = b.x + b.dx * Math.sin(TAU * t / 6 + b.ph), y = b.y + b.dy * .6 * Math.sin(TAU * t / 6 + b.ph * 1.7), tw = .6 + .4 * Math.sin(TAU * t / 2 + b.ph * 3);
+    ctx.globalAlpha = b.a * tw * (b.rr > 20 ? .3 : 1); ctx.drawImage(BK, x - b.rr, y - b.rr, b.rr * 2, b.rr * 2); }
+  ctx.restore(); }
+
+// ---------------- the cuts ----------------
+// ① / ④: the wide shot down the car
+function cutWide(ctx, t, glow) {
+  const car = CAR1, tk = tubeK(t), jig = t > CUT4 ? Math.exp(-(t - LAND) * 2.6) : 0;
+  const tp = t8(t), after = t >= CUT4;
+  const P = after ? pose3(tp) : pose1(tp), { r, X } = meRig(P), x = after ? X1(0) : X1(tp), wk = warmZ(Z1, t);   // ④ stands me back on frame 0's spot: the loop cross-fade only swaps the pose
+  const meO = { x, y: car.pr(0, -1.5, Z1)[1], s: S1, lw: 6, Lt: rimMe(wk, -1), f8: Math.floor(t * 8), open: after ? .8 : .5, mouth: after ? 'soft' : null, warmFace: wk * .5,
+    handNear: after ? 'open' : 'fist', nearBehind: !after, back: after ? null : (shape, LW) => { shape.ctx = ctx; drawCrossLocal(shape, X, LW, wk); } };
+  if (glow) { meO.glow = PAL.mag; meO.back = null; camT(ctx, CAM1); MV.drawMe(ctx, r, meO); return; }
+  ctx.save(); camT(ctx, CAM1);
+  ctx.drawImage(car.bg, 0, 0);
+  car.drawWindows(ctx, t, warmZ);
+  car.floorLights(ctx, t, tk, jig, warmZ);
+  car.drawTube(ctx, tk);
+  car.drawStraps(ctx, t, strapSwing, false);
+  const gp = GH1.map(g => ({ g, F: ghostF(g, car, t) })).sort((a, b) => b.g.z - a.g.z);
+  for (const { g, F } of gp) G.ghost(ctx, F, rimG(g.f, warmZ(g.z, t)), { mid: () => drawPhone(ctx, F.ph, t, g.seed) });
+  if (after) { const camPos = [0, 0, 0]; drawBoxes(ctx, car, crossBoxes(LIE1.foot, LIE1.top), camPos, { lw: 2.6, warm: wk }); }
+  ctx.fillStyle = 'rgba(8,2,28,.5)'; ctx.beginPath(); ctx.ellipse(x - 10, meO.y + 4, 110 * S1 * 1.4, 16, 0, 0, TAU); ctx.fill();
+  MV.drawMe(ctx, r, meO);
+  car.drawStraps(ctx, t, strapSwing, true);
+  ctx.restore();
+  return gp;
+}
+// ②: the bust shot — the opposite wall behind me (tunnel lights streak past), handheld
+const S2 = 2.3, HEAD2 = [600, 860];
+let ANCH2 = null;
+function cutClose(ctx, t, glow) {
+  const tp = t8(t), P = pose2(tp), { r, X } = meRig(P);
+  if (!ANCH2) { const r0 = MV.rig({ ...pose2(2.7), look: 0 }); ANCH2 = [HEAD2[0] + r0.head[0] * S2, HEAD2[1] + r0.head[1] * S2]; }
+  const hx = 7 * Math.sin(t * 3.1) + 4 * Math.sin(t * 7.3), hy = 6 * Math.sin(t * 2.3 + 1) + 3 * Math.sin(t * 6.1);   // handheld
+  const look = ss(3.2, 3.45, tp), blink = tp >= 2.95 && tp < 3.075 ? 1 : 0, wk = ss(3.2, 3.6, t);
+  const meO = { x: ANCH2[0] + hx, y: ANCH2[1] + hy, s: S2, lw: 10, Lt: rimMe(wk, -1), f8: Math.floor(t * 8), open: blink ? 0 : lerp(.42, .92, look), pupil: [lerp(2, 4, look), lerp(-3, 6, look)],
+    mouth: look > .5 ? 'soft' : null, warmFace: wk, handNear: tp >= 4.15 ? 'open' : 'fist', handFar: tp >= 4.15 ? 'open' : 'fist', nearBehind: tp < 4.3, back: (shape, LW) => { shape.ctx = ctx; drawCrossLocal(shape, X, LW, wk); } };
+  if (glow) { meO.glow = PAL.mag; meO.back = null; MV.drawMe(ctx, r, meO); return; }
+  ctx.save(); ctx.translate(hx * .5, hy * .5);
+  // the wall across the aisle: a window band with the tunnel streaking past, straps above, the seat back below
+  ctx.fillStyle = PAL.base; ctx.fillRect(-40, -40, W + 80, H + 80);
+  ctx.fillStyle = '#2a1546'; ctx.fillRect(-40, 1240, W + 80, 700);
+  const wy0 = 380, wy1 = 1120;
+  ctx.save(); ctx.beginPath(); for (const wx of [-260, 300, 860]) ctx.rect(wx, wy0, 520, wy1 - wy0); ctx.clip();
+  ctx.fillStyle = '#0d0a33'; ctx.fillRect(-40, wy0, W + 80, wy1 - wy0);
+  for (let i = 0; i < 9; i++) { const x = ((t * 2600 + i * 420) % 3780) - 900, y = wy0 + 120 + (i * 97) % 520;
+    ctx.strokeStyle = 'rgba(0,240,255,.9)'; ctx.lineWidth = 16; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 520, y); ctx.stroke(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 5; ctx.stroke(); }
+  if (wk > 0) { const sx = lerp(-300, W + 300, ss(3.2, 3.55, t)); ctx.fillStyle = `rgba(255,170,70,${.92})`; ctx.fillRect(-40, wy0, sx + 40, wy1 - wy0);
+    const gg = ctx.createLinearGradient(sx - 200, 0, sx + 60, 0); gg.addColorStop(0, 'rgba(255,170,70,0)'); gg.addColorStop(1, 'rgba(255,170,70,0)');
+    for (let i = 0; i < 4; i++) { const px = ((t * 900 + i * 380) % 1520) - 220; if (px < sx) { ctx.fillStyle = 'rgba(80,20,70,.6)'; ctx.fillRect(px, wy0, 70, wy1 - wy0); } }
+    ctx.fillStyle = 'rgba(255,226,166,.9)'; ctx.fillRect(-40, wy0 + 40, Math.max(0, sx + 40), 26); }
+  ctx.restore();
+  ctx.strokeStyle = INK; ctx.lineWidth = 12; for (const wx of [-260, 300, 860]) ctx.strokeRect(wx, wy0, 520, wy1 - wy0);
+  ctx.fillStyle = '#c9d2ff'; ctx.fillRect(-40, wy1 + 6, W + 80, 18); ctx.strokeRect(-60, wy1 + 6, W + 120, 18);
+  ctx.fillStyle = '#9a2a70'; ctx.fillRect(-40, 1560, W + 80, 400); ctx.strokeRect(-60, 1560, W + 120, 420);
+  // straps (on threes) along the top
+  const sw0 = t8(t); ctx.lineCap = 'round';
+  for (let i = 0; i < 5; i++) { const x0 = -60 + i * 290, th = .16 * Math.sin(TAU * sw0 / 3 + i * .6), bx = x0 + Math.sin(th) * 200, by = 120 + Math.cos(th) * 200;
+    ctx.strokeStyle = INK; ctx.lineWidth = 26; ctx.beginPath(); ctx.moveTo(x0, -20); ctx.lineTo(bx, by); ctx.stroke(); ctx.strokeStyle = '#ff7ab4'; ctx.lineWidth = 12; ctx.stroke();
+    ctx.lineWidth = 30; ctx.strokeStyle = INK; ctx.beginPath(); ctx.ellipse(bx, by + 60, 44, 62, th, 0, TAU); ctx.stroke(); ctx.lineWidth = 16; ctx.strokeStyle = PAL.mag; ctx.stroke(); }
+  ctx.restore();
+  // a soft amber light band sweeping across the face as the station arrives
+  MV.drawMe(ctx, r, meO);
+  if (t > 3.15 && t < 3.75) { const u = (t - 3.15) / .6, bxp = lerp(-500, W + 500, u); ctx.save(); ctx.globalCompositeOperation = 'screen';
+    const g = ctx.createLinearGradient(bxp - 260, 0, bxp + 260, 0); g.addColorStop(0, 'rgba(255,170,70,0)'); g.addColorStop(.5, `rgba(255,190,110,${.55 * Math.sin(Math.PI * u)})`); g.addColorStop(1, 'rgba(255,170,70,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); ctx.restore(); }
+}
+// ③: the low floor angle — the cross slams down in front of me
+const Z3 = 1.95, S3 = 1.68 * CAM3.FOC / Z3 / 820, MX3 = -.3;
+function cutLow(ctx, t, glow) {
+  const car = CAR3, tk = tubeK(t), jig = t > LAND ? Math.exp(-(t - LAND) * 2.6) : 0, tp = t8(t);
+  const P = pose3(tp), { r } = meRig(P), gp0 = car.pr(MX3, -1.5, Z3), wk = warmZ(4, t);
+  const meO = { x: gp0[0], y: gp0[1], s: S3, lw: 7, Lt: rimMe(wk, -1), f8: Math.floor(t * 8), open: .85, mouth: tp < 5.0 ? 'o' : 'soft', warmFace: wk * .5, handNear: 'open', handFar: 'open' };
+  if (glow) { meO.glow = PAL.mag; MV.drawMe(ctx, r, meO); return; }
+  ctx.drawImage(car.bg, 0, 0);
+  car.drawWindows(ctx, t, warmZ);
+  car.floorLights(ctx, t, tk, jig, warmZ);
+  car.drawTube(ctx, tk);
+  car.drawStraps(ctx, t, strapSwing, false, 0);
+  const gp = GH3.map(g => ({ g, F: ghostF(g, car, t) })).sort((a, b) => b.g.z - a.g.z);
+  for (const { g, F } of gp) G.ghost(ctx, F, rimG(g.f, warmZ(g.z, t)), { mid: () => drawPhone(ctx, F.ph, t, g.seed) });
+  ctx.fillStyle = 'rgba(8,2,28,.55)'; ctx.beginPath(); ctx.ellipse(meO.x - 10, meO.y + 3, 120 * S3, 12, 0, 0, TAU); ctx.fill();
+  MV.drawMe(ctx, r, meO);
+  // the cross: its reflection in the glossy floor, then the boxes
+  const C3 = cross3At(t), camPos = [CAM3.cx || 0, CAM3.E - 1.5, CAM3.cz || 0];
+  const mir = p => [p[0], 2 * -1.5 - p[1], p[2]];
+  ctx.save(); ctx.globalAlpha = .28; drawBoxes(ctx, car, crossBoxes(mir(C3.foot), mir(C3.top)), [camPos[0], 2 * -1.5 - camPos[1], camPos[2]], { mirror: true }); ctx.restore();
+  drawBoxes(ctx, car, crossBoxes(C3.foot, C3.top), camPos, { lw: 4.5, warm: wk });
+  return gp;
+}
+
+// ---------------- frame ----------------
+function shot(t) { return t < CUT2 ? 1 : t < CUT3 ? 2 : t < CUT4 ? 3 : 4; }
+function draw(ctx, t) {
+  const sh = shot(t), imp = t > LAND && sh === 3 ? Math.exp(-(t - LAND) * 9) : 0;
+  const shx = 12 * imp * Math.sin(t * 90), shy = 10 * imp * Math.cos(t * 70) + 1.2 * beatK(t);
+  ctx.save(); ctx.translate(shx, shy);
+  let gp = null;
+  if (sh === 1 || sh === 4) gp = cutWide(ctx, t, false); else if (sh === 2) cutClose(ctx, t, false); else gp = cutLow(ctx, t, false);
+  ctx.restore();
+  // ---- bloom (quarter res): the neon, the windows, the phones, my neon rim ----
+  GX.setTransform(1, 0, 0, 1, 0, 0); GX.clearRect(0, 0, GL.width, GL.height); GX.setTransform(GS, 0, 0, GS, GS * shx, GS * shy);
+  GX.save();
+  if (sh === 1 || sh === 4) { camT(GX, CAM1); CAR1.drawTube(GX, tubeK(t)); GX.globalAlpha = .5; CAR1.drawWindows(GX, t, warmZ); GX.globalAlpha = 1; }
+  else if (sh === 3) { CAR3.drawTube(GX, tubeK(t)); GX.globalAlpha = .5; CAR3.drawWindows(GX, t, warmZ); GX.globalAlpha = 1; }
+  if (gp) for (const { F } of gp) { GX.fillStyle = 'rgba(190,250,255,.9)'; GX.beginPath(); GX.arc(F.ph.c[0], F.ph.c[1], F.ph.w * .7, 0, TAU); GX.fill(); }
+  GX.restore();
+  GX.save(); GX.globalAlpha = .55; if (sh === 1 || sh === 4) cutWide(GX, t, true); else if (sh === 2) cutClose(GX, t, true); else cutLow(GX, t, true); GX.restore();
+  for (const [X, r] of [[GBX, 3], [GWX, 12]]) { X.setTransform(1, 0, 0, 1, 0, 0); X.clearRect(0, 0, GB.width, GB.height); X.filter = `blur(${r}px)`; X.drawImage(GL, 0, 0); X.filter = 'none'; }
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .5; ctx.drawImage(GB, 0, 0, W, H); ctx.globalAlpha = .7; ctx.drawImage(GW, 0, 0, W, H); ctx.restore();
+  if (sh !== 2) bokeh(ctx, t);
+  // ---- lyric subtitle: peach-yellow, dark outline, low in the frame (baseline 1460, above the platform UI) ----
+  const line = t < CUT2 ? (t > .15 ? '왜 나만' : '') : '이렇게 무거울까';
+  if (line) { ctx.save(); ctx.font = "700 92px 'Gaegu', cursive"; ctx.textAlign = 'center'; ctx.lineJoin = 'round'; const s = Pilot.tr ? Pilot.tr(line) : line;
+    ctx.fillStyle = 'rgba(10,2,24,.6)'; ctx.fillText(s, 540 + 4, 1460 + 7);
+    ctx.strokeStyle = '#1a0b2e'; ctx.lineWidth = 14; ctx.strokeText(s, 540, 1460); ctx.fillStyle = PAL.peach; ctx.fillText(s, 540, 1460); ctx.restore(); }
+  // ---- post: colour fringe growing toward the edges (red out, cyan in), vignette, grain ----
+  const ab = .012 + .035 * imp;
+  CH0X.drawImage(ctx.canvas, 0, 0, CH0.width, CH0.height);
+  for (const [X, col] of [[CHRX, '#ff1030'], [CHBX, '#0090ff']]) { X.globalCompositeOperation = 'source-over'; X.drawImage(CH0, 0, 0); X.globalCompositeOperation = 'multiply'; X.fillStyle = col; X.fillRect(0, 0, CH0.width, CH0.height); }
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .13;
+  for (const [c, k] of [[CHR, 1 + ab], [CHB, 1 - ab]]) { const w = W * k, h = H * k; ctx.drawImage(c, (W - w) / 2, (H - h) / 2, w, h); }
+  ctx.restore();
+  ctx.drawImage(VIG, 0, 0);
+  ctx.save(); ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = .16; const fi = Math.floor(t * 12), ox = (fi * 73) % 256, oy = (fi * 131) % 256;
+  ctx.fillStyle = ctx.createPattern(GRAIN[fi % 3], 'repeat'); ctx.translate(-ox, -oy); ctx.fillRect(0, 0, W + 256, H + 256); ctx.restore();
+}
+Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: ["700 92px 'Gaegu'"], init, draw });
+</script>
+<script>window.POSTER_T = 4.2;</script>
+    <style>#pv-play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:9;background:rgba(0,0,0,.25);
+    border:0;color:#fff;font:600 18px/1.4 system-ui,sans-serif;cursor:pointer}#pv-play span{display:flex;flex-direction:column;align-items:center;gap:10px}
+    #pv-play b{display:flex;align-items:center;justify-content:center;width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.6);
+    border:2px solid rgba(255,255,255,.85);font-size:34px;padding-left:6px;box-sizing:border-box}#pv-play[hidden]{display:none}</style>
+    <button id="pv-play" type="button" hidden><span><b>▶</b>탭해서 재생 · 소리 켜기</span></button>
+    <script>(function w(){var pp=document.getElementById('pp'),o=document.getElementById('pv-play');
+    if(!pp||!window.__ready)return setTimeout(w,100);o.hidden=false;o.onclick=function(){o.remove();pp.click();};})();</script>
+    </body>
+</html>
