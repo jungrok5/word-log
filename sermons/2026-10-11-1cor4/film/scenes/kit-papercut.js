@@ -282,12 +282,13 @@
     ctx.fillStyle = 'rgba(255,200,130,.16)'; ctx.beginPath(); ctx.moveTo(x - 20, by + 2); ctx.lineTo(x + 20, by + 2); ctx.lineTo(x + 150, by + 60); ctx.lineTo(x - 170, by + 60); ctx.fill(); ctx.restore();
   };
   /* lightWindow(ctx, x, y, r, a, o): the accent light — the backing glows warm (C.light → C.light2) in a disc of radius r
-     behind the pieces, a = 0..1. Draw it on the backing before the world; o.rays = number of cut sun-ray strips (0). */
+     behind the pieces, a = 0..1. Draw it in the world after the ground sheet and before the pieces it backlights;
+     o.rays = number of pale ray strips (0), o.rayA their alpha (.35), o.rot their rotation. */
   P.lightWindow = function (ctx, x, y, r, a, o = {}) {
     if (a <= 0) return;
     ctx.save(); ctx.globalAlpha = a; const lg = ctx.createRadialGradient(x, y, r * .07, x, y, r); lg.addColorStop(0, C.light); lg.addColorStop(.45, C.light2); lg.addColorStop(1, 'rgba(236,140,60,0)');
     ctx.fillStyle = lg; ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
-    const n = o.rays || 0; if (n) { ctx.fillStyle = 'rgba(255,236,190,.35)'; for (let i = 0; i < n; i++) { const an = (o.rot || 0) + i * TAU / n, w = .07;
+    const n = o.rays || 0; if (n) { ctx.fillStyle = `rgba(255,236,190,${o.rayA ?? .35})`; for (let i = 0; i < n; i++) { const an = (o.rot || 0) + i * TAU / n, w = .07;
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(an - w) * r * 1.1, y + Math.sin(an - w) * r * 1.1); ctx.lineTo(x + Math.cos(an + w) * r * 1.1, y + Math.sin(an + w) * r * 1.1); ctx.fill(); } }
     ctx.restore();
   };
