@@ -13,8 +13,8 @@
 <script src="kit-inkcomic.js"></script>
 <script>
 /* InkComic template — the shared placeholder story in the minimal ink-comic house style (styles/inkcomic/STYLE.md).
-   A bear plods along the road with a seed in its mouth… no: carried in a forepaw it steps on. It bows (front down), sets the
-   seed down with its near forepaw and pats the earth twice, lies down and waits (the drawing boils, a cloud drifts, it
+   A bear plods along the road with a seed in its mouth. It bows (front down) and drops the seed, presses it into the
+   ground with its near forepaw and pats the earth twice, lies down and waits (the drawing boils, a cloud drifts, it
    breathes and blinks), a sprout rises in the warm light, the bear gets up, sits up on its haunches and looks up at it; end
    card on a blank page. To make a film: write scenes/script.js, then replace the SEED / SPROUT and the choreography below.
    Keep the frame order: IC.begin → world on g (road, things, figures) → IC.endWhite → IC.finish → captions → end card. */
@@ -112,9 +112,11 @@ function draw(ctx, t) {
   IC.road(g, cm, { front: G1, back: GB });
   drawMound(g, t);
   drawSprout(g, t);
-  if (t < B.plant) { F.front = () => drawSeed(g, [F.legs ? F.legs[0][0] : IC.footOf(F, 0)[0] + 10, (F.legs ? F.legs[0][1] : FY) - 20]); }   // the seed under the near forepaw
-  else if (t < B.plant + .4) drawSeed(g, [SEED[0], SEED[1] - 4 + 8 * eo((t - B.plant) / .4)]);
-  IC.drawBear(g, F);
+  // the seed: in the bear's mouth (a four-legged character uses its mouth), dropped at the bow, then pressed in by the paw
+  const mouth = HD.pt(IC.headM(IC.bodyM(F), F), 250, -30), drop = B.plant - .9;
+  if (t < drop) F.front = () => drawSeed(g, mouth);
+  else if (t < B.plant + .4) { const k = clamp((t - drop) / .35); IC.drawBear(g, F); drawSeed(g, t < B.plant ? [lerp(mouth[0], SEED[0], k), lerp(mouth[1], SEED[1] - 6, k * k)] : [SEED[0], SEED[1] - 6 + 8 * eo((t - B.plant) / .4)]); }
+  if (!(t >= drop && t < B.plant + .4)) IC.drawBear(g, F);
   IC.endWhite(g, t, B.end);
   IC.finish(ctx);
   if (t < B.end) IC.captions(ctx, t, S.lines);
