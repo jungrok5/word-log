@@ -136,7 +136,7 @@ function world(ctx, t) {
   drawSprout(ctx, t);
   const F = poseMe(t); F.col = C.me;
   drawFig(ctx, F, t >= B.walk[1] && t < B.plant ? () => {} : null);
-  if (t >= B.walk[1] && t < B.plant) { const hN = F.hands[1]; PC.drawSprite(ctx, TX.seed, hN[0] + 4, hN[1] - 8, .3, .9); }   // the seed in his fist
+  if (t >= B.walk[1] && t < B.plant) { const hN = F.hands[1] || PC.hangHands(F)[1]; PC.drawSprite(ctx, TX.seed, hN[0] + 4, hN[1] - 8, .3, .9); }   // the seed in his fist
   if (L > 0) PC.glow(ctx, top[0], top[1], 200, .22 * L * (1 - .5 * ss(B.rise, B.rise + 2, t)), '255,226,160', '255,180,100');
 }
 function draw(ctx, t) {
