@@ -21,8 +21,8 @@
 const S = window.SCRIPT, B = S.beat, { clamp, lerp, ss, eo, eio } = Pilot;
 const Rig = Riso.Rig, C = Riso.C, { ink, ell, tube, glow, tone } = Riso;
 const FY = 1300, SK = 1.0;                       // the lane the kid walks on (world y), the kid's scale
-const KX = 548, X0 = 300;                        // where the kid kneels, where it enters (visible at frame 0)
-const P0 = [KX + 104, FY - 2];                   // where the seed goes into the ground
+const KX = 548, X0 = 330;                        // where the kid kneels, where it enters (visible at frame 0)
+const P0 = [KX + 96, FY - 36];                   // where the seed goes into the ground (a little back on the road, within reach)
 let ROAD = null;
 function init() {
   Riso.init();

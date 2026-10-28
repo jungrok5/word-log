@@ -26,29 +26,33 @@ const TAU = Math.PI * 2;
 const FY = 1388, G1 = 1404, GB = 1286;          // feet line, the road's front and back edges
 const X0 = 120, XK = 520;                        // where the bear enters, where it stops
 const SEED = [XK + 196, FY - 4];                 // the planting point, just ahead of the near forepaw
+const XB = XK - 130;                             // after planting it backs off to here, so the sprout rises clear of its head
 
 // ---------------- the bear's choreography (poses on 12 fps) ----------------
 const walkX = HD.walker(X0, XK, B.walk[1], .35);
 const BOW = () => { const F = standSpec(XK, FY, 1, { rot: .14, sag: 22, head: .5 }); F.legs = legsOf(F); return F; };     // front down over the spot
-const LIE = () => lieSpec(XK, FY, 1, { head: .42 });
-const STAND = () => standSpec(XK, FY, 1, { head: -.1, sag: 4 });
-const SIT = () => sitSpec(XK, FY, 1, [[XK + 70, FY - 128], [XK + 92, FY - 140]], { head: -.48, face: 'look' });   // up on the haunches, forepaws curled at the chest
+const LIE = () => lieSpec(XB, FY, 1, { head: .42 });
+const STAND = () => standSpec(XB, FY, 1, { head: -.1, sag: 4 });
+const SIT = () => sitSpec(XB, FY, 1, [[XB + 70, FY - 128], [XB + 92, FY - 140]], { head: -.48, face: 'look' });   // up on the haunches, forepaws curled at the chest
 function poseMe(t) {
   const tp = t12(t);
   if (tp < B.walk[1]) { const x = walkX(tp); return walkSpec(x, FY, 1, x / 150, { stride: 22, sag: 4, head: .14 }); }
   const W0 = walkSpec(XK, FY, 1, XK / 150, { stride: 22, sag: 4, head: .14 });
   if (tp < B.kneel) return mixSpec({ ...W0, moving: false }, BOW(), eio((tp - B.walk[1]) / (B.kneel - B.walk[1])));
-  if (tp < B.wait[0]) {
+  if (tp < B.wait[0] + .7) {
     const F = BOW(), rest = F.legs[0], up = [SEED[0] - 10, SEED[1] - 46];
     // the near forepaw: lifts and reaches forward, sets the seed down (B.plant), pats twice, comes back
     let p = rest;
     if (tp < B.plant - .7) p = rest;
     else if (tp < B.plant) p = lerp2(rest, up, eio((tp - B.plant + .7) / .5)), p = tp > B.plant - .2 ? lerp2(up, [SEED[0] - 10, SEED[1]], eio((tp - B.plant + .2) / .2)) : p;
     else if (tp < B.plant + 1.0) p = [SEED[0] - 10, SEED[1] - 26 * Math.max(0, Math.sin(Math.PI * 2 * (tp - B.plant - .1) / .9))];
-    else p = lerp2([SEED[0] - 10, SEED[1]], rest, eio((tp - B.plant - 1.0) / .6));
+    else p = lerp2([SEED[0] - 10, SEED[1]], rest, eio((tp - B.plant - 1.0) / .5));
     F.legs[0] = p; F.face = tp > B.plant + .3 ? 'happy' : 'calm';
-    if (tp > B.plant + 1.6) return mixSpec(F, LIE(), eio((tp - B.plant - 1.6) / .5));   // and lies down to wait
-    return F;
+    if (tp < B.plant + 1.5) return F;
+    // backs off a few steps (still facing it), then lies down to wait
+    const bx = lerp(XK, XB, eio((tp - B.plant - 1.5) / .7)), BK = { ...walkSpec(bx, FY, 1, bx / 150, { stride: 18, sag: 6, head: .2 }), face: 'happy' };
+    if (tp < B.plant + 1.7) return mixSpec(F, BK, eio((tp - B.plant - 1.5) / .2));
+    return tp < B.plant + 2.2 ? BK : mixSpec({ ...BK, moving: false }, LIE(), eio((tp - B.plant - 2.2) / .5));
   }
   if (tp < B.rise) {
     const F = LIE(); F.sag += 3 * Math.sin((tp - B.wait[0]) * 2.2);                       // breathing
@@ -72,7 +76,7 @@ function drawSprout(g, t) {
   const lit = ss(B.sprout - .1, B.sprout + .8, t), base = cam([[SEED[0], SEED[1] - h * .5]])[0];
   // the warm light: one big highlighter oval behind it + the breathing glow at its foot (both multiplied)
   g.save(); g.globalAlpha = lit * .8; g.globalCompositeOperation = 'multiply';
-  HD.fillPts(g, HD.arc(base[0], base[1], (110 + h * .35) * IC.ZK, (60 + h * .62) * IC.ZK, 0, TAU, 8), IC.LIGHT + '.38)'); g.restore();
+  HD.fillPts(g, HD.arc(base[0], base[1], (90 + h * .26) * IC.ZK, (50 + h * .56) * IC.ZK, 0, TAU, 8), IC.LIGHT + '.34)'); g.restore();
   IC.glowAt(g, cam([SEED])[0], t, 150 * IC.ZK, 3, lit);
   const line = []; for (let i = 0; i <= 10; i++) line.push(stemPt(t, i / 10));
   mk(g, cam(line), 3100, { w: 8, mn: .7, ts: 4, te: 30, blob: 0 });
@@ -100,9 +104,9 @@ function drawCloud(g, t) {   // one comic cloud drifting across the sky — the 
 function camAt(t) {
   let c = { x: walkX(Math.min(t, B.walk[1])) + 190, y: 1190, z: 1.25 };                       // the hook: the bear on the road at frame 0
   c = IC.mixCam(c, { x: XK + 150, y: 1210, z: 1.45 }, eio((t - 3.4) / 2.4));               // in on the planting
-  c = IC.mixCam(c, { x: XK + 140, y: 1230, z: 1.6 }, eio((t - B.wait[0]) / 6));             // a slow push while nothing happens
-  c = IC.mixCam(c, { x: XK + 120, y: 1120, z: 1.1 }, eio((t - B.sprout) / 1.8));           // back off: the sprout rises
-  c = IC.mixCam(c, { x: XK + 110, y: 1080, z: 1.05 }, eio((t - B.rise) / 2));
+  c = IC.mixCam(c, { x: XK + 60, y: 1230, z: 1.55 }, eio((t - B.wait[0]) / 6));             // a slow push while nothing happens
+  c = IC.mixCam(c, { x: XK + 60, y: 1120, z: 1.1 }, eio((t - B.sprout) / 1.8));           // back off: the sprout rises
+  c = IC.mixCam(c, { x: XK + 40, y: 1080, z: 1.05 }, eio((t - B.rise) / 2));
   c.sx = 0; c.sy = 0; return c;
 }
 
