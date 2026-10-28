@@ -13,7 +13,7 @@ hooded silhouettes with **a rim of fog light** on their upper-left edges. **One 
 arch of light — and its glow; a second warm rim appears on the figures once that light is in view.
 
 **Carries well:** being lost or small, a journey or procession, waiting, searching, one light found in the fog (hope,
-grace, a calling), the unseen (a giant stag standing in the fog), quiet awe, slow revelation. Silhouette poses read
+grace, a calling), the unseen (a shape half-seen in the fog), quiet awe, slow revelation. Silhouette poses read
 instantly — gesture is the acting.
 **Carries badly:** faces and facial emotion (there are none), text or detailed props (they turn into blobs), many colours,
 crowded interiors, cities/modern objects, bright cheerful moods, anything needing small detail at phone size.
@@ -98,6 +98,7 @@ Pilot.run({ W: Pilot.W, H: Pilot.H, dur: S.DUR, fonts: FF.FONTS, init, draw });
   (they are soft anyway); the action buffer and its rims only touch the figure band (`wy0…wy1`) — keep that band tight.
 
 ## Pitfalls
+- The giant stag (`forest({ stag })`, opt-in, off by default) puzzled 3/4 viewers in the cross film (v2 removed it) — use only when the story needs it.
 - `init({ cam })` must be able to run the camera for every t before `forest()` (planes are sized from it): build your
   timeline first. A camera that later goes outside what it saw at init shows plane edges — rebuild or add margin.
 - Rims are made from the action layer itself: anything on it gets rimmed. A thin shape (< ~10 px: a stem, a rope) is rim on

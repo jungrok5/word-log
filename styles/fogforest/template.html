@@ -14,7 +14,7 @@
 <script>
 /* A new scene in the fogforest house style (styles/fogforest/STYLE.md). The kit draws the medium; this file draws the story.
    PLACEHOLDER STORY (the same in every kit): a hooded silhouette walks in along the fog path with a seed glowing faintly in
-   its fist, crouches and plants it, kneels and waits while the fog drifts (a giant stag stands far off in the fog), a sprout
+   its fist, crouches and plants it, kneels and waits while the fog drifts, a sprout
    rises carrying the one warm light, the figure stands and looks down at it; the fog closes in for the end card.
    Keep: init → FF.init + forest/buildFrame + road once;  draw → backdrop, world layer, midFog, action (+ rims), warm light,
    foreground, captions, end plate, end card. Replace the subject (seed, sprout, poses, camera) with your film's one image. */
@@ -121,7 +121,7 @@ function draw(ctx, t) {
 }
 async function init() {
   FF.init({ cam: camAt, dur: S.DUR });
-  FF.forest({ stag: { x: 560, s: .5 } });   // the giant stag in the fog (plane 2, p .25): its x is in that plane's coords
+  FF.forest();   // opt-in: FF.forest({ stag: { x, s } }) puts the giant stag in the fog — it puzzled viewers, use only when the story needs it
   FF.buildFrame();
   ROAD = FF.road({ x0: -1200, x1: 3200, top: RT });
 }
